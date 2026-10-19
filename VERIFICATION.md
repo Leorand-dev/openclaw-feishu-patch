@@ -6,8 +6,8 @@ Current initial version: **`@openclaw/feishu@2026.10.5`**.
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.10.5/feishu-tool-aggregation.patch` | `ae10e953e2d8e5b41d7e5089d3fae27a13a265a83e95e867cddcc8b2845fc046` |
-| patched bundle | `2b3af8e44abc4bd580ccdf27a77ba2e85e53c2a46051fedfa6d5c01ba9270c68` |
+| `patches/2026.10.5/feishu-tool-aggregation.patch` | `a8aae50ba9c3f4c8a4a47c6a5b1d944b75e1fe11241d2a63e11388264c2e5db9` |
+| patched bundle | `c28c462e24625d32e9a1ed8fdc7e21edb2c017c3c6a04b7ba24fff52ec5b5fe3` |
 | pristine bundle | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 
 The bundle files are not redistributed here; hashes are reference values for the
@@ -15,7 +15,7 @@ exact supported build.
 
 ## Mechanical verification
 
-- Patch size: **26 hunks**.
+- Patch size: **29 hunks**.
 - `original.mjs` + patch → `patched.mjs`: forward **byte-exact** (offset 0).
 - Reverse patch: **byte-exact**.
 - `node --check patched.mjs`: exit 0.
@@ -27,15 +27,15 @@ exact supported build.
 `tests/run-all.mjs` against the patched bundle:
 
 ```
-54 parser/delivery
+72 parser/delivery
 26 waiting-line/aggregation
 26 block-fold/status-line
 33 execution harness
-31 idle/timer/content
+33 idle/timer/content
 32 narration ticker
 55 display/backfill/session
-96 structural audit
-= 353 assertions, 8/8 suites passed
+100 structural audit
+= 377 assertions, 8/8 suites passed
 ```
 
 ## Sanitized live verification
@@ -51,6 +51,9 @@ On a live OpenClaw 2026.10.5 / Feishu instance:
   `[Generating...]`.
 - Final answer content appeared **once**; no duplicated prefix or repeated
   80-character block.
+- A later live test on a host with multi-tool turns confirmed the final answer
+  streams into the **same** card: one user message produced exactly one
+  interactive card; the tool-progress card was not left behind.
 
 ## Reproduction
 

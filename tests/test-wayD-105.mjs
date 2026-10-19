@@ -64,7 +64,23 @@ const realShapes = [
   ["Image: `a cat`", "image"],
   ["Message: `user:1`", "message"],
   ["Apply Patch", "apply_patch"],
-  ["Session Settings", "sessions"]
+  ["Session Settings", "sessions"],
+  ["Tool Call: current", "tool_call"],
+  ["Session Status: current", "session_status"],
+  ["Tool Result: current", "tool_result"],
+  ["Function Call: current", "function_call"],
+  ["Update Plan: current", "update_plan"],
+  ["Patch: current", "patch"],
+  ["Open: item", "open"],
+  ["Click: item", "click"],
+  ["Find: item", "find"],
+  ["Screenshot: current", "screenshot"],
+  ["Command: current", "command"],
+  ["Search: current", "search"],
+  ["Automations: current", "automations"],
+  ["Session History: session agent:ops:main, limit 4", "session_history"],
+  ["Session Search: feishu-tool-aggregation install", "session_search"],
+  ["Tool Describe: automations", "tool_describe"]
 ];
 for (const [text, label] of realShapes) {
   ok(`real emitter shape aggregates: ${label}`, parseAny({ text, mediaUrls: undefined }, { kind: "tool" }) !== undefined, JSON.stringify(text));
@@ -99,6 +115,8 @@ ok("narration is suppressed even without aggregation", decide(narration, { kind:
 ok("media-bearing tool result -> delivered", decide({ text: "🛠️ Exec", mediaUrls: ["https://x/a.png"] }, { kind: "tool" }) === "deliver");
 ok("bare media result -> delivered", decide({ text: "image", mediaUrls: ["https://x/i.png"] }, { kind: "tool" }) === "deliver");
 ok("extra-key tool payload -> delivered", decide({ text: "🛠️ Exec", mediaUrls: undefined, toolName: "exec" }, { kind: "tool" }) === "deliver");
+ok("Tool Call progress aggregates", decide({ text: "Tool Call: current", mediaUrls: undefined }, { kind: "tool" }) === "aggregated");
+ok("Session Status progress aggregates", decide({ text: "Session Status: current", mediaUrls: undefined }, { kind: "tool" }) === "aggregated");
 ok("MCP/custom label -> delivered", decide({ text: "mcp__foo__bar", mediaUrls: undefined }, { kind: "tool" }) === "deliver");
 ok("tool error -> delivered", decide({ text: "🛠️ Exec", mediaUrls: undefined, isError: true }, { kind: "tool" }) === "deliver");
 ok("recognized tool with failed aggregation -> delivered (no silent loss)", decide(liveTool, { kind: "tool" }, false) === "deliver");

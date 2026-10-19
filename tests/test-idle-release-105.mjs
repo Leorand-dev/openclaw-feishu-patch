@@ -52,7 +52,8 @@ return {
   addFinalText: (v) => deliveredFinalTexts.add(v),
   setReject: (v) => { rejectQueued = v; },
   setActiveStreaming: (v) => { streaming = { isActive: () => v }; },
-  setFinalSeen: (v) => { finalDeliverySeen = v; }
+  setFinalSeen: (v) => { finalDeliverySeen = v; },
+  setFinalInProgress: (v) => { finalDeliveryInProgress = v; }
 };
 `)();
 
@@ -136,6 +137,10 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   ok("active card held on dispatcher idle (no final yet)", sandbox.onIdle() === undefined);
   ok("active card hold does not schedule close timer", sandbox.timers().length === timersBeforeHold);
   ok("active card hold does not queue idle effects", sandbox.queued() === queuedBeforeHold);
+  sandbox.setFinalInProgress(true);
+  ok("active card held while final delivery in progress", sandbox.onIdle() === undefined);
+  ok("in-progress hold does not queue", sandbox.queued() === queuedBeforeHold);
+  sandbox.setFinalInProgress(false);
   sandbox.setFinalSeen(true);
   const finalIdle = sandbox.onIdle();
   ok("active card closes once final seen", await Promise.resolve(finalIdle) === "ok");

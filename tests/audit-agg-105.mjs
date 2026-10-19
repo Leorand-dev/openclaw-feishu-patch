@@ -82,9 +82,14 @@ ok("failed outcome releases hold", /replyOutcome\?\.kind === "failed"/.test(src)
 ok("fallback final content recorded for dedupe", /const deliveredFinalContent = finalizedAnswerText \|\| text;/.test(src) && /deliveredFinalTexts\.add\(deliveredFinalContent\);/.test(src));
 ok("fallback send records final dedupe", /if \(infoKind === "final" && delivered\?\.visibleReplySent === true\) deliveredFinalTexts\.add\(content\);/.test(src));
 
-ok("final delivery tracked for lifecycle", /let finalDeliverySeen = false;/.test(src) && /if \(info\?\.kind === "final"\) finalDeliverySeen = true;/.test(src));
-ok("active card held until final", /streaming\?\.isActive\(\) === true && !finalDeliverySeen && !terminalQuiet/.test(src));
-ok("cleanup finalizes active card", /onCleanup: \(\) => \{\s*typingCallbacks\?\.onCleanup\?\.\(\);\s*if \(streaming\?\.isActive\(\) === true\)/.test(src) && /cleanup card finalization failed/.test(src));
+ok("final delivery tracked for lifecycle", /const isFinalDelivery = info\?\.kind === "final";/.test(src) && /finalDeliverySeen = true;/.test(src) && /finalDeliveryInProgress = true;/.test(src));
+ok("final delivery in-progress guard", /let finalDeliveryInProgress = false;/.test(src) && /!finalDeliverySeen \|\| finalDeliveryInProgress/.test(src) && /finalDeliveryInProgress = false;/.test(src));
+ok("cleanup respects final in-progress", /streaming\?\.isActive\(\) === true && !finalDeliveryInProgress/.test(src));
+ok("cleanup close deferred by grace", /CLEANUP_CLOSE_GRACE_MS = 2e3;/.test(src) && /scheduleCleanupClose\(\)/.test(src) && /clearCleanupCloseTimer\(\)/.test(src));
+ok("final static fallback discards active preview", /final static fallback: discarding active streaming preview/.test(src));
+
+ok("active card held until final", /streaming\?\.isActive\(\) === true && \(!finalDeliverySeen \|\| finalDeliveryInProgress\) && !terminalQuiet/.test(src));
+ok("cleanup finalizes active card", /onCleanup: \(\) => \{/.test(src) && /streaming\?\.isActive\(\) === true && !finalDeliveryInProgress/.test(src) && /cleanup card finalization failed/.test(src));
 
 ok("waiting line switches to tool-done on assistant start", /if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);\s*waitingLine = buildToolDoneLine\(aggregatedToolTotal\);/.test(src));
 ok("transient clear keeps waiting line", /const clearTransientStatusLines = \(\) => \{\s*itemStatusLine = "";\s*compactionLine = "";\s*narrationLine = "";/.test(src));
