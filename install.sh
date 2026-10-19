@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # version -> "pristine_sha patched_sha patch_path"
 VERSIONS=(
-  "2026.10.5 72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe ed3179ab523738e0c3d4609ed009f9115b86e34d060e4f938cf2908483b5f50e $HERE/patches/2026.10.5/feishu-tool-aggregation.patch"
+  "2026.10.5 72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe 4f03a2a4c93b0ffe98e022ec7b53748a8d344981a23ed1bcf14800d109418dd3 $HERE/patches/2026.10.5/feishu-tool-aggregation.patch"
 )
 
 TARGET="${1:-}"

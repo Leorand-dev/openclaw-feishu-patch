@@ -82,7 +82,42 @@ const realShapes = [
   ["Session Search: feishu-tool-aggregation install", "session_search"],
   ["Tool Describe: automations", "tool_describe"],
   ["Tool Search: fetch URL web page content", "tool_search"],
-  ["Tool Search: session status current model usage", "tool_search"]
+  ["Tool Search: session status current model usage", "tool_search"],
+  ["Computer", "computer"],
+  ["Mobile UI", "mobile_ui"],
+  ["Screen", "screen"],
+  ["Theme", "theme"],
+  ["Terminal", "terminal"],
+  ["Portal", "portal"],
+  ["Background Shell", "background_shell"],
+  ["API", "api"],
+  ["Dashboard", "dashboard"],
+  ["Gateway", "gateway"],
+  ["Plugins", "plugins"],
+  ["OpenClaw", "openclaw"],
+  ["Get Goal", "get_goal"],
+  ["Create Goal", "create_goal"],
+  ["Update Goal", "update_goal"],
+  ["Conversations", "conversations"],
+  ["Conversation Send", "conversation_send"],
+  ["Conversation Turn", "conversation_turn"],
+  ["Session Send", "session_send"],
+  ["Sub-agent", "sub_agent"],
+  ["Wait for Agents", "wait_for_agents"],
+  ["Agents", "agents"],
+  ["Structured Output", "structured_output"],
+  ["Memory Search", "memory_search"],
+  ["Memory Get", "memory_get"],
+  ["Skill Search", "skill_search"],
+  ["Skill Read", "skill_read"],
+  ["Code Execution", "code_execution"],
+  ["Decision Evaluation", "decision_evaluation"],
+  ["GitHub Publish", "github_publish"],
+  ["GitHub Identity Status", "github_identity_status"],
+  ["Skill Workshop", "skill_workshop"],
+  ["Suggest Task", "suggest_task"],
+  ["Dismiss Task", "dismiss_task"],
+  ["Secrets", "secrets"]
 ];
 for (const [text, label] of realShapes) {
   ok(`real emitter shape aggregates: ${label}`, parseAny({ text, mediaUrls: undefined }, { kind: "tool" }) !== undefined, JSON.stringify(text));
@@ -117,6 +152,7 @@ ok("narration is suppressed even without aggregation", decide(narration, { kind:
 ok("media-bearing tool result -> delivered", decide({ text: "🛠️ Exec", mediaUrls: ["https://x/a.png"] }, { kind: "tool" }) === "deliver");
 ok("bare media result -> delivered", decide({ text: "image", mediaUrls: ["https://x/i.png"] }, { kind: "tool" }) === "deliver");
 ok("extra-key tool payload -> delivered", decide({ text: "🛠️ Exec", mediaUrls: undefined, toolName: "exec" }, { kind: "tool" }) === "deliver");
+ok("low-risk label batch present", ["computer", "mobile_ui", "screen", "theme", "terminal", "portal", "background_shell", "api", "dashboard", "gateway", "plugins", "openclaw", "get_goal", "create_goal", "update_goal", "conversations", "conversation_send", "conversation_turn", "session_send", "sub_agent", "wait_for_agents", "agents", "structured_output", "memory_search", "memory_get", "skill_search", "skill_read", "code_execution", "decision_evaluation", "github_publish", "github_identity_status", "skill_workshop", "suggest_task", "dismiss_task", "secrets"].every((l) => src.includes("\"" + l + "\"")));
 ok("Tool Call progress aggregates", decide({ text: "Tool Call: current", mediaUrls: undefined }, { kind: "tool" }) === "aggregated");
 ok("Session Status progress aggregates", decide({ text: "Session Status: current", mediaUrls: undefined }, { kind: "tool" }) === "aggregated");
 ok("MCP/custom label -> delivered", decide({ text: "mcp__foo__bar", mediaUrls: undefined }, { kind: "tool" }) === "deliver");

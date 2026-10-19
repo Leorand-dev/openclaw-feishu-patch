@@ -37,10 +37,10 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `ed3179ab523738e0c3d4609ed009f9115b86e34d060e4f938cf2908483b5f50e` |
-| patch SHA-256 | `9289ec9bdc34fbf0177783a824f185def69bd5952d3e86cb70882088f3e70d38` |
+| patched bundle SHA-256 | `4f03a2a4c93b0ffe98e022ec7b53748a8d344981a23ed1bcf14800d109418dd3` |
+| patch SHA-256 | `e034069cb97150b935fc242362cacc9a0c1d7612d91597abd43b4ee25a9bd9de` |
 | patch hunks | 29 |
-| test assertions | 379 |
+| test assertions | 415 |
 
 The installer computes the SHA-256 of the target bundle and only applies when it matches the pristine hash above. If the target is already patched, it reports `already patched`. Any other build is **refused**.
 
@@ -84,7 +84,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 29 hunks, forward/reverse byte-exact, 8/8 suites, 379 assertions.
+Expected results for the supported build: 29 hunks, forward/reverse byte-exact, 8/8 suites, 415 assertions.
 
 ---
 
