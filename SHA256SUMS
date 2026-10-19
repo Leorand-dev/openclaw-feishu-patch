@@ -1,0 +1,3 @@
+157efb44601106cb2b108d0a93163a9a0db5f9512866b02825ca9b6a88fbb521  install.sh
+658baa40ca47fdae0c02119c6b8701ad0231485094690e4cd8a13f1dc053b769  patches/MANIFEST.json
+ae10e953e2d8e5b41d7e5089d3fae27a13a265a83e95e867cddcc8b2845fc046  patches/2026.10.5/feishu-tool-aggregation.patch
