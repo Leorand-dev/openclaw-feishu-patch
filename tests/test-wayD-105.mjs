@@ -80,7 +80,9 @@ const realShapes = [
   ["Automations: current", "automations"],
   ["Session History: session agent:ops:main, limit 4", "session_history"],
   ["Session Search: feishu-tool-aggregation install", "session_search"],
-  ["Tool Describe: automations", "tool_describe"]
+  ["Tool Describe: automations", "tool_describe"],
+  ["Tool Search: fetch URL web page content", "tool_search"],
+  ["Tool Search: session status current model usage", "tool_search"]
 ];
 for (const [text, label] of realShapes) {
   ok(`real emitter shape aggregates: ${label}`, parseAny({ text, mediaUrls: undefined }, { kind: "tool" }) !== undefined, JSON.stringify(text));
