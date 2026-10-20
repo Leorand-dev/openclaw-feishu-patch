@@ -159,6 +159,32 @@ The CI workflow (`.github/workflows/verify.yml`) validates supported versions by
 
 ---
 
+## Troubleshooting
+
+### Tool/narration bubbles after a gateway restart
+
+If the OpenClaw gateway is restarted **while a turn is streaming** (for example
+via a `/restart` command or a supervisor restart), the plugin's streaming card
+is closed by the outage. During restart recovery, tool and narration progress
+can be emitted before a new streaming card exists, so some of it may appear as
+standalone posts (for example `Exec`, `View Image`, `💬 ...`). A separate
+recovery card may also appear.
+
+This is **restart-recovery behavior**, not a missing label in the aggregation
+whitelist. Labels such as `Exec` and `View Image` are already covered. Once a
+new user turn starts after the gateway is healthy, progress returns to the
+single-card flow.
+
+Mitigation: restart the gateway when idle. An optional future guard could
+suppress recognized tool-summary posts while streaming start is in backoff, at
+the cost of temporarily hiding tool progress during recovery.
+
+### Empty or missing status before the first tool
+
+A prewarmed card shows `⏳ 思考中…` until the first tool, narration, or answer
+text arrives. Silent turns with no content/tools/narration discard the empty
+card instead of leaving it behind.
+
 ## Repository layout
 
 ```

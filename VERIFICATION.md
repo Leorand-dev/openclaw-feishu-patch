@@ -55,6 +55,16 @@ On a live OpenClaw 2026.10.5 / Feishu instance:
   streams into the **same** card: one user message produced exactly one
   interactive card; the tool-progress card was not left behind.
 
+## Known recovery behavior
+
+When the gateway is restarted while a turn is streaming, the streaming card is
+closed. Restart-recovery output emitted before a new card exists can appear as
+standalone posts (`Exec`, `View Image`, narration, etc.) and may include a
+separate recovery card. These labels are already in the aggregation whitelist;
+the behavior is caused by the restart window, not by a parser gap. A new turn
+after the gateway is healthy returns to the single-card flow. Restarting while
+idle avoids it.
+
 ## Reproduction
 
 ```sh

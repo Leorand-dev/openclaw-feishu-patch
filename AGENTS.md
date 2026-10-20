@@ -60,6 +60,10 @@ python3 tools/verify_patch.py --all=patches
   the config invalid. Behavior defaults are compiled into the patch.
 - **Do not** paste credentials, tokens, hostnames, or chat contents into this
   repository.
+- **Do not restart the gateway mid-turn.** During restart recovery, tool/narration
+  progress may appear as temporary standalone posts because no streaming card
+  exists yet. This is expected recovery behavior, not a patch failure; the next
+  turn after the gateway is healthy returns to the single-card flow.
 - If installation fails, the installer restores the backup automatically.
   Report the error; do not retry with fuzzy patching.
 
