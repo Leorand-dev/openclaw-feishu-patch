@@ -91,6 +91,7 @@ ok("compact status budget configured", /STATUS_LINE_MAX_CHARS = 160;/.test(src) 
 // ---------- 3b) prewarm keeps the card non-blank ----------
 ok("prewarm status requested at reply start", /prewarmRequested = true;\s*startStreaming\(\);/.test(src));
 ok("prewarm status rendered when card becomes ready", src.includes('resolveProgressText("prewarm"') && src.includes('prewarmStatusLine = resolveProgressText'));
+ok("prewarm text is thinking", src.includes("\\u23F3 \\u5df2\\u6536\\u5230\\uff0c\\u601d\\u8003\\u4e2d\\u2026"));
 ok("prewarm status clears on first content/waiting/narration", /const clearPrewarmStatus = \(\) => \{/.test(src) && (src.match(/clearPrewarmStatus\(\);/g) || []).length >= 5);
 ok("waiting line replaces prewarm status", /prewarmStatusLine = "";\s*waitingLine = nextWaitingLine;/.test(src));
 ok("prewarm text configurable", /progressTexts\?\.\[key\]/.test(src) || /progressTexts/.test(src));

@@ -6,8 +6,8 @@ Current initial version: **`@openclaw/feishu@2026.10.5`**.
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.10.5/feishu-tool-aggregation.patch` | `e034069cb97150b935fc242362cacc9a0c1d7612d91597abd43b4ee25a9bd9de` |
-| patched bundle | `4f03a2a4c93b0ffe98e022ec7b53748a8d344981a23ed1bcf14800d109418dd3` |
+| `patches/2026.10.5/feishu-tool-aggregation.patch` | `f84de44035edbe9a62241b9db38f6d4306d5ef7ad85f061357992685be15827d` |
+| patched bundle | `693a011d2a939eaf1cf55118e635dcecbe2d4625e2c4e85e58456fc71d186fac` |
 | pristine bundle | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 
 The bundle files are not redistributed here; hashes are reference values for the
@@ -33,9 +33,9 @@ exact supported build.
 33 execution harness
 33 idle/timer/content
 32 narration ticker
-55 display/backfill/session
+56 display/backfill/session
 100 structural audit
-= 415 assertions, 8/8 suites passed
+= 416 assertions, 8/8 suites passed
 ```
 
 ## Sanitized live verification
