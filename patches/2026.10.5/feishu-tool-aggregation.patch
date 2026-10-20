@@ -480,7 +480,7 @@
  				});
 +				params.runtime.log?.(`feishu[${account.accountId}] streaming card ready in ${Date.now() - cardStartAt}ms`);
 +				if (prewarmForThisStart && !streamText && !reasoningText && !waitingLine && !itemStatusLine && !compactionLine && !narrationLine && aggregatedToolTotal === 0) {
-+					prewarmStatusLine = resolveProgressText("prewarm", "\u23F3 \u5df2\u6536\u5230\uff0c\u601d\u8003\u4e2d\u2026");
++					prewarmStatusLine = resolveProgressText("prewarm", "\u23F3 \u601d\u8003\u4e2d\u2026");
 +					waitingLine = prewarmStatusLine;
 +					flushCardUpdate();
 +				}
