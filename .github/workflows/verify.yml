@@ -42,6 +42,11 @@ jobs:
           test -n "$TARGET"
           echo "TARGET=$TARGET" >> "$GITHUB_ENV"
 
+      - name: Release metadata/docs consistency
+        run: |
+          set -euo pipefail
+          python3 tools/check_docs.py
+
       - name: Anchor adapter regression
         run: |
           set -euo pipefail
@@ -53,11 +58,30 @@ jobs:
             --expect-sha "$PATCHED_SHA" \
             --no-manifest
 
+      - name: Installer check on pristine build
+        run: |
+          set -euo pipefail
+          chmod +x install.sh
+          ./install.sh --check "$TARGET" | tee "$RUNNER_TEMP/check-pristine.txt"
+          grep -q "status=pristine" "$RUNNER_TEMP/check-pristine.txt"
+          BEFORE=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          ./install.sh --dry-run "$TARGET" | tee "$RUNNER_TEMP/dry-run.txt"
+          grep -q "would patch" "$RUNNER_TEMP/dry-run.txt"
+          AFTER=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          test "$BEFORE" = "$AFTER"
+
       - name: Apply patch (exact hash + backup/rollback)
         run: |
           set -euo pipefail
           chmod +x install.sh
           ./install.sh "$TARGET"
+
+      - name: Installer idempotency check
+        run: |
+          set -euo pipefail
+          ./install.sh --check "$TARGET" | tee "$RUNNER_TEMP/check-patched.txt"
+          grep -q "status=patched" "$RUNNER_TEMP/check-patched.txt"
+          ./install.sh "$TARGET" | grep -q "already patched"
 
       - name: Reverse-diff sanity
         run: |

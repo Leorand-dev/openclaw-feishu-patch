@@ -32,7 +32,7 @@ ok("running total counter exists", /let aggregatedToolTotal = 0;/.test(src) && /
 ok("no per-event reduce over counts", !src.includes("Array.from(aggregatedToolSummaryCounts.values()).reduce"));
 ok("status renderer combines fields", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine \|\| narrationLine;/.test(src) && /const secondary = extras\.length > 0/.test(src));
 ok("content renderer separated from status", /const body = buildCombinedStreamText\(reasoningText, streamText\);/.test(src) && /const statusFallback = !statusElementEnabled \|\| streaming\?\.isStatusUnavailable\?\.\(\) === true \? buildStatusText\(\) : "";/.test(src));
-ok("flush uses latest-state providers + dirty split", /content: contentChanged \? \(\) => renderCardContent\(\) : void 0/.test(src) && /status: statusChanged \? \(\) => buildStatusText\(\) : void 0/.test(src) && /nextContent !== lastQueuedContent/.test(src));
+ok("flush uses latest-state providers + dirty split + budget", /content: contentChanged \? \(\) => renderCardContent\(\) : void 0/.test(src) && /status: shouldQueueStatus \? \(\) => buildStatusText\(\) : void 0/.test(src) && /nextContent !== lastQueuedContent/.test(src) && /statusUpdatesQueuedThisTurn/.test(src));
 ok("card-start pending flush is coalesced", /cardFlushPending/.test(src) && /if \(!active && cardFlushPending && !force\) return;/.test(src));
 ok("queue evaluates providers after start", /if \(startPromise\) await startPromise;[\s\S]{0,200}const contentText = typeof content === "function" \? content\(\) : content \?\? text;/.test(src));
 ok("identical card text deduped by session", /if \(this\.statusPendingText === null \|\| this\.closed\) return;/.test(src));
@@ -86,6 +86,10 @@ ok("final delivery tracked for lifecycle", /const isFinalDelivery = info\?\.kind
 ok("final delivery in-progress guard", /let finalDeliveryInProgress = false;/.test(src) && /!finalDeliverySeen \|\| finalDeliveryInProgress/.test(src) && /finalDeliveryInProgress = false;/.test(src));
 ok("cleanup respects final in-progress", /streaming\?\.isActive\(\) === true && !finalDeliveryInProgress/.test(src));
 ok("cleanup close deferred by grace", /CLEANUP_CLOSE_GRACE_MS = 2e3;/.test(src) && /scheduleCleanupClose\(\)/.test(src) && /clearCleanupCloseTimer\(\)/.test(src));
+ok("unaggregated tool payload diagnostics", /const logUnaggregatedToolPayload = /.test(src) && /unaggregated tool payload: label=/.test(src));
+ok("card lifecycle watchdog", /const CARD_MAX_LIFETIME_MS = /.test(src) && /const startCardWatchdog = /.test(src) && /startCardWatchdog\(\);/.test(src) && /clearCardWatchdog\(\);/.test(src));
+ok("status update budget per turn", /const STATUS_UPDATE_MAX_PER_TURN = 60;/.test(src) && /status update budget reached/.test(src) && /statusUpdatesQueuedThisTurn = 0;/.test(src));
+
 ok("final static fallback discards active preview", /final static fallback: discarding active streaming preview/.test(src));
 
 ok("active card held until final", /streaming\?\.isActive\(\) === true && \(!finalDeliverySeen \|\| finalDeliveryInProgress\) && !terminalQuiet/.test(src));

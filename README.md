@@ -28,6 +28,16 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Caches/limits reasoning preview; final cards hide thinking when an answer exists.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched.
 - Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
+- Content-free diagnostics for tool-shaped payloads that could not be aggregated,
+  making new core emitters visible without logging user content.
+- A card watchdog that force-finalizes an active card if it exceeds the maximum
+  lifetime, preventing indefinitely stuck cards.
+- A per-turn status-update budget so transient progress cannot cause unbounded
+  CardKit status API calls.
+- Installer `--check` / `--dry-run`, atomic target replacement, install lock and
+  GNU `sha256sum` / BSD `shasum` fallback.
+- Generated installer version table + CI release/docs consistency checks.
+
 
 ---
 
@@ -37,10 +47,10 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `95de6838c666f98146d241a4b1ed8672d1c5529be7e2e9f30cca2914049eed99` |
-| patch SHA-256 | `0af5327a3060ef7aa5f761ae6524706fc6642bccf9709e40c6b2c42fc2681f67` |
+| patched bundle SHA-256 | `8ab6fc8bb905e9c3e3e7f75bf6af851a02261021828b39ec52b1e6e8b3980891` |
+| patch SHA-256 | `5b348e4d3e318433ce19d3371e151919aef11f8ba59e1de715472bae8d5eb3cb` |
 | patch hunks | 29 |
-| test assertions | 416 |
+| test assertions | 419 |
 
 The installer computes the SHA-256 of the target bundle and only applies when it matches the pristine hash above. If the target is already patched, it reports `already patched`. Any other build is **refused**.
 
@@ -84,7 +94,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 29 hunks, forward/reverse byte-exact, 8/8 suites, 416 assertions.
+Expected results for the supported build: 29 hunks, forward/reverse byte-exact, 8/8 suites, 419 assertions.
 
 ---
 

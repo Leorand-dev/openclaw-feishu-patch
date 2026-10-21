@@ -6,8 +6,8 @@ Current initial version: **`@openclaw/feishu@2026.10.5`**.
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.10.5/feishu-tool-aggregation.patch` | `0af5327a3060ef7aa5f761ae6524706fc6642bccf9709e40c6b2c42fc2681f67` |
-| patched bundle | `95de6838c666f98146d241a4b1ed8672d1c5529be7e2e9f30cca2914049eed99` |
+| `patches/2026.10.5/feishu-tool-aggregation.patch` | `5b348e4d3e318433ce19d3371e151919aef11f8ba59e1de715472bae8d5eb3cb` |
+| patched bundle | `8ab6fc8bb905e9c3e3e7f75bf6af851a02261021828b39ec52b1e6e8b3980891` |
 | pristine bundle | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 
 The bundle files are not redistributed here; hashes are reference values for the
@@ -34,8 +34,8 @@ exact supported build.
 33 idle/timer/content
 32 narration ticker
 56 display/backfill/session
-100 structural audit
-= 416 assertions, 8/8 suites passed
+103 structural audit
+= 419 assertions, 8/8 suites passed
 ```
 
 ## Sanitized live verification
@@ -64,6 +64,24 @@ separate recovery card. These labels are already in the aggregation whitelist;
 the behavior is caused by the restart window, not by a parser gap. A new turn
 after the gateway is healthy returns to the single-card flow. Restarting while
 idle avoids it.
+
+## Installer / CI hardening
+
+- `install.sh --check` reports `status=pristine|patched|unknown` without writing.
+- `install.sh --dry-run` validates the exact build and prints the planned action.
+- The real apply path uses a per-directory lock and an atomic temp-file replace;
+  the backup and rollback path remains.
+- `tools/check_docs.py` enforces that installer VERSIONS and public docs carry the
+  manifest's full hashes. CI runs it plus installer check/dry-run/idempotency.
+
+## Installer / CI hardening
+
+- `install.sh --check` reports `status=pristine|patched|unknown` without writing.
+- `install.sh --dry-run` validates the exact build and prints the planned action.
+- The real apply path uses a per-directory lock and an atomic temp-file replace;
+  the backup and rollback path remains.
+- `tools/check_docs.py` enforces that installer VERSIONS and public docs carry the
+  manifest's full hashes. CI runs it plus installer check/dry-run/idempotency.
 
 ## Reproduction
 
