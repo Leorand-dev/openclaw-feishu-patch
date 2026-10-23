@@ -4,7 +4,7 @@ An installable, **build-pinned** patch for the OpenClaw Feishu channel plugin.
 
 It turns tool-call progress and mid-turn narration into **one tidy streaming card** instead of a wall of bubbles, and hardens the streaming-card lifecycle so retries/reorderings do not create duplicate cards or duplicated answer text.
 
-- **Supported plugin build:** `@openclaw/feishu` **2026.10.5**
+- **Supported plugin build:** `@openclaw/feishu` **2026.10.5 / 2026.10.6**
 - **Patch type:** unified diff against the installed `dist/.setup/monitor.account-*.mjs`
 - **Install:** one shell script; exact SHA-256 check; automatic backup; automatic rollback on failure
 - **No credentials required by this repository**
@@ -45,10 +45,10 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 
 | item | value |
 | --- | --- |
-| OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` |
+| OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 | patched bundle SHA-256 | `8ab6fc8bb905e9c3e3e7f75bf6af851a02261021828b39ec52b1e6e8b3980891` |
-| patch SHA-256 | `5b348e4d3e318433ce19d3371e151919aef11f8ba59e1de715472bae8d5eb3cb` |
+| patch SHA-256 | `5b348e4d3e318433ce19d3371e151919aef11f8ba59e1de715472bae8d5eb3cb` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -207,6 +207,8 @@ SHA256SUMS                    installer + manifest + patch hashes
 patches/
   MANIFEST.json               supported version hashes/status
   2026.10.5/
+    feishu-tool-aggregation.patch
+  2026.10.6/
     feishu-tool-aggregation.patch
 tests/                        eight JavaScript suites
 tools/

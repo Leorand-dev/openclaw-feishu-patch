@@ -6,7 +6,7 @@ patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.10.5`**.
+- Target plugin build must be **`@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6`**.
 - The target file is the installed monitor bundle:
 
   ```
@@ -86,7 +86,7 @@ systemctl --user restart openclaw-gateway.service
 
 | item | value |
 | --- | --- |
-| plugin build | 2026.10.5 |
+| plugin build | 2026.10.5 / 2026.10.6 |
 | pristine SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 | patched SHA-256 | `8ab6fc8bb905e9c3e3e7f75bf6af851a02261021828b39ec52b1e6e8b3980891` |
 | patch SHA-256 | `5b348e4d3e318433ce19d3371e151919aef11f8ba59e1de715472bae8d5eb3cb` |
