@@ -30,8 +30,8 @@ ok("blanket kind:tool drop removed", !/if \(info\?\.kind === "tool" && inputPayl
 ok("structured display state exists", ["waitingLine", "itemStatusLine", "compactionLine", "narrationLine", "lastToolLabel"].every((v) => src.includes(`let ${v} = "";`)));
 ok("running total counter exists", /let aggregatedToolTotal = 0;/.test(src) && /aggregatedToolTotal \+= 1;/.test(src));
 ok("no per-event reduce over counts", !src.includes("Array.from(aggregatedToolSummaryCounts.values()).reduce"));
-ok("status renderer combines fields", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine \|\| narrationLine;/.test(src) && /const secondary = extras\.length > 0/.test(src));
-ok("content renderer separated from status", /const body = buildCombinedStreamText\(reasoningText, streamText\);/.test(src) && /const statusFallback = !statusElementEnabled \|\| streaming\?\.isStatusUnavailable\?\.\(\) === true \? buildStatusText\(\) : "";/.test(src));
+ok("status renderer uses one structured phase line", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine \|\| narrationLine;/.test(src) && !/const secondary = extras/.test(src));
+ok("content renderer separated from status and panels", /return \[streamText, statusFallback\]/.test(src) && /buildReasoningPanelContent/.test(src) && /buildToolsPanelContent/.test(src));
 ok("flush uses latest-state providers + dirty split + budget", /content: contentChanged \? \(\) => renderCardContent\(\) : void 0/.test(src) && /status: shouldQueueStatus \? \(\) => buildStatusText\(\) : void 0/.test(src) && /nextContent !== lastQueuedContent/.test(src) && /statusUpdatesQueuedThisTurn/.test(src));
 ok("card-start pending flush is coalesced", /cardFlushPending/.test(src) && /if \(!active && cardFlushPending && !force\) return;/.test(src));
 ok("queue evaluates providers after start", /if \(startPromise\) await startPromise;[\s\S]{0,200}const contentText = typeof content === "function" \? content\(\) : content \?\? text;/.test(src));
@@ -99,12 +99,16 @@ ok("waiting line switches to tool-done on assistant start", /if \(aggregatedTool
 ok("transient clear keeps waiting line", /const clearTransientStatusLines = \(\) => \{\s*itemStatusLine = "";\s*compactionLine = "";\s*narrationLine = "";/.test(src));
 ok("idle hold uses running total", /const hasToolActivity = aggregatedToolTotal > 0;/.test(src));
 ok("timer lifecycle preserved", /const clearIdleCloseTimer = \(\) => \{/.test(src) && /idleCloseTimer\.unref\?\.\(\);/.test(src) && /!visibleReplySent && !terminalQuiet/.test(src));
-ok("empty tool-only card uses completed line", /return buildCompletedLine\(aggregatedToolTotal\);/.test(src));
-ok("status position configurable", /cardStatusPosition === "top" \? "top" : "bottom"/.test(src));
-ok("reasoning preview cap / final hide", /REASONING_MAX_LINES/.test(src) && /HIDE_REASONING_IN_FINAL/.test(src) && /finalReasoningText/.test(src));
-ok("final tool summary optional", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary === true;/.test(src));
+ok("empty tool-only card uses final summary", /resolveFinalCardText = \(answer, elapsedMs\)/.test(src) && /buildFinalSummaryLine\(elapsedMs\)/.test(src));
+ok("status position defaults to top", /cardStatusPosition === "bottom" \? "bottom" : "top"/.test(src));
+ok("reasoning preview cap / final panel removal", /REASONING_MAX_LINES/.test(src) && /deleteElement\("reasoningpanel"\)/.test(src));
+ok("final tool summary defaults on", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary !== false;/.test(src));
 ok("empty prewarmed card is discarded", /const shouldDiscardEmptyCard = disposition !== "discarded" && !text\.trim\(\) && !carriedNarration && aggregatedToolTotal === 0;/.test(src) && /disposition === "discarded" \|\| shouldDiscardEmptyCard\) closed = await streamingToClose\.discard\(\);/.test(src));
 
+ok("collapsible reasoning/tools/errors panels exist", /collapsible_panel/.test(src) && /reasoningpanel/.test(src) && /toolspanel/.test(src) && /errorspanel/.test(src));
+ok("nested panel bodies are updated", /writeElementContent/.test(src) && /reasoningpanel_body/.test(src) && /toolspanel_body/.test(src) && /errorspanel_body/.test(src));
+ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/.test(src) && /toolErrors\.push/.test(src));
+ok("footer carries duration/tool/error meta", /meta\.toolCount/.test(src) && /meta\.duration/.test(src) && /meta\.errorCount/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",
@@ -115,7 +119,7 @@ for (const symbol of [
   "AGGREGATED_PROGRESS_ITEM_KINDS",
   "TOOL_NARRATION_TEXT_PREFIX",
   "buildWaitingLine",
-  "buildCompletedLine",
+  "buildFinalSummaryLine",
   "buildStatusText",
   "flushCardUpdate",
   "updateWaitingLine",

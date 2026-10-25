@@ -108,11 +108,11 @@ ${src.slice(truncateStart, src.indexOf("\n\t};", truncateStart) + 4)}
 ${src.slice(statusStart, statusEnd)}
 return buildStatusText;
 `)();
-ok("compact status: waiting + one secondary line", statusFn() === "waiting\nnarration · item · compact", JSON.stringify(statusFn()));
+ok("compact status: active phase only", statusFn() === "waiting", JSON.stringify(statusFn()));
 
 // ---------- 5) display batch 1: compact status, elapsed/last tool, narration cap, timer ----------
 ok("narration max configurable and default 80", /const configured = Number\(account\.config\?\.narrationMaxChars\);\s*return Number\.isFinite\(configured\) && configured >= 40 && configured <= 500 \? configured : 80;/.test(src));
-ok("status lines use single newline", /return truncateDisplayText\(lines\.join\("\\n"\), STATUS_MAX_CHARS\)/.test(src));
+ok("status renderer stays single-line", /return truncateDisplayText\(primary, STATUS_LINE_MAX_CHARS\);/.test(src));
 ok("waiting line has last-tool detail", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src) && /const details = \[\];/.test(src));
 ok("waiting line has elapsed detail", /SHOW_TOOL_ELAPSED && toolPhaseStartedAt > 0/.test(src) && /formatElapsedDuration\(elapsedMs\)/.test(src));
 ok("elapsed refresh timer configurable, default 15s", /toolElapsedRefreshMs/.test(src) && /configured >= 5e3 && configured <= 6e4 \? configured : 15e3/.test(src) && /if \(!SHOW_TOOL_ELAPSED \|\| waitingRefreshTimer/.test(src) && /scheduleWaitingRefresh\(\);/.test(src));
@@ -142,12 +142,12 @@ return { build: buildWaitingLine, start: (ms) => { toolPhaseStartedAt = Date.now
 }
 
 // ---------- 6) display batch 2: status position, reasoning cap/final hide, final summary ----------
-ok("status position config exists", /cardStatusPosition === "top" \? "top" : "bottom"/.test(src));
+ok("status position defaults to top", /cardStatusPosition === "bottom" \? "bottom" : "top"/.test(src));
 ok("status position passed to session", /statusPosition \}/.test(src) && /this\.statusPosition = options\.statusPosition === "top" \? "top" : "bottom";/.test(src));
 ok("reasoning max lines configurable (default 12)", /reasoningMaxLines/.test(src) && /configured >= 2 && configured <= 100 \? configured : 12/.test(src));
 ok("reasoning preview adds ellipsis when capped", src.includes("lines.length > REASONING_MAX_LINES") && src.includes("Math.max(1, REASONING_MAX_LINES - 1)"));
-ok("final hides reasoning by default", /HIDE_REASONING_IN_FINAL = account\.config\?\.hideReasoningInFinal !== false;/.test(src) && /const finalReasoningText = HIDE_REASONING_IN_FINAL && finalizedAnswerText\.trim\(\) \? "" : finalizedReasoningText;/.test(src));
-ok("optional final tool summary (default off)", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary === true;/.test(src) && /finalToolSummary/.test(src));
+ok("final hides reasoning panel by default", /HIDE_REASONING_IN_FINAL = account\.config\?\.hideReasoningInFinal !== false;/.test(src) && /deleteElement\("reasoningpanel"\)/.test(src));
+ok("final tool summary defaults on", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary !== false;/.test(src));
 {
   const fmtBody = extractArrow(src, "formatReasoningPrefix");
   const fmt = new Function(`

@@ -156,16 +156,17 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   // 9) terminal card content for tool-only turns
   const bc = extractArrow(src, "buildCombinedStreamText");
-  const bcl = extractArrow(src, "buildCompletedLine");
+  const bcl = extractArrow(src, "buildFinalSummaryLine");
   const rf = extractArrow(src, "resolveFinalCardText");
-  const resolveSandbox = new Function(`let aggregatedToolTotal = 0; const account = { config: {} }; const resolveProgressText = (key, fallback) => fallback;${bc}\n${bcl}\n${rf}\nreturn { resolve: (r, a) => resolveFinalCardText(r, a), setTotal: (n) => { aggregatedToolTotal = n; } };`)();
+  const resolveSandbox = new Function(`let aggregatedToolTotal = 0; let toolErrors = []; const formatElapsedDuration = (ms) => { const s = Math.max(0, Math.floor(ms / 1e3)); return s < 60 ? s + "s" : Math.floor(s / 60) + "m" + String(s % 60).padStart(2, "0") + "s"; };${bcl}\n${rf}\nreturn { resolve: (a, e) => resolveFinalCardText(a, e), setTotal: (n) => { aggregatedToolTotal = n; } };`)();
   resolveSandbox.setTotal(3);
-  ok("tool-only close text", resolveSandbox.resolve("", "") === "✅ 已执行 3 个工具", resolveSandbox.resolve("", ""));
+  const toolOnly = resolveSandbox.resolve("", 0);
+  ok("tool-only close text", toolOnly.startsWith("> ") && toolOnly.includes("3"), toolOnly);
   resolveSandbox.setTotal(3);
-  ok("answer text preserved", resolveSandbox.resolve("", "final answer") === "final answer");
+  ok("answer text preserved", resolveSandbox.resolve("final answer", 0) === "final answer");
   resolveSandbox.setTotal(0);
-  ok("empty without tools stays empty", resolveSandbox.resolve("", "") === "");
-  ok("final card text helper wired into close", /let text = resolveFinalCardText\(finalReasoningText, finalizedAnswerText\);/.test(src));
+  ok("empty without tools stays empty", resolveSandbox.resolve("", 0) === "");
+  ok("final card text helper wired into close", /let text = resolveFinalCardText\(finalizedAnswerText, finalElapsedMs\);/.test(src));
 
   finish("2026.10.5 idle/timer/content");
 })().catch((error) => {

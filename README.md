@@ -47,8 +47,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `8ab6fc8bb905e9c3e3e7f75bf6af851a02261021828b39ec52b1e6e8b3980891` |
-| patch SHA-256 | `5b348e4d3e318433ce19d3371e151919aef11f8ba59e1de715472bae8d5eb3cb` (identical patch for both builds) |
+| patched bundle SHA-256 | `e925eb6cc83aa965134adbab87b1bdd5adf99d6e8786536a99265aa26f5c1ecb` |
+| patch SHA-256 | `430ff26b705a9e54d7c66a0cae735fb5d42619507a7ed6f911414d733a267b3f` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -94,7 +94,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 29 hunks, forward/reverse byte-exact, 8/8 suites, 419 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 423 assertions.
 
 ---
 
