@@ -260,7 +260,7 @@
  const NO_VISIBLE_REPLY_FALLBACK_TEXT = "⚠️ This reply completed without visible content. The turn may have been interrupted; please retry or ask me to recover from recent context.";
  function isStreamingStartBackedOff(accountId, now = Date.now()) {
  	const backoffUntil = streamingStartBackoffUntilByAccount.get(accountId);
-@@ -1552,10 +1730,15 @@
+@@ -1552,10 +1730,13 @@
  		template: identity?.theme ?? "blue"
  	};
  }
@@ -269,15 +269,13 @@
  	const parts = [`Agent: ${identity?.name?.trim() || agentId}`];
  	if (prefixCtx.model) parts.push(`Model: ${prefixCtx.model}`);
  	if (prefixCtx.provider) parts.push(`Provider: ${prefixCtx.provider}`);
-+	if (meta.status) parts.push(meta.status);
-+	if (meta.toolCount > 0) parts.push(`\u{1F527} ${meta.toolCount}`);
-+	if (meta.duration) parts.push(`\u23F1 ${meta.duration}`);
-+	if (meta.errorCount > 0) parts.push(`\u26A0\uFE0F ${meta.errorCount}`);
++	// The final answer body already carries the completion summary (tools,
++	// duration, errors); the footer only adds the unique TPS metric.
 +	if (meta.tps) parts.push(`\u26A1 ${meta.tps}`);
  	return parts.join(" | ");
  }
  function createFeishuReplyDispatcher(params) {
-@@ -1638,7 +1821,71 @@
+@@ -1638,7 +1819,71 @@
  	let streamText = "";
  	let lastPartial = "";
  	let reasoningText = "";
@@ -350,7 +348,7 @@
  	let snapshotBaseText = "";
  	let lastSnapshotTextLength = 0;
  	let hasStreamingFinalText = false;
-@@ -1659,21 +1906,251 @@
+@@ -1659,21 +1904,251 @@
  	const pendingStreamingDeliveries = [];
  	const formatReasoningPrefix = (thinking) => {
  		if (!thinking) return "";
@@ -610,7 +608,7 @@
  	};
  	const queueStreamingUpdate = (nextText, options) => {
  		if (!nextText) return;
-@@ -1688,10 +2165,26 @@
+@@ -1688,10 +2163,26 @@
  			} else streamText = `${snapshotBaseText}${mergeStreamingText(currentSnapshotText, nextText)}`;
  			lastSnapshotTextLength = nextText.length;
  		}
@@ -638,7 +636,7 @@
  		streamingStartPromise = (async () => {
  			const creds = account.appId && account.appSecret ? {
  				appId: account.appId,
-@@ -1700,7 +2193,8 @@
+@@ -1700,7 +2191,8 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -648,7 +646,7 @@
  			const generation = ++streamingGeneration;
  			streaming = session;
  			activeStreamingGeneration = generation;
-@@ -1715,6 +2209,14 @@
+@@ -1715,6 +2207,14 @@
  					header: cardHeader,
  					note: cardNote
  				});
@@ -663,7 +661,7 @@
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
-@@ -1735,11 +2237,63 @@
+@@ -1735,11 +2235,63 @@
  		streamText = "";
  		lastPartial = "";
  		reasoningText = "";
@@ -728,7 +726,7 @@
  	const rememberClosedStreamingSettlement = (generation, content, result, error, disposition = "closed") => {
  		if (generation === void 0 || !content && disposition === "closed") return;
  		closedStreamingSettlements.set(generation, {
-@@ -1750,6 +2304,12 @@
+@@ -1750,6 +2302,12 @@
  		});
  	};
  	const performStreamingClose = async (disposition) => {
@@ -741,7 +739,7 @@
  		const streamingToClose = streaming;
  		const generationToClose = activeStreamingGeneration;
  		const startPromiseToClose = streamingStartPromise;
-@@ -1767,13 +2327,35 @@
+@@ -1767,13 +2325,31 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -772,16 +770,12 @@
  					else {
 -						const finalNote = resolveCardNote(agentId, identity, responsePrefixContextProvider());
 +						const finalNote = resolveCardNote(agentId, identity, responsePrefixContextProvider(), {
-+			duration: finalElapsedMs >= 1e3 ? formatElapsedDuration(finalElapsedMs) : "",
-+			toolCount: aggregatedToolTotal,
-+			errorCount: toolErrors.length,
-+			tps: buildTpsText(finalizedAnswerText),
-+			status: toolErrors.length > 0 ? "\u26a0\ufe0f" : "\u2705"
-+		});
++							tps: buildTpsText(finalizedAnswerText)
++						});
  						closed = await streamingToClose.closeWithResult(text, { note: finalNote });
  					}
  				} catch (error) {
-@@ -1788,7 +2370,8 @@
+@@ -1788,7 +2364,8 @@
  					kind: "card"
  				});
  				if (result.visibleReplySent) visibleReplySent = true;
@@ -791,7 +785,7 @@
  				if (finalizationError instanceof FeishuStreamingFinalizationError && result.visibleReplySent) finalizationError = createFeishuPartialReplyDeliveryError(finalizationError.cause ?? finalizationError, result);
  			}
  			if (disposition === "discarded" || finalizationError !== void 0 || result.visibleReplySent && finalizedAnswerText) rememberClosedStreamingSettlement(generationToClose, finalizedAnswerText, result, finalizationError, disposition);
-@@ -1853,13 +2436,183 @@
+@@ -1853,13 +2430,183 @@
  		const outcome = await closeStreaming("discarded");
  		if (outcome.error !== void 0) throw toStringifiedError(outcome.error);
  	};
@@ -981,7 +975,7 @@
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
  		const note = paramsLocal.useCard ? resolveCardNote(agentId, identity, responsePrefixContextProvider()) : void 0;
-@@ -2003,12 +2756,16 @@
+@@ -2003,12 +2750,16 @@
  	};
  	const ensureVisibleStreamingDelivery = async (result, content, infoKind) => {
  		if (result?.visibleReplySent === true || !content?.trim()) return result;
@@ -999,7 +993,7 @@
  	};
  	function queueIdleSideEffects() {
  		idleRequestedForReply = true;
-@@ -2125,13 +2882,69 @@
+@@ -2125,13 +2876,69 @@
  				idleRequestedForReply = false;
  				visibleReplySent = false;
  				replyOutcome = void 0;
@@ -1072,7 +1066,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -2157,6 +2970,38 @@
+@@ -2157,6 +2964,38 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -1111,7 +1105,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -2184,7 +3029,8 @@
+@@ -2184,7 +3023,8 @@
  					ttsSupplement
  				}));
  				const finalTextExceedsStreamingLimit = info?.kind === "final" && hasText && text.length > textChunkLimit;
@@ -1121,7 +1115,7 @@
  				const useStaticCard = hasText && cardRenderingRequested && withinCardTableLimit(text);
  				const useStreamingCard = hasText && streamingEnabled && !finalTextExceedsStreamingLimit && (info?.kind === "final" || cardRenderingRequested);
  				const skipTextForDuplicateFinal = !hasIndependentPresentation && info?.kind === "final" && hasText && deliveredFinalTexts.has(text);
-@@ -2213,6 +3059,7 @@
+@@ -2213,6 +3053,7 @@
  				};
  				if (shouldDiscardStreamingPreview) await discardStreamingPreview();
  				if (presentationCard) {
@@ -1129,7 +1123,7 @@
  					if (hasMedia) await collectDelivery(sendMediaReplies(payload));
  					await collectDelivery(sendCardFeishu({
  						...replyTarget,
-@@ -2245,16 +3092,13 @@
+@@ -2245,16 +3086,13 @@
  					const ownerGeneration = activeStreamingGeneration ?? matchingInFlightClose?.generation;
  					if (shouldStreamText && ownerGeneration !== void 0 && (streaming?.isActive() || matchingInFlightClose !== void 0)) {
  						if (activeStreamingGeneration !== void 0) {
@@ -1148,7 +1142,7 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2268,6 +3112,10 @@
+@@ -2268,6 +3106,10 @@
  							});
  						}
  						return deferStreamingDelivery(mergeFeishuReplyDeliveryResults(deliveredResults, text), info?.kind, ownerGeneration);
@@ -1159,7 +1153,7 @@
  					}
  					if (useStaticCard || useStreamingCard && !isStreamingStartBackedOff(account.accountId) && withinCardTableLimit(text)) deliveredResults.push(await sendChunkedTextReply({
  						text,
-@@ -2284,6 +3132,9 @@
+@@ -2284,6 +3126,9 @@
  				const result = mergeFeishuReplyDeliveryResults(deliveredResults, deliveredContent);
  				if (priorClosedStreamingSettlement?.error !== void 0) throw createFeishuPartialReplyDeliveryError(isChannelPartialDeliveryError(priorClosedStreamingSettlement.error) && priorClosedStreamingSettlement.error instanceof Error ? priorClosedStreamingSettlement.error.cause ?? priorClosedStreamingSettlement.error : priorClosedStreamingSettlement.error, result);
  				return result;
@@ -1169,7 +1163,7 @@
  			},
  			onError: handleDeliveryError
  		},
-@@ -2309,15 +3160,21 @@
+@@ -2309,15 +3154,21 @@
  				startStreaming();
  				const nextThinking = formatReasoningMessage(payload.text);
  				if (nextThinking) {
@@ -1192,7 +1186,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2326,9 +3183,42 @@
+@@ -2326,9 +3177,42 @@
  				if (statusLineLocal) return updateStreamingStatusLine(statusLineLocal);
  				return false;
  			} : void 0,

@@ -6,9 +6,9 @@ Current supported versions: **`@openclaw/feishu@2026.10.5` and `@openclaw/feishu
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.10.5/feishu-tool-aggregation.patch` | `70a8d7b4f98ade6f2ebe2f130c14a0c6eea90bb857e77de4a0855e84878e8b2f` |
-| `patches/2026.10.6/feishu-tool-aggregation.patch` | `70a8d7b4f98ade6f2ebe2f130c14a0c6eea90bb857e77de4a0855e84878e8b2f` |
-| patched bundle | `22b6de2de2085f3d56c06b48da78fea0c9768fa49a4f25ec62b697fc6773d15b` |
+| `patches/2026.10.5/feishu-tool-aggregation.patch` | `2f01e891f7508f62b9ee9cb7564ab097db03c79a942b875e380ebf97472f7986` |
+| `patches/2026.10.6/feishu-tool-aggregation.patch` | `2f01e891f7508f62b9ee9cb7564ab097db03c79a942b875e380ebf97472f7986` |
+| patched bundle | `9ce66a1ae23e7809fbb0bfb2fec61306a061aed4bb266cee3bd45314a5d71f8c` |
 | pristine bundle | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 
 The bundle files are not redistributed here; hashes are reference values for the

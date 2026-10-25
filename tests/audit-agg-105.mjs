@@ -108,7 +108,7 @@ ok("empty prewarmed card is discarded", /const shouldDiscardEmptyCard = disposit
 ok("collapsible reasoning/tools/errors panels exist", /collapsible_panel/.test(src) && /reasoningpanel/.test(src) && /toolspanel/.test(src) && /errorspanel/.test(src));
 ok("nested panel bodies are updated", /writeElementContent/.test(src) && /reasoningpanel_body/.test(src) && /toolspanel_body/.test(src) && /errorspanel_body/.test(src));
 ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/.test(src) && /toolErrors\.push/.test(src));
-ok("footer carries duration/tool/error meta", /meta\.toolCount/.test(src) && /meta\.duration/.test(src) && /meta\.errorCount/.test(src));
+ok("footer only adds TPS beyond agent/model/provider", /if \(meta\.tps\)/.test(src) && !/meta\.toolCount/.test(src) && !/meta\.duration/.test(src) && !/meta\.errorCount/.test(src));
 ok("footer TPS derives from streaming progress", /buildTpsText\(finalizedAnswerText\)/.test(src) && /recordStreamingProgress\(nextText\)/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [

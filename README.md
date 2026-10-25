@@ -26,7 +26,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Compact status (primary line + at most one narration line), configurable elapsed refresh, shorter narration cap.
 - Deletes the `status` element at close so the final card has no empty status gap.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
-- Structured card sections: collapsed reasoning/tool/error panels, per-tool counts, phase status, and a footer summary with duration, tool count, and output TPS.
+- Structured card sections: collapsed reasoning/tool/error panels, per-tool counts, single-line phase status, a body-level completion summary, and an output TPS footer.
+- The footer keeps only agent/model/provider + TPS; tools/duration/errors live once in the body summary, not duplicated in the footer.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched.
 - Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
 - Content-free diagnostics for tool-shaped payloads that could not be aggregated,
@@ -48,8 +49,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `22b6de2de2085f3d56c06b48da78fea0c9768fa49a4f25ec62b697fc6773d15b` |
-| patch SHA-256 | `70a8d7b4f98ade6f2ebe2f130c14a0c6eea90bb857e77de4a0855e84878e8b2f` (identical patch for both builds) |
+| patched bundle SHA-256 | `9ce66a1ae23e7809fbb0bfb2fec61306a061aed4bb266cee3bd45314a5d71f8c` |
+| patch SHA-256 | `2f01e891f7508f62b9ee9cb7564ab097db03c79a942b875e380ebf97472f7986` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -132,7 +133,7 @@ Current defaults:
 | tool errors | collapsed `⚠️ 工具错误` panel |
 | hide reasoning in final card | panel removed when answer exists |
 | final tool summary | on |
-| output TPS footer | on; exact when provider usage is available, otherwise `≈` estimate |
+| output TPS footer | on; `≈` estimate from output tokens and active streaming time |
 | final chat preview | answer summary, `✅ 已回复` fallback |
 
 Prerequisite for tool-summary aggregation: **`verboseLevel: on`**. With `verboseLevel: off` tool events never reach the plugin hooks, so no progress line is aggregated.
