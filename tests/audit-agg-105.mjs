@@ -110,6 +110,8 @@ ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/
 ok("footer keeps only agent/model/provider", /function resolveCardNote\(agentId, identity, prefixCtx\)/.test(src) && !/meta\.tps/.test(src));
 ok("reasoning panel is capped by lines and chars", /lines\.slice\(0, REASONING_MAX_LINES\)/.test(src) && /text\.length > 1200/.test(src));
 ok("tool errors are sanitized before display", /sanitizeToolErrorText/.test(src) && /redacted/.test(src));
+ok("card flushes are coalesced", /CARD_FLUSH_COALESCE_MS/.test(src) && /flushCardUpdateNow/.test(src));
+ok("details panel writes are budgeted", /DETAILS_UPDATE_MAX_PER_TURN/.test(src) && /detailsUpdatesQueuedThisTurn/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",

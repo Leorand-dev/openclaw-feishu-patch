@@ -36,6 +36,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
   lifetime, preventing indefinitely stuck cards.
 - A per-turn status-update budget so transient progress cannot cause unbounded
   CardKit status API calls.
+- Card updates are coalesced into a 300ms window, and details-panel writes have a per-turn budget.
+- Reasoning and tool-error text are capped/redacted before entering the details panel.
 - Installer `--check` / `--dry-run`, atomic target replacement, install lock and
   GNU `sha256sum` / BSD `shasum` fallback.
 - Generated installer version table + CI release/docs consistency checks.
@@ -49,8 +51,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` / `@openclaw/feishu@2026.10.6` / `@openclaw/feishu@2026.10.7` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `4c73dd62f350a18fd40a66b1315d9c5c6844d4fed9a5006095821e1ced0004a5` |
-| patch SHA-256 | `fdb5d59bc886b1badf0bbbe1a98e5bf304eff26eb922919f50396f1ef18b49de` (identical patch for both builds) |
+| patched bundle SHA-256 | `d0de24647786c7594e12b384599f298e570d6dce22781c30b7a3e23e263994ea` |
+| patch SHA-256 | `e1610dbb7e6730ab447f4cc7d45307047b1e7e97240f6e5a901552be11f978b3` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -96,7 +98,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 424 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 426 assertions.
 
 ---
 
