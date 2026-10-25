@@ -26,8 +26,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Compact status (primary line + at most one narration line), configurable elapsed refresh, shorter narration cap.
 - Deletes the `status` element at close so the final card has no empty status gap.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
-- Structured card sections: one collapsed `🧾 运行详情` panel (reasoning/tool/error sections), per-tool counts, single-line phase status, a body-level completion summary, and an output TPS footer.
-- The footer keeps only agent/model/provider + TPS; tools/duration/errors live once in the body summary, not duplicated in the footer.
+- Structured card sections: one collapsed `🧾 运行详情` panel (reasoning/tool/error sections), per-tool counts, single-line phase status, and a body-level completion summary.
+- The footer keeps only agent/model/provider; tools/duration/errors live once in the body summary.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched.
 - Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
 - Content-free diagnostics for tool-shaped payloads that could not be aggregated,
@@ -49,8 +49,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `e135a8c703f9a2f50aa8fedd353d8219f4b5ab5dd695037bbd367adf08038e9f` |
-| patch SHA-256 | `49549b2274d4159e8475fa3f88a95e6e7f3bdc5c79a3ef1e4ab36b4b9448c21f` (identical patch for both builds) |
+| patched bundle SHA-256 | `4744cf883eb9a671669435718ac7aefea8159a448ff532c8383e69f1727a1a4b` |
+| patch SHA-256 | `c61cba83cd495c9cb2f06a234c426106d5bddfb6def0ee20f555fdba90e3673e` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -96,7 +96,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 424 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 423 assertions.
 
 ---
 
@@ -131,7 +131,6 @@ Current defaults:
 | details display | one collapsed `🧾 运行详情` panel with reasoning/tool/error sections |
 | hide reasoning in final card | panel removed when answer exists |
 | final tool summary | on |
-| output TPS footer | on; `≈` estimate from output tokens and active streaming time |
 | final chat preview | answer summary, `✅ 已回复` fallback |
 
 Prerequisite for tool-summary aggregation: **`verboseLevel: on`**. With `verboseLevel: off` tool events never reach the plugin hooks, so no progress line is aggregated.

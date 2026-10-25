@@ -108,8 +108,7 @@ ok("empty prewarmed card is discarded", /const shouldDiscardEmptyCard = disposit
 ok("single collapsible details panel exists", /collapsible_panel/.test(src) && /detailspanel/.test(src) && /buildDetailsPanelContent/.test(src));
 ok("nested details body is updated", /writeElementContent/.test(src) && /detailspanel_body/.test(src));
 ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/.test(src) && /toolErrors\.push/.test(src));
-ok("footer only adds TPS beyond agent/model/provider", /if \(meta\.tps\)/.test(src) && !/meta\.toolCount/.test(src) && !/meta\.duration/.test(src) && !/meta\.errorCount/.test(src));
-ok("footer TPS derives from streaming progress with duration fallback", /buildTpsText\(finalizedAnswerText, finalElapsedMs\)/.test(src) && /recordStreamingProgress\(nextText\)/.test(src));
+ok("footer keeps only agent/model/provider", /function resolveCardNote\(agentId, identity, prefixCtx\)/.test(src) && !/meta\.tps/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",
