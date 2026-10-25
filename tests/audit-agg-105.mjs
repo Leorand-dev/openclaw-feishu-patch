@@ -109,6 +109,7 @@ ok("collapsible reasoning/tools/errors panels exist", /collapsible_panel/.test(s
 ok("nested panel bodies are updated", /writeElementContent/.test(src) && /reasoningpanel_body/.test(src) && /toolspanel_body/.test(src) && /errorspanel_body/.test(src));
 ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/.test(src) && /toolErrors\.push/.test(src));
 ok("footer carries duration/tool/error meta", /meta\.toolCount/.test(src) && /meta\.duration/.test(src) && /meta\.errorCount/.test(src));
+ok("footer TPS derives from streaming progress", /buildTpsText\(finalizedAnswerText\)/.test(src) && /recordStreamingProgress\(nextText\)/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",

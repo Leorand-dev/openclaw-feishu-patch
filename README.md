@@ -25,7 +25,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Records fallback final sends in the final-dedupe set, preventing duplicate final deliveries.
 - Compact status (primary line + at most one narration line), configurable elapsed refresh, shorter narration cap.
 - Deletes the `status` element at close so the final card has no empty status gap.
-- Caches/limits reasoning preview; final cards hide thinking when an answer exists.
+- Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
+- Structured card sections: collapsed reasoning/tool/error panels, per-tool counts, phase status, and a footer summary with duration, tool count, and output TPS.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched.
 - Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
 - Content-free diagnostics for tool-shaped payloads that could not be aggregated,
@@ -47,8 +48,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `e925eb6cc83aa965134adbab87b1bdd5adf99d6e8786536a99265aa26f5c1ecb` |
-| patch SHA-256 | `430ff26b705a9e54d7c66a0cae735fb5d42619507a7ed6f911414d733a267b3f` (identical patch for both builds) |
+| patched bundle SHA-256 | `22b6de2de2085f3d56c06b48da78fea0c9768fa49a4f25ec62b697fc6773d15b` |
+| patch SHA-256 | `70a8d7b4f98ade6f2ebe2f130c14a0c6eea90bb857e77de4a0855e84878e8b2f` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -94,7 +95,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 423 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 424 assertions.
 
 ---
 
@@ -122,13 +123,16 @@ Current defaults:
 | --- | --- |
 | prewarm card at reply start | on |
 | dedicated `status` element | on |
-| status position | bottom |
+| status position | top |
 | elapsed refresh | 15s |
-| compact status | primary line + one narration line |
+| compact status | single phase line |
 | narration cap | 80 characters |
-| reasoning preview cap | 12 lines |
-| hide reasoning in final card | on (when answer exists) |
-| final tool summary | off |
+| reasoning display | collapsed `💭 思考过程` panel |
+| tool display | collapsed `🔧 工具调用` panel with per-tool counts |
+| tool errors | collapsed `⚠️ 工具错误` panel |
+| hide reasoning in final card | panel removed when answer exists |
+| final tool summary | on |
+| output TPS footer | on; exact when provider usage is available, otherwise `≈` estimate |
 | final chat preview | answer summary, `✅ 已回复` fallback |
 
 Prerequisite for tool-summary aggregation: **`verboseLevel: on`**. With `verboseLevel: off` tool events never reach the plugin hooks, so no progress line is aggregated.
