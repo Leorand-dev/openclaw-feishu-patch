@@ -49,8 +49,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `eced6e3f616c717b1f7371a0c4491015a7ed3b5dfde722342b1a73ba4507f25d` |
-| patch SHA-256 | `897cf4016a4cbbcb445828975a13cbdb24b7f2eae90ccb380f3b2ea3c5f30026` (identical patch for both builds) |
+| patched bundle SHA-256 | `e135a8c703f9a2f50aa8fedd353d8219f4b5ab5dd695037bbd367adf08038e9f` |
+| patch SHA-256 | `49549b2274d4159e8475fa3f88a95e6e7f3bdc5c79a3ef1e4ab36b4b9448c21f` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
