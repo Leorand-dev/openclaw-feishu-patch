@@ -146,7 +146,7 @@ ok("status position defaults to top", /cardStatusPosition === "bottom" \? "botto
 ok("status position passed to session", /statusPosition \}/.test(src) && /this\.statusPosition = options\.statusPosition === "top" \? "top" : "bottom";/.test(src));
 ok("reasoning max lines configurable (default 12)", /reasoningMaxLines/.test(src) && /configured >= 2 && configured <= 100 \? configured : 12/.test(src));
 ok("reasoning preview adds ellipsis when capped", src.includes("lines.length > REASONING_MAX_LINES") && src.includes("Math.max(1, REASONING_MAX_LINES - 1)"));
-ok("final hides reasoning panel by default", /HIDE_REASONING_IN_FINAL = account\.config\?\.hideReasoningInFinal !== false;/.test(src) && /deleteElement\("reasoningpanel"\)/.test(src));
+ok("final hides reasoning from details panel", /HIDE_REASONING_IN_FINAL = account\.config\?\.hideReasoningInFinal !== false;/.test(src) && /finalReasoningForPanel/.test(src) && /buildDetailsPanelContent/.test(src));
 ok("final tool summary defaults on", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary !== false;/.test(src));
 {
   const fmtBody = extractArrow(src, "formatReasoningPrefix");

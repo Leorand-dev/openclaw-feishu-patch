@@ -26,7 +26,7 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Compact status (primary line + at most one narration line), configurable elapsed refresh, shorter narration cap.
 - Deletes the `status` element at close so the final card has no empty status gap.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
-- Structured card sections: collapsed reasoning/tool/error panels, per-tool counts, single-line phase status, a body-level completion summary, and an output TPS footer.
+- Structured card sections: one collapsed `🧾 运行详情` panel (reasoning/tool/error sections), per-tool counts, single-line phase status, a body-level completion summary, and an output TPS footer.
 - The footer keeps only agent/model/provider + TPS; tools/duration/errors live once in the body summary, not duplicated in the footer.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched.
 - Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
@@ -49,8 +49,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `9ce66a1ae23e7809fbb0bfb2fec61306a061aed4bb266cee3bd45314a5d71f8c` |
-| patch SHA-256 | `2f01e891f7508f62b9ee9cb7564ab097db03c79a942b875e380ebf97472f7986` (identical patch for both builds) |
+| patched bundle SHA-256 | `eced6e3f616c717b1f7371a0c4491015a7ed3b5dfde722342b1a73ba4507f25d` |
+| patch SHA-256 | `897cf4016a4cbbcb445828975a13cbdb24b7f2eae90ccb380f3b2ea3c5f30026` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -128,9 +128,7 @@ Current defaults:
 | elapsed refresh | 15s |
 | compact status | single phase line |
 | narration cap | 80 characters |
-| reasoning display | collapsed `💭 思考过程` panel |
-| tool display | collapsed `🔧 工具调用` panel with per-tool counts |
-| tool errors | collapsed `⚠️ 工具错误` panel |
+| details display | one collapsed `🧾 运行详情` panel with reasoning/tool/error sections |
 | hide reasoning in final card | panel removed when answer exists |
 | final tool summary | on |
 | output TPS footer | on; `≈` estimate from output tokens and active streaming time |

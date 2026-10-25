@@ -101,12 +101,12 @@ ok("idle hold uses running total", /const hasToolActivity = aggregatedToolTotal 
 ok("timer lifecycle preserved", /const clearIdleCloseTimer = \(\) => \{/.test(src) && /idleCloseTimer\.unref\?\.\(\);/.test(src) && /!visibleReplySent && !terminalQuiet/.test(src));
 ok("empty tool-only card uses final summary", /resolveFinalCardText = \(answer, elapsedMs\)/.test(src) && /buildFinalSummaryLine\(elapsedMs\)/.test(src));
 ok("status position defaults to top", /cardStatusPosition === "bottom" \? "bottom" : "top"/.test(src));
-ok("reasoning preview cap / final panel removal", /REASONING_MAX_LINES/.test(src) && /deleteElement\("reasoningpanel"\)/.test(src));
+ok("reasoning preview cap / final details removal", /REASONING_MAX_LINES/.test(src) && /finalReasoningForPanel/.test(src) && /deleteElement\("detailspanel"\)/.test(src));
 ok("final tool summary defaults on", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary !== false;/.test(src));
 ok("empty prewarmed card is discarded", /const shouldDiscardEmptyCard = disposition !== "discarded" && !text\.trim\(\) && !carriedNarration && aggregatedToolTotal === 0;/.test(src) && /disposition === "discarded" \|\| shouldDiscardEmptyCard\) closed = await streamingToClose\.discard\(\);/.test(src));
 
-ok("collapsible reasoning/tools/errors panels exist", /collapsible_panel/.test(src) && /reasoningpanel/.test(src) && /toolspanel/.test(src) && /errorspanel/.test(src));
-ok("nested panel bodies are updated", /writeElementContent/.test(src) && /reasoningpanel_body/.test(src) && /toolspanel_body/.test(src) && /errorspanel_body/.test(src));
+ok("single collapsible details panel exists", /collapsible_panel/.test(src) && /detailspanel/.test(src) && /buildDetailsPanelContent/.test(src));
+ok("nested details body is updated", /writeElementContent/.test(src) && /detailspanel_body/.test(src));
 ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/.test(src) && /toolErrors\.push/.test(src));
 ok("footer only adds TPS beyond agent/model/provider", /if \(meta\.tps\)/.test(src) && !/meta\.toolCount/.test(src) && !/meta\.duration/.test(src) && !/meta\.errorCount/.test(src));
 ok("footer TPS derives from streaming progress", /buildTpsText\(finalizedAnswerText\)/.test(src) && /recordStreamingProgress\(nextText\)/.test(src));
