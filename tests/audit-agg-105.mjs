@@ -53,7 +53,6 @@ ok("status updates throttled", /statusLastUpdateTime/.test(src) && /schedulePend
 
 // --- V2: waiting-line enhancements / config ---
 ok("waiting template uses progressTexts", /resolveProgressText\("toolWaiting"/.test(src));
-ok("completed template uses progressTexts", /resolveProgressText\("toolCompleted"/.test(src));
 ok("compacting template uses progressTexts", /resolveProgressText\("compacting"/.test(src));
 ok("optional last-tool label", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src));
 ok("compact status budget present", /const STATUS_LINE_MAX_CHARS = 160;/.test(src) && /const STATUS_MAX_CHARS = 400;/.test(src));
@@ -109,6 +108,8 @@ ok("single collapsible details panel exists", /collapsible_panel/.test(src) && /
 ok("nested details body is updated", /writeElementContent/.test(src) && /detailspanel_body/.test(src));
 ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/.test(src) && /toolErrors\.push/.test(src));
 ok("footer keeps only agent/model/provider", /function resolveCardNote\(agentId, identity, prefixCtx\)/.test(src) && !/meta\.tps/.test(src));
+ok("reasoning panel is capped by lines and chars", /lines\.slice\(0, REASONING_MAX_LINES\)/.test(src) && /text\.length > 1200/.test(src));
+ok("tool errors are sanitized before display", /sanitizeToolErrorText/.test(src) && /redacted/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",

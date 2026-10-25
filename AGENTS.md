@@ -6,7 +6,7 @@ patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6`**.
+- Target plugin build must be **`@openclaw/feishu@2026.10.5`, `@openclaw/feishu@2026.10.6`, or `@openclaw/feishu@2026.10.7`**.
 - The target file is the installed monitor bundle:
 
   ```
@@ -30,7 +30,7 @@ Expected installer output includes:
 
 ```
 patched OK: ...
-sha256: 8394862d23950ac62d91f8949b08732157cac04520ff3fdb923256e9a07fe375
+sha256: 4c73dd62f350a18fd40a66b1315d9c5c6844d4fed9a5006095821e1ced0004a5
 ```
 
 Then restart the OpenClaw gateway using the host's normal supervisor
@@ -50,7 +50,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `8/8 suites passed`, `423` assertions.
+Expected: `8/8 suites passed`, `424` assertions.
 
 Optional mechanical check:
 
@@ -86,9 +86,9 @@ systemctl --user restart openclaw-gateway.service
 
 | item | value |
 | --- | --- |
-| plugin build | 2026.10.5 / 2026.10.6 |
+| plugin build | 2026.10.5 / 2026.10.6 / 2026.10.7 |
 | pristine SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched SHA-256 | `8394862d23950ac62d91f8949b08732157cac04520ff3fdb923256e9a07fe375` |
-| patch SHA-256 | `b8817df1fa3d3d6419d4b628d4ddd97372444ec1cd7aeee74cf1fb2811510adc` |
+| patched SHA-256 | `4c73dd62f350a18fd40a66b1315d9c5c6844d4fed9a5006095821e1ced0004a5` |
+| patch SHA-256 | `fdb5d59bc886b1badf0bbbe1a98e5bf304eff26eb922919f50396f1ef18b49de` |
 
 See `README.md` for behavior, limitations and adapter workflow.

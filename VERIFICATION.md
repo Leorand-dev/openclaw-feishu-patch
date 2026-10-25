@@ -1,14 +1,14 @@
 # Verification — openclaw-feishu-patch
 
-Current supported versions: **`@openclaw/feishu@2026.10.5` and `@openclaw/feishu@2026.10.6`** (identical monitor bundle).
+Current supported versions: **`@openclaw/feishu@2026.10.5`, `@openclaw/feishu@2026.10.6`, and `@openclaw/feishu@2026.10.7`** (identical monitor bundle).
 
 ## Artifacts
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.10.5/feishu-tool-aggregation.patch` | `b8817df1fa3d3d6419d4b628d4ddd97372444ec1cd7aeee74cf1fb2811510adc` |
-| `patches/2026.10.6/feishu-tool-aggregation.patch` | `b8817df1fa3d3d6419d4b628d4ddd97372444ec1cd7aeee74cf1fb2811510adc` |
-| patched bundle | `8394862d23950ac62d91f8949b08732157cac04520ff3fdb923256e9a07fe375` |
+| `patches/2026.10.5/feishu-tool-aggregation.patch` | `fdb5d59bc886b1badf0bbbe1a98e5bf304eff26eb922919f50396f1ef18b49de` |
+| `patches/2026.10.6/feishu-tool-aggregation.patch` | `fdb5d59bc886b1badf0bbbe1a98e5bf304eff26eb922919f50396f1ef18b49de` |
+| patched bundle | `4c73dd62f350a18fd40a66b1315d9c5c6844d4fed9a5006095821e1ced0004a5` |
 | pristine bundle | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 
 The bundle files are not redistributed here; hashes are reference values for the
@@ -36,12 +36,12 @@ exact supported build.
 32 narration ticker
 56 display/backfill/session
 103 structural audit
-= 423 assertions, 8/8 suites passed
+= 424 assertions, 8/8 suites passed
 ```
 
 ## Sanitized live verification
 
-On a live OpenClaw 2026.10.5 / Feishu instance, and re-verified on 2026.10.6:
+On a live OpenClaw 2026.10.5 / Feishu instance, and re-verified on 2026.10.6 and 2026.10.7:
 
 - One user message produced **one** streaming card (`Started streaming` once,
   `Closed streaming` once); no duplicate cards.

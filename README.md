@@ -4,7 +4,7 @@ An installable, **build-pinned** patch for the OpenClaw Feishu channel plugin.
 
 It turns tool-call progress and mid-turn narration into **one tidy streaming card** instead of a wall of bubbles, and hardens the streaming-card lifecycle so retries/reorderings do not create duplicate cards or duplicated answer text.
 
-- **Supported plugin build:** `@openclaw/feishu` **2026.10.5 / 2026.10.6**
+- **Supported plugin build:** `@openclaw/feishu` **2026.10.5 / 2026.10.6 / 2026.10.7**
 - **Patch type:** unified diff against the installed `dist/.setup/monitor.account-*.mjs`
 - **Install:** one shell script; exact SHA-256 check; automatic backup; automatic rollback on failure
 - **No credentials required by this repository**
@@ -47,10 +47,10 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 
 | item | value |
 | --- | --- |
-| OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
+| OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` / `@openclaw/feishu@2026.10.6` / `@openclaw/feishu@2026.10.7` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `8394862d23950ac62d91f8949b08732157cac04520ff3fdb923256e9a07fe375` |
-| patch SHA-256 | `b8817df1fa3d3d6419d4b628d4ddd97372444ec1cd7aeee74cf1fb2811510adc` (identical patch for both builds) |
+| patched bundle SHA-256 | `4c73dd62f350a18fd40a66b1315d9c5c6844d4fed9a5006095821e1ced0004a5` |
+| patch SHA-256 | `fdb5d59bc886b1badf0bbbe1a98e5bf304eff26eb922919f50396f1ef18b49de` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -96,7 +96,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 423 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 424 assertions.
 
 ---
 
@@ -211,6 +211,8 @@ patches/
   2026.10.5/
     feishu-tool-aggregation.patch
   2026.10.6/
+    feishu-tool-aggregation.patch
+  2026.10.7/
     feishu-tool-aggregation.patch
 tests/                        eight JavaScript suites
 tools/
