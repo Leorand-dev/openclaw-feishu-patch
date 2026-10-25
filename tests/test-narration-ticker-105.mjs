@@ -20,6 +20,10 @@ let streamingStartPromise = null;
 let releaseStart = () => {};
 ${deferredStart ? 'streamingStartPromise = new Promise((resolve) => { releaseStart = resolve; });' : ''}
 let narrationLine = "", waitingLine = "", itemStatusLine = "", compactionLine = "";
+const narrationEntries = [];
+const cardStartedAt = Date.now();
+const NARRATION_MAX_ENTRIES = 6;
+const NARRATION_TOTAL_MAX_CHARS = 800;
 let reasoningText = "", streamText = "";
 const NARRATION_MAX_CHARS = 240;
 const STATUS_LINE_MAX_CHARS = 160;
@@ -113,7 +117,7 @@ return {
   // structural wiring
   ok("deliver routes narration into ticker", /if \(isToolNarrationPayload\(inputPayload, info\)\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);\s*return noVisibleFeishuReplyDelivery;\s*\}/.test(src));
   ok("content renderer excludes narration/status", /const buildCombinedStreamText = \(thinking, answer\) => \[thinking \? formatReasoningPrefix\(thinking\) : "", answer\]\.filter\(Boolean\)\.join\("\\n\\n---\\n\\n"\);/.test(src));
-  ok("status renderer includes narration", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine \|\| narrationLine;/.test(src));
+  ok("status renderer includes latest narration", /const latestNarration = narrationLine;/.test(src) && /truncateDisplayText\(latestNarration, 60\)/.test(src));
   ok("final content clears status/ticker", /if \(info\?\.kind === "final"\) \{\s*renderEpoch \+= 1;\s*clearWaitingRefreshTimer\(\);\s*clearCardStatusLines\(\);\s*flushCardUpdate\(true\);/.test(src));
 ok("assistant start keeps initial status when blank", /onAssistantMessageStart: previewStreamingEnabled \? \(\) => \{\s*renderEpoch \+= 1;\s*if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);/.test(src));
   ok("close clears status fields", /const carriedNarration = narrationLine;\s*clearCardStatusLines\(\);/.test(src));
@@ -121,6 +125,9 @@ ok("assistant start keeps initial status when blank", /onAssistantMessageStart: 
   ok("dedupe guard exists", /if \(nextLine === narrationLine && streaming\?\.isActive\(\) === true\) return true;/.test(src));
   ok("no standalone narration delivery", !/if \(isToolNarrationPayload\(inputPayload, info\)\) return noVisibleFeishuReplyDelivery;/.test(src));
   ok("ticker uses safe truncation helper", /return truncateDisplayText\(collapsed, NARRATION_MAX_CHARS\);/.test(src));
+
+  ok("narration timeline stores capped entries", /narrationEntries\.push/.test(src) && /NARRATION_MAX_ENTRIES/.test(src) && /NARRATION_TOTAL_MAX_CHARS/.test(src));
+  ok("details panel includes narration section", /buildNarrationPanelContent/.test(src) && /\u{1F4AC} \\u65C1\\u767D/.test(src));
 
   finish("2026.10.5 narration ticker");
 })().catch((error) => {

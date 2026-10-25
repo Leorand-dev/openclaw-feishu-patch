@@ -6,9 +6,9 @@ Current supported versions: **`@openclaw/feishu@2026.10.5` and `@openclaw/feishu
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.10.5/feishu-tool-aggregation.patch` | `c61cba83cd495c9cb2f06a234c426106d5bddfb6def0ee20f555fdba90e3673e` |
-| `patches/2026.10.6/feishu-tool-aggregation.patch` | `c61cba83cd495c9cb2f06a234c426106d5bddfb6def0ee20f555fdba90e3673e` |
-| patched bundle | `4744cf883eb9a671669435718ac7aefea8159a448ff532c8383e69f1727a1a4b` |
+| `patches/2026.10.5/feishu-tool-aggregation.patch` | `379c593a43cbcd2c5026f4fcb8819ccd39e024f382fe065c0293af5afecfa738` |
+| `patches/2026.10.6/feishu-tool-aggregation.patch` | `379c593a43cbcd2c5026f4fcb8819ccd39e024f382fe065c0293af5afecfa738` |
+| patched bundle | `c629b6c5b79921d835d48a27a0957500946d824689b6af4581ae6f2db876f6ae` |
 | pristine bundle | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 
 The bundle files are not redistributed here; hashes are reference values for the
@@ -36,7 +36,7 @@ exact supported build.
 32 narration ticker
 56 display/backfill/session
 103 structural audit
-= 423 assertions, 8/8 suites passed
+= 427 assertions, 8/8 suites passed
 ```
 
 ## Sanitized live verification
