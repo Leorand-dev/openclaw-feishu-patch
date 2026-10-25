@@ -108,11 +108,11 @@ ${src.slice(truncateStart, src.indexOf("\n\t};", truncateStart) + 4)}
 ${src.slice(statusStart, statusEnd)}
 return buildStatusText;
 `)();
-ok("compact status: phase plus latest narration", statusFn() === "waiting · narration", JSON.stringify(statusFn()));
+ok("compact status: active phase only", statusFn() === "waiting", JSON.stringify(statusFn()));
 
 // ---------- 5) display batch 1: compact status, elapsed/last tool, narration cap, timer ----------
 ok("narration max configurable and default 80", /const configured = Number\(account\.config\?\.narrationMaxChars\);\s*return Number\.isFinite\(configured\) && configured >= 40 && configured <= 500 \? configured : 80;/.test(src));
-ok("status renderer stays single-line", /return truncateDisplayText\(primary \|\| latestNarration, STATUS_LINE_MAX_CHARS\);/.test(src));
+ok("status renderer stays single-line", /return truncateDisplayText\(primary, STATUS_LINE_MAX_CHARS\);/.test(src));
 ok("waiting line has last-tool detail", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src) && /const details = \[\];/.test(src));
 ok("waiting line has elapsed detail", /SHOW_TOOL_ELAPSED && toolPhaseStartedAt > 0/.test(src) && /formatElapsedDuration\(elapsedMs\)/.test(src));
 ok("elapsed refresh timer configurable, default 15s", /toolElapsedRefreshMs/.test(src) && /configured >= 5e3 && configured <= 6e4 \? configured : 15e3/.test(src) && /if \(!SHOW_TOOL_ELAPSED \|\| waitingRefreshTimer/.test(src) && /scheduleWaitingRefresh\(\);/.test(src));

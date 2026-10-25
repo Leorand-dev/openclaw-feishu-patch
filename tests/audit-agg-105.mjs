@@ -30,7 +30,7 @@ ok("blanket kind:tool drop removed", !/if \(info\?\.kind === "tool" && inputPayl
 ok("structured display state exists", ["waitingLine", "itemStatusLine", "compactionLine", "narrationLine", "lastToolLabel"].every((v) => src.includes(`let ${v} = "";`)));
 ok("running total counter exists", /let aggregatedToolTotal = 0;/.test(src) && /aggregatedToolTotal \+= 1;/.test(src));
 ok("no per-event reduce over counts", !src.includes("Array.from(aggregatedToolSummaryCounts.values()).reduce"));
-ok("status renderer keeps one line and appends latest narration", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine;/.test(src) && /latestNarration = narrationLine/.test(src) && !/const secondary = extras/.test(src));
+ok("status renderer uses one structured phase line", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine \|\| narrationLine;/.test(src) && !/const secondary = extras/.test(src));
 ok("content renderer separated from status and panels", /return \[streamText, statusFallback\]/.test(src) && /buildReasoningPanelContent/.test(src) && /buildToolsPanelContent/.test(src));
 ok("flush uses latest-state providers + dirty split + budget", /content: contentChanged \? \(\) => renderCardContent\(\) : void 0/.test(src) && /status: shouldQueueStatus \? \(\) => buildStatusText\(\) : void 0/.test(src) && /nextContent !== lastQueuedContent/.test(src) && /statusUpdatesQueuedThisTurn/.test(src));
 ok("card-start pending flush is coalesced", /cardFlushPending/.test(src) && /if \(!active && cardFlushPending && !force\) return;/.test(src));
@@ -109,8 +109,6 @@ ok("single collapsible details panel exists", /collapsible_panel/.test(src) && /
 ok("nested details body is updated", /writeElementContent/.test(src) && /detailspanel_body/.test(src));
 ok("tool errors are aggregated into the error panel", /aggregateToolErrorToCard/.test(src) && /toolErrors\.push/.test(src));
 ok("footer keeps only agent/model/provider", /function resolveCardNote\(agentId, identity, prefixCtx\)/.test(src) && !/meta\.tps/.test(src));
-ok("narration timeline is stored in details", /narrationEntries/.test(src) && /buildNarrationPanelContent/.test(src) && /NARRATION_MAX_ENTRIES/.test(src));
-ok("narration timeline has total-length cap", /NARRATION_TOTAL_MAX_CHARS/.test(src) && /narrationEntries\.reduce/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",

@@ -26,7 +26,7 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Compact status (primary line + at most one narration line), configurable elapsed refresh, shorter narration cap.
 - Deletes the `status` element at close so the final card has no empty status gap.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
-- Structured card sections: one collapsed `🧾 运行详情` panel (reasoning/narration/tool/error sections), per-tool counts, a single-line phase status with the latest narration, and a body-level completion summary.
+- Structured card sections: one collapsed `🧾 运行详情` panel (reasoning/tool/error sections), per-tool counts, a single-line phase status, and a body-level completion summary.
 - The footer keeps only agent/model/provider; tools/duration/errors live once in the body summary.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched.
 - Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
@@ -49,8 +49,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` or `@openclaw/feishu@2026.10.6` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `c629b6c5b79921d835d48a27a0957500946d824689b6af4581ae6f2db876f6ae` |
-| patch SHA-256 | `379c593a43cbcd2c5026f4fcb8819ccd39e024f382fe065c0293af5afecfa738` (identical patch for both builds) |
+| patched bundle SHA-256 | `8394862d23950ac62d91f8949b08732157cac04520ff3fdb923256e9a07fe375` |
+| patch SHA-256 | `b8817df1fa3d3d6419d4b628d4ddd97372444ec1cd7aeee74cf1fb2811510adc` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -96,7 +96,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 427 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 423 assertions.
 
 ---
 
@@ -128,8 +128,7 @@ Current defaults:
 | elapsed refresh | 15s |
 | compact status | single phase line |
 | narration cap | 80 characters |
-| details display | one collapsed `🧾 运行详情` panel with reasoning/narration/tool/error sections |
-| narration display | latest line in the status bar; last 6 entries in the details timeline |
+| details display | one collapsed `🧾 运行详情` panel with reasoning/tool/error sections |
 | hide reasoning in final card | panel removed when answer exists |
 | final tool summary | on |
 | final chat preview | answer summary, `✅ 已回复` fallback |
