@@ -101,7 +101,7 @@ ok("timer lifecycle preserved", /const clearIdleCloseTimer = \(\) => \{/.test(sr
 ok("empty tool-only card uses final summary", /resolveFinalCardText = \(answer, elapsedMs\)/.test(src) && /buildFinalSummaryLine\(elapsedMs\)/.test(src));
 ok("status position defaults to top", /const statusPosition = "top";/.test(src));
 ok("reasoning preview cap / final details removal", /REASONING_MAX_LINES/.test(src) && /finalReasoningForPanel/.test(src) && /deleteElement\("detailspanel"\)/.test(src));
-ok("final tool summary defaults on", /const FINAL_TOOL_SUMMARY = true;/.test(src));
+ok("completion summary is not duplicated in body", !/text = `\$\{text\}\n\n> \$\{buildFinalSummaryLine/.test(src));
 ok("empty prewarmed card is discarded", /const shouldDiscardEmptyCard = disposition !== "discarded" && !text\.trim\(\) && !carriedNarration && aggregatedToolTotal === 0;/.test(src) && /disposition === "discarded" \|\| shouldDiscardEmptyCard\) closed = await streamingToClose\.discard\(\);/.test(src));
 
 ok("single collapsible details panel exists", /collapsible_panel/.test(src) && /detailspanel/.test(src) && /buildDetailsPanelContent/.test(src));
@@ -145,7 +145,6 @@ for (const symbol of [
   "scheduleWaitingRefresh",
   "REASONING_MAX_LINES",
   "HIDE_REASONING_IN_FINAL",
-  "FINAL_TOOL_SUMMARY",
   "truncateDisplayText",
 ]) {
   const declarations = count(src, `const ${symbol} = `);

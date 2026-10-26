@@ -30,7 +30,7 @@ Expected installer output includes:
 
 ```
 patched OK: ...
-sha256: 3d8867bf504fc33ea1386925ae3e1e5781556e144e074220576d2619cf0fcfa2
+sha256: bbf6d67658fd9b35b8732ba9f40231cfd115fb81d3ba45aa671fdd6e155c8898
 ```
 
 Then restart the OpenClaw gateway using the host's normal supervisor
@@ -88,7 +88,7 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- |
 | plugin build | 2026.10.5 / 2026.10.6 / 2026.10.7 |
 | pristine SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched SHA-256 | `3d8867bf504fc33ea1386925ae3e1e5781556e144e074220576d2619cf0fcfa2` |
-| patch SHA-256 | `713cb6c66454771da6a184f5bb548d2ae4195ff188327822f7cf135bc9748c6d` |
+| patched SHA-256 | `bbf6d67658fd9b35b8732ba9f40231cfd115fb81d3ba45aa671fdd6e155c8898` |
+| patch SHA-256 | `3c0b86b77dfc8b1a33cc1484cdb913e3bb10ca0d44c9fb6e54bc0c8f2767fd42` |
 
 See `README.md` for behavior, limitations and adapter workflow.

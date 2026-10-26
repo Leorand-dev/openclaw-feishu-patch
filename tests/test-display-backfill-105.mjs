@@ -147,7 +147,7 @@ ok("status position passed to session", /statusPosition \}/.test(src) && /this\.
 ok("reasoning max lines is a fixed 12", /const REASONING_MAX_LINES = 12;/.test(src));
 ok("reasoning preview adds ellipsis when capped", src.includes("lines.length > REASONING_MAX_LINES") && src.includes("\\n\\u2026"));
 ok("final hides reasoning from details panel", /const HIDE_REASONING_IN_FINAL = true;/.test(src) && /finalReasoningForPanel/.test(src) && /buildDetailsPanelContent/.test(src));
-ok("final tool summary defaults on", /const FINAL_TOOL_SUMMARY = true;/.test(src));
+ok("completion summary is not duplicated in body", !/text = `\$\{text\}\n\n> \$\{buildFinalSummaryLine/.test(src));
 // ---------- 7) block payloads are merged, never blindly appended ----------
 ok("block delivery uses dedupe merge", /if \(info\?\.kind === "block"\) queueStreamingBlockUpdate\(text\);/.test(src));
 {
