@@ -264,7 +264,7 @@
  const NO_VISIBLE_REPLY_FALLBACK_TEXT = "⚠️ This reply completed without visible content. The turn may have been interrupted; please retry or ask me to recover from recent context.";
  function isStreamingStartBackedOff(accountId, now = Date.now()) {
  	const backoffUntil = streamingStartBackoffUntilByAccount.get(accountId);
-@@ -1638,7 +1820,87 @@
+@@ -1638,7 +1820,88 @@
  	let streamText = "";
  	let lastPartial = "";
  	let reasoningText = "";
@@ -291,6 +291,7 @@
 +	let cleanupCloseTimer;
 +	let pendingPageSuffix = "";
 +	let backgroundCardActive = false;
++	let backgroundClosePromise = null;
 +	let backgroundCloseTimer;
 +	const BACKGROUND_IDLE_CLOSE_MS = 30000;
 +	const clearBackgroundCloseTimer = () => {
@@ -353,7 +354,7 @@
  	let snapshotBaseText = "";
  	let lastSnapshotTextLength = 0;
  	let hasStreamingFinalText = false;
-@@ -1659,21 +1921,281 @@
+@@ -1659,21 +1922,281 @@
  	const pendingStreamingDeliveries = [];
  	const formatReasoningPrefix = (thinking) => {
  		if (!thinking) return "";
@@ -643,7 +644,7 @@
  	};
  	const queueStreamingUpdate = (nextText, options) => {
  		if (!nextText) return;
-@@ -1688,10 +2210,24 @@
+@@ -1688,10 +2211,24 @@
  			} else streamText = `${snapshotBaseText}${mergeStreamingText(currentSnapshotText, nextText)}`;
  			lastSnapshotTextLength = nextText.length;
  		}
@@ -669,7 +670,7 @@
  		streamingStartPromise = (async () => {
  			const creds = account.appId && account.appSecret ? {
  				appId: account.appId,
-@@ -1700,7 +2236,8 @@
+@@ -1700,7 +2237,8 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -679,7 +680,7 @@
  			const generation = ++streamingGeneration;
  			streaming = session;
  			activeStreamingGeneration = generation;
-@@ -1715,6 +2252,14 @@
+@@ -1715,6 +2253,14 @@
  					header: cardHeader,
  					note: cardNote
  				});
@@ -694,7 +695,7 @@
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
-@@ -1735,11 +2280,68 @@
+@@ -1735,11 +2281,68 @@
  		streamText = "";
  		lastPartial = "";
  		reasoningText = "";
@@ -764,7 +765,7 @@
  	const rememberClosedStreamingSettlement = (generation, content, result, error, disposition = "closed") => {
  		if (generation === void 0 || !content && disposition === "closed") return;
  		closedStreamingSettlements.set(generation, {
-@@ -1750,6 +2352,13 @@
+@@ -1750,6 +2353,13 @@
  		});
  	};
  	const performStreamingClose = async (disposition) => {
@@ -778,7 +779,7 @@
  		const streamingToClose = streaming;
  		const generationToClose = activeStreamingGeneration;
  		const startPromiseToClose = streamingStartPromise;
-@@ -1767,13 +2376,34 @@
+@@ -1767,13 +2377,34 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -817,7 +818,7 @@
  						closed = await streamingToClose.closeWithResult(text, { note: finalNote });
  					}
  				} catch (error) {
-@@ -1788,7 +2418,8 @@
+@@ -1788,7 +2419,8 @@
  					kind: "card"
  				});
  				if (result.visibleReplySent) visibleReplySent = true;
@@ -827,10 +828,21 @@
  				if (finalizationError instanceof FeishuStreamingFinalizationError && result.visibleReplySent) finalizationError = createFeishuPartialReplyDeliveryError(finalizationError.cause ?? finalizationError, result);
  			}
  			if (disposition === "discarded" || finalizationError !== void 0 || result.visibleReplySent && finalizedAnswerText) rememberClosedStreamingSettlement(generationToClose, finalizedAnswerText, result, finalizationError, disposition);
-@@ -1830,6 +2461,21 @@
+@@ -1830,6 +2462,31 @@
  		}
  		return closePromise;
  	};
++	const closeBackgroundCard = (disposition = "closed") => {
++		if (backgroundClosePromise) return backgroundClosePromise;
++		if (!backgroundCardActive) return Promise.resolve();
++		backgroundCardActive = false;
++		clearBackgroundCloseTimer();
++		const promise = closeStreaming(disposition).catch((error) => params.runtime.error?.(`feishu[${account.accountId}] background card close failed: ${String(error)}`)).finally(() => {
++			if (backgroundClosePromise === promise) backgroundClosePromise = null;
++		});
++		backgroundClosePromise = promise;
++		return promise;
++	};
 +	const scheduleBackgroundClose = () => {
 +		clearBackgroundCloseTimer();
 +		if (!backgroundCardActive) return;
@@ -841,15 +853,14 @@
 +				backgroundCardActive = false;
 +				return;
 +			}
-+			backgroundCardActive = false;
-+			closeStreaming("closed").catch((error) => params.runtime.error?.(`feishu[${account.accountId}] background card close failed: ${String(error)}`));
++			void closeBackgroundCard("closed");
 +		}, BACKGROUND_IDLE_CLOSE_MS);
 +		backgroundCloseTimer.unref?.();
 +	};
  	const deferStreamingDelivery = (result, infoKind, ownerGeneration) => {
  		const { promise: finalization, resolve, reject } = createDeferred();
  		pendingStreamingDeliveries.push({
-@@ -1853,13 +2499,193 @@
+@@ -1853,13 +2510,193 @@
  		const outcome = await closeStreaming("discarded");
  		if (outcome.error !== void 0) throw toStringifiedError(outcome.error);
  	};
@@ -1049,7 +1060,7 @@
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
  		const note = paramsLocal.useCard ? resolveCardNote(agentId, identity, responsePrefixContextProvider()) : void 0;
-@@ -2003,12 +2829,16 @@
+@@ -2003,12 +2840,16 @@
  	};
  	const ensureVisibleStreamingDelivery = async (result, content, infoKind) => {
  		if (result?.visibleReplySent === true || !content?.trim()) return result;
@@ -1067,19 +1078,17 @@
  	};
  	function queueIdleSideEffects() {
  		idleRequestedForReply = true;
-@@ -2117,6 +2947,11 @@
+@@ -2117,7 +2958,8 @@
  			return payload;
  		},
  		onReplyStart: async () => {
-+			if (backgroundCardActive) {
-+				backgroundCardActive = false;
-+				clearBackgroundCloseTimer();
-+				await closeStreaming("discarded").catch((error) => params.runtime.error?.(`feishu[${account.accountId}] background card preempt failed: ${String(error)}`));
-+			}
- 			if (!replyLifecycleStateInitialized) {
+-			if (!replyLifecycleStateInitialized) {
++			if (backgroundCardActive || backgroundClosePromise) await closeBackgroundCard("discarded");
++		if (!replyLifecycleStateInitialized) {
  				replyLifecycleStateInitialized = true;
  				deliveredFinalTexts.clear();
-@@ -2125,13 +2960,70 @@
+ 				closedStreamingSettlements.clear();
+@@ -2125,13 +2967,70 @@
  				idleRequestedForReply = false;
  				visibleReplySent = false;
  				replyOutcome = void 0;
@@ -1153,7 +1162,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -2157,6 +3049,63 @@
+@@ -2157,6 +3056,61 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -1162,15 +1171,13 @@
 +				if (backgroundCardActive && isFinalDelivery) {
 +					const finalText = typeof inputPayload?.text === "string" ? inputPayload.text : "";
 +					if (finalText.trim()) streamText = finalText;
-+					backgroundCardActive = false;
-+					clearBackgroundCloseTimer();
-+					await closeStreaming("closed").catch((error) => params.runtime.error?.(`feishu[${account.accountId}] background final close failed: ${String(error)}`));
++					await closeBackgroundCard("closed");
 +					return noVisibleFeishuReplyDelivery;
 +				}
 +				const toolErrorPayload = info?.kind === "tool" && inputPayload?.isError === true;
 +				const parsedToolSummary = parseCollapsibleToolSummary(inputPayload, info) ?? parseBareToolLabel(inputPayload, info);
 +				const narrationPayload = isToolNarrationPayload(inputPayload, info);
-+				if (!backgroundCardActive && !streaming?.isActive() && !streamingStartPromise && info?.kind === "tool" && (toolErrorPayload || parsedToolSummary || narrationPayload)) {
++				if (!backgroundCardActive && !backgroundClosePromise && !streaming?.isActive() && !streamingStartPromise && info?.kind === "tool" && (toolErrorPayload || parsedToolSummary || narrationPayload)) {
 +					backgroundCardActive = true;
 +					startStreaming();
 +					if (streamingStartPromise) await streamingStartPromise;
@@ -1217,7 +1224,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -2184,7 +3133,8 @@
+@@ -2184,7 +3138,8 @@
  					ttsSupplement
  				}));
  				const finalTextExceedsStreamingLimit = info?.kind === "final" && hasText && text.length > textChunkLimit;
@@ -1227,13 +1234,13 @@
  				const useStaticCard = hasText && cardRenderingRequested && withinCardTableLimit(text);
  				const useStreamingCard = hasText && streamingEnabled && !finalTextExceedsStreamingLimit && (info?.kind === "final" || cardRenderingRequested);
  				const skipTextForDuplicateFinal = !hasIndependentPresentation && info?.kind === "final" && hasText && deliveredFinalTexts.has(text);
-@@ -2211,8 +3161,49 @@
+@@ -2211,8 +3166,56 @@
  						});
  					}
  				};
 +				// Long final answers: keep the first chunk in the existing streaming card,
 +				// then send page-numbered continuation cards. Do not discard the preview.
-+				if (info?.kind === "final" && hasText && finalTextExceedsStreamingLimit && !hasMedia && !presentationCard && !hasPresentationFallback) {
++				if (info?.kind === "final" && hasText && finalTextExceedsStreamingLimit && !presentationCard && !hasPresentationFallback) {
 +					const initialChunks = core.channel.text.chunkMarkdownTextWithMode(text, textChunkLimit, chunkMode);
 +					const pageChunks = resolveTextChunksWithFallback(text, initialChunks);
 +					if (pageChunks.length > 1) {
@@ -1242,6 +1249,9 @@
 +						const pageNote = resolveCardNote(agentId, identity, responsePrefixContextProvider());
 +						const firstNote = `${pageNote ? `${pageNote} \u00b7 ` : ""}1/${total}`;
 +						const headerTemplate = pageHeader?.template ?? "blue";
++						const pageMentions = [...requiredMentionTargets ?? [], ...mentionTargets ?? []];
++						const pageFirstMentionParams = pageMentions.length > 0 ? { mentions: pageMentions } : {};
++						const pageContinuationMentionParams = requiredMentionTargets?.length ? { mentions: requiredMentionTargets } : {};
 +						if (streaming?.isActive() === true && activeStreamingGeneration !== void 0) {
 +							streamText = pageChunks[0];
 +							hasStreamingFinalText = true;
@@ -1252,6 +1262,7 @@
 +						} else {
 +							await collectDelivery(sendStructuredCardFeishu({
 +								...replyTarget,
++								...pageFirstMentionParams,
 +								text: pageChunks[0],
 +								header: pageHeader,
 +								note: firstNote
@@ -1260,6 +1271,7 @@
 +						for (let index = 1; index < pageChunks.length; index += 1) {
 +							await collectDelivery(sendStructuredCardFeishu({
 +								...replyTarget,
++								...pageContinuationMentionParams,
 +								text: pageChunks[index],
 +								header: {
 +									title: `\u{1F4C4} \u7EED\u9875 ${index + 1}/${total}`,
@@ -1267,7 +1279,9 @@
 +								}
 +							}), pageChunks[index]);
 +						}
++						if (hasMedia) await collectDelivery(sendMediaReplies(payload, !shouldDeliverText && !ttsTextAlreadyVisible && hasVoiceMedia && hasText ? { fallbackText: text } : void 0));
 +						pendingPageSuffix = "";
++						deliveredFinalTexts.add(text);
 +						return mergeFeishuReplyDeliveryResults(deliveredResults, text);
 +					}
 +				}
@@ -1277,7 +1291,7 @@
  					if (hasMedia) await collectDelivery(sendMediaReplies(payload));
  					await collectDelivery(sendCardFeishu({
  						...replyTarget,
-@@ -2245,16 +3236,13 @@
+@@ -2245,16 +3248,13 @@
  					const ownerGeneration = activeStreamingGeneration ?? matchingInFlightClose?.generation;
  					if (shouldStreamText && ownerGeneration !== void 0 && (streaming?.isActive() || matchingInFlightClose !== void 0)) {
  						if (activeStreamingGeneration !== void 0) {
@@ -1296,7 +1310,7 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2268,6 +3256,10 @@
+@@ -2268,6 +3268,10 @@
  							});
  						}
  						return deferStreamingDelivery(mergeFeishuReplyDeliveryResults(deliveredResults, text), info?.kind, ownerGeneration);
@@ -1307,7 +1321,7 @@
  					}
  					if (useStaticCard || useStreamingCard && !isStreamingStartBackedOff(account.accountId) && withinCardTableLimit(text)) deliveredResults.push(await sendChunkedTextReply({
  						text,
-@@ -2284,6 +3276,9 @@
+@@ -2284,6 +3288,9 @@
  				const result = mergeFeishuReplyDeliveryResults(deliveredResults, deliveredContent);
  				if (priorClosedStreamingSettlement?.error !== void 0) throw createFeishuPartialReplyDeliveryError(isChannelPartialDeliveryError(priorClosedStreamingSettlement.error) && priorClosedStreamingSettlement.error instanceof Error ? priorClosedStreamingSettlement.error.cause ?? priorClosedStreamingSettlement.error : priorClosedStreamingSettlement.error, result);
  				return result;
@@ -1317,7 +1331,7 @@
  			},
  			onError: handleDeliveryError
  		},
-@@ -2309,15 +3304,21 @@
+@@ -2309,15 +3316,21 @@
  				startStreaming();
  				const nextThinking = formatReasoningMessage(payload.text);
  				if (nextThinking) {
@@ -1340,7 +1354,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2326,9 +3327,42 @@
+@@ -2326,9 +3339,42 @@
  				if (statusLineLocal) return updateStreamingStatusLine(statusLineLocal);
  				return false;
  			} : void 0,

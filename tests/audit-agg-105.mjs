@@ -116,6 +116,10 @@ ok("narration section exists in details", /buildNarrationPanelContent/.test(src)
 ok("background card starts when no active card", /backgroundCardActive/.test(src) && /startStreaming\(\)/.test(src) && /scheduleBackgroundClose/.test(src));
 ok("over-limit final keeps preview and paginates", /pendingPageSuffix/.test(src) && /pageChunks\.length > 1/.test(src) && /finalTextExceedsStreamingLimit/.test(src));
 ok("continuation cards are numbered and omit details", /1F4C4/.test(src) && /headerTemplate/.test(src));
+ok("page cards preserve required mentions", /pageFirstMentionParams/.test(src) && /pageContinuationMentionParams/.test(src));
+ok("paginated final records delivered text", /deliveredFinalTexts\.add\(text\)/.test(src));
+ok("long media replies paginate then send media", /finalTextExceedsStreamingLimit[^\n]*!presentationCard/.test(src) && /sendMediaReplies\(payload, !shouldDeliverText/.test(src));
+ok("background card close is serialized", /backgroundClosePromise/.test(src) && /closeBackgroundCard/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",
