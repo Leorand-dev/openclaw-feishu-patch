@@ -2,7 +2,7 @@
 
 An installable, **build-pinned** patch for the OpenClaw Feishu channel plugin.
 
-It turns tool-call progress and mid-turn narration into **one tidy streaming card** instead of a wall of bubbles, and hardens the streaming-card lifecycle so retries/reorderings do not create duplicate cards or duplicated answer text.
+It turns tool-call progress, commentary and process events into **one readable streaming card** instead of a wall of bubbles. The answer body stays clean: a phase status line and a transient activity line show progress while the turn runs, and the full history collapses into a chronological process record after the answer.
 
 - **Supported plugin build:** `@openclaw/feishu` **2026.10.5 / 2026.10.6 / 2026.10.7**
 - **Patch type:** unified diff against the installed `dist/.setup/monitor.account-*.mjs`
@@ -15,35 +15,26 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 
 ## What it does
 
-- Folds recognized tool-summary events into one bounded card.
-- Shows only the latest narration as a single rolling ticker line (no narration bubbles).
+- Folds recognized tool/narration/process progress into one streaming card, including generic bare labels such as `Nodes`.
+- Phase status line shows stage, tool count and elapsed time; the final status keeps a single completion summary.
+- Transient activity line shows only the latest narration before the answer starts, then disappears so the answer body is not displaced.
+- One collapsed `🧾 过程记录` panel contains reasoning plus a chronological activity timeline.
+- Consecutive identical tools are merged (`Exec ×N`); the timeline header reports the true total event count.
+- Background progress gets a dedicated `🧾 后台任务 · <agent>` card instead of standalone posts.
+- Long answers paginate: the first chunk stays in the streaming card (footer `1/N`), continuation cards are numbered `2/N`, `3/N` and omit details/footer; media is delivered after the page sequence.
+- Group mention requirements are preserved on paginated cards and continuations.
+- Final dedupe covers paginated sends; background card closes are serialized so a new turn cannot race a stale background card.
 - Prewarms the card at reply start and shows an immediate status (no blank warm card).
-- Uses a dedicated card `status` element for progress/narration, so progress updates do not rewrite the answer body.
-- Keeps the waiting line visible across tool batches; after tools finish it switches to `✅ 已执行 N 个工具 · 生成回复中…`.
-- Holds an active card until the final delivery, preventing the “one answer, 2–3 cards” lifecycle bug.
-- Merges cumulative block text instead of appending it blindly, preventing duplicated answer prefixes inside one card.
-- Records fallback final sends in the final-dedupe set, preventing duplicate final deliveries.
-- Compact status (primary line + at most one narration line), configurable elapsed refresh, shorter narration cap.
-- Deletes the `status` element at close so the final card has no empty status gap.
+- Holds an active card until final delivery; merges cumulative block text instead of blindly appending; prevents duplicate cards and duplicated answer prefixes.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
-- Structured card layout: a phase status line (stage/tool count/elapsed), a transient activity line with the latest narration while no answer is streaming, one collapsed `🧾 过程记录` panel with reasoning plus a chronological activity timeline, and a body-level completion summary.
-- Progress events that arrive after a user card has closed open a dedicated background card; commentary/tool/process updates are appended there instead of becoming standalone posts.
-- When a final answer exceeds the card text limit, the first chunk is finalized in the existing streaming card (footer `1/N`) and continuation cards `\u{1F4C4} 续页 2/N` carry only the remaining text; media attachments are delivered after the page sequence.
-- The footer keeps only agent/model/provider; tools/duration/errors live once in the body summary.
-- Exact-build installer: unknown builds are refused, never fuzzy-patched.
-- Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
-- Content-free diagnostics for tool-shaped payloads that could not be aggregated,
-  making new core emitters visible without logging user content.
-- A card watchdog that force-finalizes an active card if it exceeds the maximum
-  lifetime, preventing indefinitely stuck cards.
-- A per-turn status-update budget so transient progress cannot cause unbounded
-  CardKit status API calls.
-- Card updates are coalesced into a 300ms window, and details-panel writes have a per-turn budget.
-- Reasoning and tool-error text are capped/redacted before entering the details panel.
-- Installer `--check` / `--dry-run`, atomic target replacement, install lock and
-  GNU `sha256sum` / BSD `shasum` fallback.
+- Card updates are coalesced into a 300ms window; status and process-record writes have per-turn budgets.
+- A card watchdog force-finalizes cards that exceed the maximum lifetime.
+- Reasoning and tool-error text are capped/redacted before entering the process record.
+- Exact-build installer: unknown builds are refused, never fuzzy-patched; automatic backup and rollback.
+- Anchor adapter for future builds; CI matrix validates 10.5 / 10.6 / 10.7.
+- Content-free diagnostics for tool-shaped payloads that could not be aggregated.
+- Installer `--check` / `--dry-run`, atomic target replacement, install lock and GNU `sha256sum` / BSD `shasum` fallback.
 - Generated installer version table + CI release/docs consistency checks.
-
 
 ---
 
