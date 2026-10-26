@@ -77,7 +77,7 @@ const deliverStart = src.indexOf("deliver: async (inputPayload, info) => {");
 const deliverEnd = src.indexOf("onError: handleDeliveryError", deliverStart);
 ok("deliver block found", deliverStart > 0 && deliverEnd > deliverStart);
 const deliverBody = src.slice(deliverStart, deliverEnd);
-ok("aggregation before narration guard", deliverBody.indexOf("aggregateCollapsibleToolSummary") < deliverBody.indexOf("isToolNarrationPayload"));
+ok("aggregation before narration guard", deliverBody.indexOf("aggregateCollapsibleToolSummary") < deliverBody.indexOf("if (narrationPayload)"));
 ok("no blanket tool drop", !/kind === "tool" && inputPayload\?\.isError !== true\) return noVisibleFeishuReplyDelivery/.test(deliverBody));
 
 finish("2026.10.5 execution harness");

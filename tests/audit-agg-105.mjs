@@ -17,7 +17,7 @@ for (const dead of [
 
 // --- parsers / delivery guard (P1 M1/M3) ---
 ok("narration helper declared once", count(src, "const isToolNarrationPayload = ") === 1);
-ok("narration routes into card ticker", /if \(isToolNarrationPayload\(inputPayload, info\)\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);/.test(src));
+ok("narration routes into card ticker", /if \(narrationPayload\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);/.test(src));
 ok("narration prefix matches core commentary", src.includes('const TOOL_NARRATION_TEXT_PREFIX = "\\u{1F4AC} ";'));
 ok("parser requires own mediaUrls key", /hasOwnProperty\.call\(payload, "mediaUrls"\)/.test(src));
 ok("parsers share safe text gate", count(src, "const getToolSummaryText = ") === 1 && /text\.startsWith\(TOOL_NARRATION_TEXT_PREFIX\)\) return void 0;/.test(src));
@@ -30,7 +30,7 @@ ok("blanket kind:tool drop removed", !/if \(info\?\.kind === "tool" && inputPayl
 ok("structured display state exists", ["waitingLine", "itemStatusLine", "compactionLine", "narrationLine", "lastToolLabel"].every((v) => src.includes(`let ${v} = "";`)));
 ok("running total counter exists", /let aggregatedToolTotal = 0;/.test(src) && /aggregatedToolTotal \+= 1;/.test(src));
 ok("no per-event reduce over counts", !src.includes("Array.from(aggregatedToolSummaryCounts.values()).reduce"));
-ok("status renderer uses one structured phase line", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine \|\| narrationLine;/.test(src) && !/const secondary = extras/.test(src));
+ok("status renderer uses one phase line with latest narration", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine;/.test(src) && /latestNarration = narrationLine/.test(src) && !/const secondary = extras/.test(src));
 ok("content renderer separated from status and panels", /return \[streamText, statusFallback\]/.test(src) && /buildReasoningPanelContent/.test(src) && /buildToolsPanelContent/.test(src));
 ok("flush uses latest-state providers + dirty split + budget", /content: contentChanged \? \(\) => renderCardContent\(\) : void 0/.test(src) && /status: shouldQueueStatus \? \(\) => buildStatusText\(\) : void 0/.test(src) && /nextContent !== lastQueuedContent/.test(src) && /statusUpdatesQueuedThisTurn/.test(src));
 ok("card-start pending flush is coalesced", /cardFlushPending/.test(src) && /if \(!active && cardFlushPending && !force\) return;/.test(src));
@@ -112,6 +112,8 @@ ok("reasoning panel is capped by lines and chars", /lines\.slice\(0, REASONING_M
 ok("tool errors are sanitized before display", /sanitizeToolErrorText/.test(src) && /redacted/.test(src));
 ok("card flushes are coalesced", /CARD_FLUSH_COALESCE_MS/.test(src) && /flushCardUpdateNow/.test(src));
 ok("details panel writes are budgeted", /DETAILS_UPDATE_MAX_PER_TURN/.test(src) && /detailsUpdatesQueuedThisTurn/.test(src));
+ok("narration section exists in details", /buildNarrationPanelContent/.test(src) && /\u{1F4AC} \\u65C1\\u767D/.test(src));
+ok("background card starts when no active card", /backgroundCardActive/.test(src) && /startStreaming\(\)/.test(src) && /scheduleBackgroundClose/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",
@@ -146,6 +148,6 @@ for (const symbol of ["isStatusUnavailable", "updateStatus", "writeStatusContent
 
 // --- pristine delivery path kept ---
 ok("renders non-tool payloads", src.includes("const prepared = await renderFeishuReplyPayload(inputPayload, {"));
-ok("tool errors remain visible", /if \(isToolNarrationPayload\(inputPayload, info\)\) \{[\s\S]{0,120}return noVisibleFeishuReplyDelivery;/.test(src));
+ok("tool errors remain visible", /if \(toolErrorPayload\) \{[\s\S]{0,160}aggregateToolErrorToCard/.test(src));
 
 finish("2026.10.5 structural audit");

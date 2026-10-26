@@ -25,7 +25,7 @@ const decide = (payload, info, aggregateOk = true) => {
 ok("parser requires own mediaUrls key", /hasOwnProperty\.call\(payload, "mediaUrls"\)/.test(src));
 ok("parser rejects non-array/non-empty mediaUrls", /payload\.mediaUrls !== void 0 && \(!Array\.isArray\(payload\.mediaUrls\) \|\| payload\.mediaUrls\.length > 0\)/.test(src));
 ok("parser is null-safe", /!payload \|\| typeof payload !== "object"/.test(src));
-ok("deliver guard is narration-only", /if \(isToolNarrationPayload\(inputPayload, info\)\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);\s*return noVisibleFeishuReplyDelivery;/.test(src));
+ok("deliver guard is narration-only", /if \(narrationPayload\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);/.test(src));
 ok("blanket kind:tool drop removed", !/if \(info\?\.kind === "tool" && inputPayload\?\.isError !== true\) return noVisibleFeishuReplyDelivery;/.test(src));
 ok("narration never parses as tool summary", /text\.startsWith\(TOOL_NARRATION_TEXT_PREFIX\)\) return void 0;/.test(src));
 ok("label normalizer present", /const normalizeToolLabel = \(label\) =>/.test(src) && src.includes('replace(/[\\s-]+/g, "_")'));

@@ -117,17 +117,20 @@ return {
   sandbox.setRenderMode("card");
 
   // structural wiring
-  ok("deliver routes narration into ticker", /if \(isToolNarrationPayload\(inputPayload, info\)\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);\s*return noVisibleFeishuReplyDelivery;\s*\}/.test(src));
+  ok("deliver routes narration into ticker", /if \(narrationPayload\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);/.test(src));
   ok("content renderer excludes narration/status", /const buildCombinedStreamText = \(thinking, answer\) => \[thinking \? formatReasoningPrefix\(thinking\) : "", answer\]\.filter\(Boolean\)\.join\("\\n\\n---\\n\\n"\);/.test(src));
-  ok("status renderer includes narration", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine \|\| narrationLine;/.test(src));
+  ok("status renderer includes latest narration", /const latestNarration = narrationLine;/.test(src) && /truncateDisplayText\(latestNarration, 60\)/.test(src));
   ok("final content clears status/ticker", /if \(info\?\.kind === "final"\) \{\s*renderEpoch \+= 1;\s*clearWaitingRefreshTimer\(\);\s*clearCardStatusLines\(\);\s*flushCardUpdate\(true\);/.test(src));
 ok("assistant start keeps initial status when blank", /onAssistantMessageStart: previewStreamingEnabled \? \(\) => \{\s*renderEpoch \+= 1;\s*if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);/.test(src));
   ok("close clears status fields", /const carriedNarration = narrationLine;\s*clearCardStatusLines\(\);/.test(src));
   ok("reset/new reply clear status", /const resetStreamingState = \(\) => \{[\s\S]*?clearCardStatusLines\(\);/.test(src) && /onReplyStart: async \(\) => \{[\s\S]*?clearCardStatusLines\(\);/.test(src));
   ok("dedupe guard exists", /if \(nextLine === narrationLine && streaming\?\.isActive\(\) === true\) return true;/.test(src));
-  ok("no standalone narration delivery", !/if \(isToolNarrationPayload\(inputPayload, info\)\) return noVisibleFeishuReplyDelivery;/.test(src));
+  ok("no standalone narration delivery", /return noVisibleFeishuReplyDelivery;/.test(src));
   ok("ticker uses safe truncation helper", /return truncateDisplayText\(collapsed, NARRATION_MAX_CHARS\);/.test(src));
 
+
+  ok("narration timeline is capped", /NARRATION_MAX_ENTRIES/.test(src) && /NARRATION_TOTAL_MAX_CHARS/.test(src));
+  ok("background card scheduler exists", /BACKGROUND_IDLE_CLOSE_MS/.test(src) && /scheduleBackgroundClose/.test(src));
 
   finish("2026.10.5 narration ticker");
 })().catch((error) => {
