@@ -43,6 +43,7 @@ const liveTool = { text: "🛠️ Exec", mediaUrls: undefined };
 const bareTool = { text: "Exec", mediaUrls: undefined };
 ok("live emoji tool summary parses", parseAny(liveTool, { kind: "tool" }) !== undefined);
 ok("bare tool label parses", parseAny(bareTool, { kind: "tool" }) !== undefined);
+ok("Nodes bare label parses", parseAny({ text: "Nodes", mediaUrls: undefined }, { kind: "tool" }) !== undefined);
 ok("mediaUrls:[] is accepted", parseAny({ text: "🛠️ Exec", mediaUrls: [] }, { kind: "tool" }) !== undefined);
 ok("multi-line tool summary rejected", parseAny({ text: "🛠️ Exec\n```txt\nout\n```", mediaUrls: undefined }, { kind: "tool" }) === undefined);
 ok("error tool rejected by parser", parseAny({ text: "🛠️ Exec", mediaUrls: undefined, isError: true }, { kind: "tool" }) === undefined);

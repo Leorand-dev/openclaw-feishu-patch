@@ -68,6 +68,7 @@ ok("waiting string intact", src.includes("\\u23F3 \\u5df2\\u6267\\u884c {count} 
 ok("waiting line shows last tool / elapsed", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src) && /SHOW_TOOL_ELAPSED && toolPhaseStartedAt > 0/.test(src) && /TOOL_ELAPSED_REFRESH_MS = 15e3/.test(src));
 ok("completed string intact", src.includes("\\u2705 \\u5df2\\u6267\\u884c {count} \\u4e2a\\u5de5\\u5177"));
 ok("bare-label whitelist intact", src.includes("const BARE_TOOL_LABELS = "));
+ok("Nodes is in bare-label whitelist", /"nodes"/.test(src));
 ok("block text not blindly appended", /if \(info\?\.kind === "block"\) queueStreamingBlockUpdate\(text\);/.test(src) && !/if \(info\?\.kind === "block"\) queueStreamingUpdate\(text, \{/.test(src));
 ok("final summary falls back to Chinese status", /if \(!clean\) return "✅ 已回复";/.test(src));
 ok("tool-done status line declared", /const buildToolDoneLine = \(total\) =>/.test(src) && src.includes('"toolDone"'));

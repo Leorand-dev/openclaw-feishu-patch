@@ -926,7 +926,7 @@
 +	const BARE_TOOL_LABELS = /* @__PURE__ */ new Set([
 +		"exec", "bash", "shell", "read", "write", "edit", "apply_patch", "patch", "grep", "search",
 +		"glob", "ls", "browser", "web_fetch", "web_search", "image", "view_image", "open", "click",
-+		"find", "screenshot", "process", "sessions", "session_status", "message", "task", "todo",
++		"find", "screenshot", "process", "sessions", "session_status", "message", "task", "todo", "nodes",
 +		"memory", "node", "canvas", "tool_call", "tool_result", "function_call", "update_plan", "command",
 +		"automations", "session_history", "session_search", "tool_describe", "tool_search",
 +		"computer", "mobile_ui", "screen", "theme", "terminal", "portal", "background_shell",
