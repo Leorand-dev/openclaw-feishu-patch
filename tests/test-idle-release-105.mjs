@@ -155,7 +155,6 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   ok("aggregator clears pending timer", /aggregatedToolTotal \+= 1;[\s\S]{0,320}clearIdleCloseTimer\(\);/.test(src));
 
   // 9) terminal card content for tool-only turns
-  const bc = extractArrow(src, "buildCombinedStreamText");
   const bcl = extractArrow(src, "buildFinalSummaryLine");
   const rf = extractArrow(src, "resolveFinalCardText");
   const resolveSandbox = new Function(`let aggregatedToolTotal = 0; let toolErrors = []; const formatElapsedDuration = (ms) => { const s = Math.max(0, Math.floor(ms / 1e3)); return s < 60 ? s + "s" : Math.floor(s / 60) + "m" + String(s % 60).padStart(2, "0") + "s"; };${bcl}\n${rf}\nreturn { resolve: (a, e) => resolveFinalCardText(a, e), setTotal: (n) => { aggregatedToolTotal = n; } };`)();

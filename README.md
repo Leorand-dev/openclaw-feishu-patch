@@ -53,8 +53,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` / `@openclaw/feishu@2026.10.6` / `@openclaw/feishu@2026.10.7` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `cb2e0442d49a64cc9deed47d9239181ff7a67e9eed0fb67356b2d22cfe0a3549` |
-| patch SHA-256 | `1b1f8d0e0b17d19fc4b8dbb5b2b4c9375114fe589692a8fe4f907277ca21d94f` (identical patch for both builds) |
+| patched bundle SHA-256 | `3d8867bf504fc33ea1386925ae3e1e5781556e144e074220576d2619cf0fcfa2` |
+| patch SHA-256 | `713cb6c66454771da6a184f5bb548d2ae4195ff188327822f7cf135bc9748c6d` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -136,6 +136,8 @@ Current defaults:
 | narration display | transient activity line above the answer while running; hidden once the answer starts; history in the process timeline |
 | no-card progress | a dedicated background card instead of standalone posts |
 | long answer pagination | first chunk stays in the streaming card; continuation cards are numbered `2/N`, `3/N` with no repeated details/footer; media is sent after the pages |
+| completion status | final status element keeps `✅ 完成 · tools · errors · elapsed` instead of being deleted |
+| background card | background work gets a distinct `🧾 后台任务 · <agent>` header |
 | hide reasoning in final card | panel removed when answer exists |
 | final tool summary | on |
 | final chat preview | answer summary, `✅ 已回复` fallback |

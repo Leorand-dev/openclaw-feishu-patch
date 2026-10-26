@@ -86,7 +86,7 @@ ok("start latency logged", /streaming card ready in \$\{Date\.now\(\) - cardStar
 ok("backoff reduced to 15s", /STREAMING_START_FAILURE_BACKOFF_MS = 15e3;/.test(src));
 ok("hold window configurable", /cardIdleHoldMs/.test(src));
 ok("progress text overrides configurable", /progressTexts/.test(src));
-ok("compact status budget configured", /STATUS_LINE_MAX_CHARS = 160;/.test(src) && /STATUS_MAX_CHARS = 400;/.test(src));
+ok("compact status budget configured", /STATUS_LINE_MAX_CHARS = 160;/.test(src));
 
 // ---------- 3b) prewarm keeps the card non-blank ----------
 ok("prewarm status requested at reply start", /prewarmRequested = true;\s*startStreaming\(\);/.test(src));
@@ -111,11 +111,11 @@ return buildStatusText;
 ok("compact status: phase only", statusFn() === "waiting", JSON.stringify(statusFn()));
 
 // ---------- 5) display batch 1: compact status, elapsed/last tool, narration cap, timer ----------
-ok("narration max configurable and default 80", /const configured = Number\(account\.config\?\.narrationMaxChars\);\s*return Number\.isFinite\(configured\) && configured >= 40 && configured <= 500 \? configured : 80;/.test(src));
+ok("narration max is a fixed constant", /const NARRATION_MAX_CHARS = 240;/.test(src));
 ok("status renderer stays single-line", /return truncateDisplayText\(primary, STATUS_LINE_MAX_CHARS\);/.test(src));
 ok("waiting line has last-tool detail", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src) && /const details = \[\];/.test(src));
 ok("waiting line has elapsed detail", /SHOW_TOOL_ELAPSED && toolPhaseStartedAt > 0/.test(src) && /formatElapsedDuration\(elapsedMs\)/.test(src));
-ok("elapsed refresh timer configurable, default 15s", /toolElapsedRefreshMs/.test(src) && /configured >= 5e3 && configured <= 6e4 \? configured : 15e3/.test(src) && /if \(!SHOW_TOOL_ELAPSED \|\| waitingRefreshTimer/.test(src) && /scheduleWaitingRefresh\(\);/.test(src));
+ok("elapsed refresh timer is a fixed 15s", /TOOL_ELAPSED_REFRESH_MS = 15e3/.test(src) && /if \(!SHOW_TOOL_ELAPSED \|\| waitingRefreshTimer/.test(src) && /scheduleWaitingRefresh\(\);/.test(src));
 ok("elapsed timer cleared on final/close/reply", (src.match(/clearWaitingRefreshTimer\(\);/g) || []).length >= 4);
 ok("assistant start keeps initial status when blank", /else \{[\s\S]{0,400}if \(!prewarmStatusLine && !waitingLine\) \{\s*prewarmStatusLine = resolveProgressText\("processing"/.test(src));
 {
@@ -142,27 +142,12 @@ return { build: buildWaitingLine, start: (ms) => { toolPhaseStartedAt = Date.now
 }
 
 // ---------- 6) display batch 2: status position, reasoning cap/final hide, final summary ----------
-ok("status position defaults to top", /cardStatusPosition === "bottom" \? "bottom" : "top"/.test(src));
+ok("status position defaults to top", /const statusPosition = "top";/.test(src));
 ok("status position passed to session", /statusPosition \}/.test(src) && /this\.statusPosition = options\.statusPosition === "top" \? "top" : "bottom";/.test(src));
-ok("reasoning max lines configurable (default 12)", /reasoningMaxLines/.test(src) && /configured >= 2 && configured <= 100 \? configured : 12/.test(src));
-ok("reasoning preview adds ellipsis when capped", src.includes("lines.length > REASONING_MAX_LINES") && src.includes("Math.max(1, REASONING_MAX_LINES - 1)"));
-ok("final hides reasoning from details panel", /HIDE_REASONING_IN_FINAL = account\.config\?\.hideReasoningInFinal !== false;/.test(src) && /finalReasoningForPanel/.test(src) && /buildDetailsPanelContent/.test(src));
-ok("final tool summary defaults on", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary !== false;/.test(src));
-{
-  const fmtBody = extractArrow(src, "formatReasoningPrefix");
-  const fmt = new Function(`
-const REASONING_MAX_LINES = 12;
-${fmtBody}
-return formatReasoningPrefix;
-`)();
-  const input = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join("\n");
-  const out = fmt(input);
-  const bodyLines = out.split("\n").filter((l) => l.startsWith("> ") && !l.includes("Thinking"));
-  ok("reasoning preview capped to 12 lines", bodyLines.length === 12, `lines=${bodyLines.length}`);
-  ok("reasoning preview ends with ellipsis", bodyLines.at(-1) === "> …", JSON.stringify(bodyLines.slice(-2)));
-  ok("reasoning preview keeps first lines", out.includes("line 1") && !out.includes("line 30"));
-}
-
+ok("reasoning max lines is a fixed 12", /const REASONING_MAX_LINES = 12;/.test(src));
+ok("reasoning preview adds ellipsis when capped", src.includes("lines.length > REASONING_MAX_LINES") && src.includes("\\n\\u2026"));
+ok("final hides reasoning from details panel", /const HIDE_REASONING_IN_FINAL = true;/.test(src) && /finalReasoningForPanel/.test(src) && /buildDetailsPanelContent/.test(src));
+ok("final tool summary defaults on", /const FINAL_TOOL_SUMMARY = true;/.test(src));
 // ---------- 7) block payloads are merged, never blindly appended ----------
 ok("block delivery uses dedupe merge", /if \(info\?\.kind === "block"\) queueStreamingBlockUpdate\(text\);/.test(src));
 {

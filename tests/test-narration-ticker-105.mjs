@@ -5,7 +5,6 @@ const src = loadBundle();
 const { ok, finish } = makeCounter();
 
 const truncateBody = extractArrow(src, "truncateDisplayText");
-const buildBody = extractArrow(src, "buildCombinedStreamText");
 const statusBody = extractArrow(src, "buildStatusText");
 const activityBody = extractArrow(src, "buildActivityText");
 const normalizeBody = extractArrow(src, "normalizeNarrationLine");
@@ -42,7 +41,6 @@ const clearIdleCloseTimer = () => { timerClears += 1; };
 const flushCardUpdate = () => { flushCount += 1; lastStatus = buildStatusText(); };
 ${extractNarrationPrefix(src)}
 ${truncateBody}
-${buildBody}
 ${statusBody}
 ${activityBody}
 ${normalizeBody}
@@ -50,10 +48,9 @@ ${deliverBody}
 return {
   normalize: normalizeNarrationLine,
   deliver: deliverNarrationToCard,
-  build: (thinking, answer) => buildCombinedStreamText(thinking, answer),
   status: () => buildStatusText(),
   activity: () => buildActivityText(),
-  renderCard: () => [buildActivityText(), buildCombinedStreamText(reasoningText, streamText), buildStatusText()].filter(Boolean).join("\\n\\n"),
+  renderCard: () => [buildActivityText(), streamText, buildStatusText()].filter(Boolean).join("\\n\\n"),
   getLine: () => narrationLine,
   getStatus: () => lastStatus,
   flushes: () => flushCount,
@@ -124,7 +121,6 @@ return {
 
   // structural wiring
   ok("deliver routes narration into ticker", /if \(narrationPayload\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);/.test(src));
-  ok("content renderer excludes narration/status", /const buildCombinedStreamText = \(thinking, answer\) => \[thinking \? formatReasoningPrefix\(thinking\) : "", answer\]\.filter\(Boolean\)\.join\("\\n\\n---\\n\\n"\);/.test(src));
   ok("activity line carries latest narration", /const buildActivityText = \(\) => \{/.test(src) && /if \(streamText\.trim\(\) \|\| finalDeliveryInProgress\) return/.test(src));
   ok("final content clears status/ticker", /if \(info\?\.kind === "final"\) \{\s*renderEpoch \+= 1;\s*clearWaitingRefreshTimer\(\);\s*clearCardStatusLines\(\);\s*flushCardUpdate\(true\);/.test(src));
 ok("assistant start keeps initial status when blank", /onAssistantMessageStart: previewStreamingEnabled \? \(\) => \{\s*renderEpoch \+= 1;\s*if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);/.test(src));

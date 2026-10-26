@@ -31,7 +31,7 @@ ok("structured display state exists", ["waitingLine", "itemStatusLine", "compact
 ok("running total counter exists", /let aggregatedToolTotal = 0;/.test(src) && /aggregatedToolTotal \+= 1;/.test(src));
 ok("no per-event reduce over counts", !src.includes("Array.from(aggregatedToolSummaryCounts.values()).reduce"));
 ok("status renderer is phase-only", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine;/.test(src) && /if \(streamText\.trim\(\)\) return/.test(src) && !/const secondary = extras/.test(src));
-ok("content renderer separated from status and panels", /return \[streamText, statusFallback\]/.test(src) && /buildReasoningPanelContent/.test(src) && /buildToolsPanelContent/.test(src));
+ok("content renderer separated from status and timeline", /return \[streamText, statusFallback\]/.test(src) && /buildReasoningPanelContent/.test(src) && /buildTimelinePanelContent/.test(src));
 ok("flush uses latest-state providers + dirty split + budget", /content: contentChanged \? \(\) => renderCardContent\(\) : void 0/.test(src) && /status: shouldQueueStatus \? \(\) => buildStatusText\(\) : void 0/.test(src) && /nextContent !== lastQueuedContent/.test(src) && /statusUpdatesQueuedThisTurn/.test(src));
 ok("card-start pending flush is coalesced", /cardFlushPending/.test(src) && /if \(!active && cardFlushPending && !force\) return;/.test(src));
 ok("queue evaluates providers after start", /if \(startPromise\) await startPromise;[\s\S]{0,200}const contentText = typeof content === "function" \? content\(\) : content \?\? text;/.test(src));
@@ -55,7 +55,7 @@ ok("status updates throttled", /statusLastUpdateTime/.test(src) && /schedulePend
 ok("waiting template uses progressTexts", /resolveProgressText\("toolWaiting"/.test(src));
 ok("compacting template uses progressTexts", /resolveProgressText\("compacting"/.test(src));
 ok("optional last-tool label", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src));
-ok("compact status budget present", /const STATUS_LINE_MAX_CHARS = 160;/.test(src) && /const STATUS_MAX_CHARS = 400;/.test(src));
+ok("compact status budget present", /const STATUS_LINE_MAX_CHARS = 160;/.test(src));
 
 // --- V3: backoff / hold config / observability ---
 ok("streaming start backoff reduced", /STREAMING_START_FAILURE_BACKOFF_MS = 15e3;/.test(src));
@@ -65,7 +65,7 @@ ok("status element can be disabled by config", /cardStatusElement !== false/.tes
 
 // --- preserved 2026.10.5 features ---
 ok("waiting string intact", src.includes("\\u23F3 \\u5df2\\u6267\\u884c {count} \\u4e2a\\u5de5\\u5177") && src.includes("\\uff0c\\u7b49\\u5f85\\u4e2d\\u2026"));
-ok("waiting line shows last tool / elapsed", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src) && /SHOW_TOOL_ELAPSED && toolPhaseStartedAt > 0/.test(src) && /configured >= 5e3 && configured <= 6e4 \? configured : 15e3/.test(src));
+ok("waiting line shows last tool / elapsed", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src) && /SHOW_TOOL_ELAPSED && toolPhaseStartedAt > 0/.test(src) && /TOOL_ELAPSED_REFRESH_MS = 15e3/.test(src));
 ok("completed string intact", src.includes("\\u2705 \\u5df2\\u6267\\u884c {count} \\u4e2a\\u5de5\\u5177"));
 ok("bare-label whitelist intact", src.includes("const BARE_TOOL_LABELS = "));
 ok("block text not blindly appended", /if \(info\?\.kind === "block"\) queueStreamingBlockUpdate\(text\);/.test(src) && !/if \(info\?\.kind === "block"\) queueStreamingUpdate\(text, \{/.test(src));
@@ -99,9 +99,9 @@ ok("transient clear keeps waiting line", /const clearTransientStatusLines = \(\)
 ok("idle hold uses running total", /const hasToolActivity = aggregatedToolTotal > 0;/.test(src));
 ok("timer lifecycle preserved", /const clearIdleCloseTimer = \(\) => \{/.test(src) && /idleCloseTimer\.unref\?\.\(\);/.test(src) && /!visibleReplySent && !terminalQuiet/.test(src));
 ok("empty tool-only card uses final summary", /resolveFinalCardText = \(answer, elapsedMs\)/.test(src) && /buildFinalSummaryLine\(elapsedMs\)/.test(src));
-ok("status position defaults to top", /cardStatusPosition === "bottom" \? "bottom" : "top"/.test(src));
+ok("status position defaults to top", /const statusPosition = "top";/.test(src));
 ok("reasoning preview cap / final details removal", /REASONING_MAX_LINES/.test(src) && /finalReasoningForPanel/.test(src) && /deleteElement\("detailspanel"\)/.test(src));
-ok("final tool summary defaults on", /FINAL_TOOL_SUMMARY = account\.config\?\.finalToolSummary !== false;/.test(src));
+ok("final tool summary defaults on", /const FINAL_TOOL_SUMMARY = true;/.test(src));
 ok("empty prewarmed card is discarded", /const shouldDiscardEmptyCard = disposition !== "discarded" && !text\.trim\(\) && !carriedNarration && aggregatedToolTotal === 0;/.test(src) && /disposition === "discarded" \|\| shouldDiscardEmptyCard\) closed = await streamingToClose\.discard\(\);/.test(src));
 
 ok("single collapsible details panel exists", /collapsible_panel/.test(src) && /detailspanel/.test(src) && /buildDetailsPanelContent/.test(src));
@@ -120,6 +120,10 @@ ok("page cards preserve required mentions", /pageFirstMentionParams/.test(src) &
 ok("paginated final records delivered text", /deliveredFinalTexts\.add\(text\)/.test(src));
 ok("long media replies paginate then send media", /finalTextExceedsStreamingLimit[^\n]*!presentationCard/.test(src) && /sendMediaReplies\(payload, !shouldDeliverText/.test(src));
 ok("background card close is serialized", /backgroundClosePromise/.test(src) && /closeBackgroundCard/.test(src));
+ok("timeline total is tracked independently", /activityTimelineTotal/.test(src) && /const header = .*activityTimelineTotal/.test(src));
+ok("consecutive tools merge counts", /mergeConsecutive/.test(src) && /entry\.count/.test(src));
+ok("final completion status is kept", /keepStatus: disposition === "closed"/.test(src) && /statusText: buildFinalSummaryLine/.test(src));
+ok("background card has distinct header", /resolveBackgroundCardHeader/.test(src) && /backgroundCardActive \? resolveBackgroundCardHeader/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",
