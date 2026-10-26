@@ -28,6 +28,7 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
 - Structured card sections: one collapsed `🧾 运行详情` panel (reasoning/narration/tool/error sections), per-tool counts, a single-line phase status with the latest narration, and a body-level completion summary.
 - Progress events that arrive after a user card has closed open a dedicated background card; commentary/tool/process updates are appended there instead of becoming standalone posts.
+- When a final answer exceeds the card text limit, the first chunk is finalized in the existing streaming card (footer `1/N`) and continuation cards `\u{1F4C4} 续页 2/N` carry only the remaining text.
 - The footer keeps only agent/model/provider; tools/duration/errors live once in the body summary.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched.
 - Anchor adapter for deriving the patch for future builds; CI matrix validates the result.
@@ -52,8 +53,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` / `@openclaw/feishu@2026.10.6` / `@openclaw/feishu@2026.10.7` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `5673162a28f0e9df1f938815a7ee080275da24703cd6321fcd3a3f6049468e71` |
-| patch SHA-256 | `4c9a35ec115da28ac347ef47a19925345b564bf212d0ad19e6b42432942db332` (identical patch for both builds) |
+| patched bundle SHA-256 | `c6fa9b4e48f89a7aba6bba9ee1460420216036c7870315d74f80feda7226c3c9` |
+| patch SHA-256 | `24e237ce9bdf0bc346718c10a219d1f35f48773af5d66920a2b35dabc590253e` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -99,7 +100,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 430 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 432 assertions.
 
 ---
 
@@ -134,6 +135,7 @@ Current defaults:
 | details display | one collapsed `🧾 运行详情` panel with reasoning/narration/tool/error sections |
 | narration display | latest line in status; last 6 entries in the details timeline |
 | no-card progress | a dedicated background card instead of standalone posts |
+| long answer pagination | first chunk stays in the streaming card; continuation cards are numbered `2/N`, `3/N` with no repeated details/footer |
 | hide reasoning in final card | panel removed when answer exists |
 | final tool summary | on |
 | final chat preview | answer summary, `✅ 已回复` fallback |

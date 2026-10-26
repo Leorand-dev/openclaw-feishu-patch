@@ -114,6 +114,8 @@ ok("card flushes are coalesced", /CARD_FLUSH_COALESCE_MS/.test(src) && /flushCar
 ok("details panel writes are budgeted", /DETAILS_UPDATE_MAX_PER_TURN/.test(src) && /detailsUpdatesQueuedThisTurn/.test(src));
 ok("narration section exists in details", /buildNarrationPanelContent/.test(src) && /\u{1F4AC} \\u65C1\\u767D/.test(src));
 ok("background card starts when no active card", /backgroundCardActive/.test(src) && /startStreaming\(\)/.test(src) && /scheduleBackgroundClose/.test(src));
+ok("over-limit final keeps preview and paginates", /pendingPageSuffix/.test(src) && /pageChunks\.length > 1/.test(src) && /finalTextExceedsStreamingLimit/.test(src));
+ok("continuation cards are numbered and omit details", /1F4C4/.test(src) && /headerTemplate/.test(src));
 // --- no undefined references introduced by the changes ---
 for (const symbol of [
   "isToolNarrationPayload",

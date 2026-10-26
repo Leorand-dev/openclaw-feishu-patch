@@ -30,7 +30,7 @@ Expected installer output includes:
 
 ```
 patched OK: ...
-sha256: 5673162a28f0e9df1f938815a7ee080275da24703cd6321fcd3a3f6049468e71
+sha256: c6fa9b4e48f89a7aba6bba9ee1460420216036c7870315d74f80feda7226c3c9
 ```
 
 Then restart the OpenClaw gateway using the host's normal supervisor
@@ -50,7 +50,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `8/8 suites passed`, `430` assertions.
+Expected: `8/8 suites passed`, `432` assertions.
 
 Optional mechanical check:
 
@@ -88,7 +88,7 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- |
 | plugin build | 2026.10.5 / 2026.10.6 / 2026.10.7 |
 | pristine SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched SHA-256 | `5673162a28f0e9df1f938815a7ee080275da24703cd6321fcd3a3f6049468e71` |
-| patch SHA-256 | `4c9a35ec115da28ac347ef47a19925345b564bf212d0ad19e6b42432942db332` |
+| patched SHA-256 | `c6fa9b4e48f89a7aba6bba9ee1460420216036c7870315d74f80feda7226c3c9` |
+| patch SHA-256 | `24e237ce9bdf0bc346718c10a219d1f35f48773af5d66920a2b35dabc590253e` |
 
 See `README.md` for behavior, limitations and adapter workflow.
