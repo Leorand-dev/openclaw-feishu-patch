@@ -26,7 +26,7 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 - Compact status (primary line + at most one narration line), configurable elapsed refresh, shorter narration cap.
 - Deletes the `status` element at close so the final card has no empty status gap.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
-- Structured card sections: one collapsed `🧾 运行详情` panel (reasoning/narration/tool/error sections), per-tool counts, a single-line phase status with the latest narration, and a body-level completion summary.
+- Structured card layout: a phase status line (stage/tool count/elapsed), a transient activity line with the latest narration while no answer is streaming, one collapsed `🧾 过程记录` panel with reasoning plus a chronological activity timeline, and a body-level completion summary.
 - Progress events that arrive after a user card has closed open a dedicated background card; commentary/tool/process updates are appended there instead of becoming standalone posts.
 - When a final answer exceeds the card text limit, the first chunk is finalized in the existing streaming card (footer `1/N`) and continuation cards `\u{1F4C4} 续页 2/N` carry only the remaining text; media attachments are delivered after the page sequence.
 - The footer keeps only agent/model/provider; tools/duration/errors live once in the body summary.
@@ -53,8 +53,8 @@ It turns tool-call progress and mid-turn narration into **one tidy streaming car
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` / `@openclaw/feishu@2026.10.6` / `@openclaw/feishu@2026.10.7` |
 | pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `6bcbdcde6dc2c8f65e4a45f5fb6103c71418e363e31850a549ce4a93c057e2b4` |
-| patch SHA-256 | `2494acb1e64912c79a382eb047f582ae7306ab1dfffce4cd4baae4c0de8c2ac9` (identical patch for both builds) |
+| patched bundle SHA-256 | `cb2e0442d49a64cc9deed47d9239181ff7a67e9eed0fb67356b2d22cfe0a3549` |
+| patch SHA-256 | `1b1f8d0e0b17d19fc4b8dbb5b2b4c9375114fe589692a8fe4f907277ca21d94f` (identical patch for both builds) |
 | patch hunks | 29 |
 | test assertions | 419 |
 
@@ -100,7 +100,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 436 assertions.
+Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 439 assertions.
 
 ---
 
@@ -132,8 +132,8 @@ Current defaults:
 | elapsed refresh | 15s |
 | compact status | single phase line |
 | narration cap | 80 characters |
-| details display | one collapsed `🧾 运行详情` panel with reasoning/narration/tool/error sections |
-| narration display | latest line in status; last 6 entries in the details timeline |
+| details display | one collapsed `🧾 过程记录` panel with reasoning and a chronological activity timeline |
+| narration display | transient activity line above the answer while running; hidden once the answer starts; history in the process timeline |
 | no-card progress | a dedicated background card instead of standalone posts |
 | long answer pagination | first chunk stays in the streaming card; continuation cards are numbered `2/N`, `3/N` with no repeated details/footer; media is sent after the pages |
 | hide reasoning in final card | panel removed when answer exists |

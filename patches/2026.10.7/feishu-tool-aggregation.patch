@@ -38,7 +38,7 @@
  	}
  	async requestCardKit(path, operation, method, body, readResponse, token) {
  		const auditContext = `feishu.streaming-card.${operation}`;
-@@ -1187,11 +1200,29 @@
+@@ -1187,11 +1200,35 @@
  	}
  	async start(receiveId, receiveIdType = "chat_id", options) {
  		if (this.state) return;
@@ -54,6 +54,11 @@
 +			content: "",
 +			element_id: "status"
 +		};
++		const activityElement = {
++			tag: "markdown",
++			content: "\u200B",
++			element_id: "activity"
++		};
 +		const makePanel = (elementId, title) => ({
 +			tag: "collapsible_panel",
 +			element_id: elementId,
@@ -61,16 +66,17 @@
 +			header: { title: { tag: "plain_text", content: title } },
 +			elements: [{ tag: "markdown", content: "\u200B", element_id: `${elementId}_body` }]
 +		});
-+		const detailsPanel = makePanel("detailspanel", "\u{1F9FE} \u8FD0\u884C\u8BE6\u60C5");
++		const detailsPanel = makePanel("detailspanel", "\u{1F9FE} \u8FC7\u7A0B\u8BB0\u5F55");
 +		const elements = [];
 +		if (this.statusElementEnabled && this.statusPosition === "top") elements.push(statusElement);
++		elements.push(activityElement);
 +		elements.push(contentElement);
 +		elements.push(detailsPanel);
 +		if (this.statusElementEnabled && this.statusPosition !== "top") elements.push(statusElement);
  		if (options?.note) {
  			elements.push({ tag: "hr" });
  			elements.push({
-@@ -1324,6 +1355,130 @@
+@@ -1324,6 +1361,130 @@
  		this.lastUpdateTime = now;
  		await this.flushPendingUpdate();
  	}
@@ -201,7 +207,7 @@
  	async updateNoteContent(note) {
  		if (!this.state || !this.state.hasNote) return;
  		this.state.sequence += 1;
-@@ -1355,6 +1510,16 @@
+@@ -1355,6 +1516,16 @@
  				visibleContentSent = Boolean(text.trim());
  			}
  		}
@@ -218,7 +224,7 @@
  		if (options?.note) await this.updateNoteContent(options.note);
  		const acceptedText = this.state.sentText;
  		this.state.sequence += 1;
-@@ -1390,6 +1555,7 @@
+@@ -1390,6 +1561,7 @@
  		if (!messageId) return this.closeWithResult("");
  		this.closed = true;
  		this.clearFlushTimer();
@@ -226,7 +232,7 @@
  		await this.queue;
  		try {
  			const response = await this.client.im.message.delete({ path: { message_id: messageId } });
-@@ -1412,10 +1578,26 @@
+@@ -1412,10 +1584,26 @@
  //#region extensions/feishu/src/streaming-update.ts
  /** Admit captured snapshots in order while the session owns provider writes. */
  function queueFeishuStreamingUpdate(params) {
@@ -255,7 +261,7 @@
  	});
  }
  //#endregion
-@@ -1527,7 +1709,7 @@
+@@ -1527,7 +1715,7 @@
  * Messages older than this are likely replays after context compaction (#30418). */
  const TYPING_INDICATOR_MAX_AGE_MS = 12e4;
  const MS_EPOCH_MIN = 0xe8d4a51000;
@@ -264,7 +270,7 @@
  const NO_VISIBLE_REPLY_FALLBACK_TEXT = "⚠️ This reply completed without visible content. The turn may have been interrupted; please retry or ask me to recover from recent context.";
  function isStreamingStartBackedOff(accountId, now = Date.now()) {
  	const backoffUntil = streamingStartBackoffUntilByAccount.get(accountId);
-@@ -1638,7 +1820,88 @@
+@@ -1638,7 +1826,92 @@
  	let streamText = "";
  	let lastPartial = "";
  	let reasoningText = "";
@@ -281,6 +287,8 @@
 +	let finalDeliverySeen = false;
 +	let finalDeliveryInProgress = false;
 +	let toolErrors = [];
++	let activityTimeline = [];
++	let lastQueuedActivity = null;
 +	let cardStartedAt = 0;
 +	let lastQueuedReasoning = null;
 +	let lastQueuedDetails = null;
@@ -322,6 +330,8 @@
 +	const STATUS_LINE_MAX_CHARS = 160;
 +	const NARRATION_MAX_ENTRIES = 6;
 +	const NARRATION_TOTAL_MAX_CHARS = 800;
++	const TIMELINE_MAX_ENTRIES = 12;
++	const TIMELINE_TOTAL_MAX_CHARS = 1200;
 +	const STATUS_MAX_CHARS = 400;
 +	const SHOW_LAST_TOOL_LABEL = account.config?.showLastToolLabel !== false;
 +	const SHOW_TOOL_ELAPSED = account.config?.showToolElapsed !== false;
@@ -354,7 +364,7 @@
  	let snapshotBaseText = "";
  	let lastSnapshotTextLength = 0;
  	let hasStreamingFinalText = false;
-@@ -1659,21 +1922,281 @@
+@@ -1659,21 +1932,292 @@
  	const pendingStreamingDeliveries = [];
  	const formatReasoningPrefix = (thinking) => {
  		if (!thinking) return "";
@@ -403,12 +413,27 @@
 +	const buildCompactingLine = () => resolveProgressText("compacting", "\u{1F4E6} **Compacting context...**");
 +	const buildStatusText = () => {
 +		const primary = waitingLine || itemStatusLine || compactionLine;
-+		const latestNarration = narrationLine;
-+		if (!primary && !latestNarration) return "";
-+		if (primary && latestNarration) {
-+			return truncateDisplayText(`${truncateDisplayText(primary, 90)} \u00B7 ${truncateDisplayText(latestNarration, 60)}`, STATUS_LINE_MAX_CHARS);
-+		}
-+		return truncateDisplayText(primary || latestNarration, STATUS_LINE_MAX_CHARS);
++		if (primary) return truncateDisplayText(primary, STATUS_LINE_MAX_CHARS);
++		if (streamText.trim()) return "\u270D\uFE0F \u751F\u6210\u56DE\u590D\u4E2D";
++		return "";
++	};
++	const buildActivityText = () => {
++		if (streamText.trim() || finalDeliveryInProgress) return "\u200B";
++		if (!narrationLine) return "\u200B";
++		return truncateDisplayText(narrationLine, 200);
++	};
++	const pushActivityTimeline = (icon, text) => {
++		const clean = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
++		if (!clean) return;
++		activityTimeline.push({ at: Date.now(), icon, text: truncateDisplayText(clean, 160) });
++		while (activityTimeline.length > TIMELINE_MAX_ENTRIES) activityTimeline.shift();
++		while (activityTimeline.reduce((sum, entry) => sum + entry.text.length, 0) > TIMELINE_TOTAL_MAX_CHARS) activityTimeline.shift();
++	};
++	const buildTimelinePanelContent = () => {
++		if (activityTimeline.length === 0) return "";
++		const header = `\u5171 ${activityTimeline.length} \u4E8B\u4EF6 \u00B7 ${aggregatedToolTotal} \u5DE5\u5177 \u00B7 ${toolErrors.length} \u9519\u8BEF`;
++		const lines = activityTimeline.map((entry) => `+${formatElapsedDuration(Math.max(0, entry.at - cardStartedAt))} ${entry.icon} ${entry.text}`);
++		return [header, ...lines].join("\n");
 +	};
 +	const buildReasoningPanelContent = () => {
 +		const raw = reasoningText.trim();
@@ -441,12 +466,10 @@
 +	const buildNarrationPanelContent = () => narrationEntries
 +		.map((entry) => `+${formatElapsedDuration(Math.max(0, entry.at - cardStartedAt))} ${entry.text}`)
 +		.join("\n");
-+	const buildDetailsPanelContent = (reasoning, narration, tools, errors) => {
++	const buildDetailsPanelContent = (reasoning, timeline) => {
 +		const sections = [];
 +		if (typeof reasoning === "string" && reasoning.trim()) sections.push(`**\u{1F4AD} \u601D\u8003\u8FC7\u7A0B**\n\n${reasoning.trim()}`);
-+		if (typeof narration === "string" && narration.trim()) sections.push(`**\u{1F4AC} \u65C1\u767D**\n\n${narration.trim()}`);
-+		if (typeof tools === "string" && tools.trim()) sections.push(`**\u{1F527} \u5DE5\u5177\u8C03\u7528**\n\n${tools.trim()}`);
-+		if (typeof errors === "string" && errors.trim()) sections.push(`**\u26A0\uFE0F \u5DE5\u5177\u9519\u8BEF**\n\n${errors.trim()}`);
++		if (typeof timeline === "string" && timeline.trim()) sections.push(`**\u{1F4DC} \u6D3B\u52A8\u65F6\u95F4\u7EBF**\n\n${timeline.trim()}`);
 +		return sections.join("\n\n---\n\n");
 +	};
 +	const buildFinalSummaryLine = (elapsedMs) => {
@@ -467,16 +490,15 @@
 +		if (!active && cardFlushPending && !force) return;
 +		const nextContent = renderCardContent();
 +		const nextStatus = buildStatusText();
++		const nextActivity = buildActivityText();
 +		const nextReasoning = buildReasoningPanelContent();
-+		const nextTools = buildToolsPanelContent();
-+		const nextErrors = buildErrorsPanelContent();
-+		const nextNarration = buildNarrationPanelContent();
 +		const nextElements = {};
 +		const reasoningChanged = force || nextReasoning !== lastQueuedReasoning;
 +		const reasoningDue = force || reasoningChanged && Date.now() - lastReasoningQueuedAt >= AUX_REASONING_REFRESH_MS;
 +		const reasoningForPanel = reasoningDue ? nextReasoning : (lastQueuedReasoning || "");
-+		const nextDetails = buildDetailsPanelContent(reasoningForPanel, nextNarration, nextTools, nextErrors);
++		const nextDetails = buildDetailsPanelContent(reasoningForPanel, buildTimelinePanelContent());
 +		if (force || nextDetails !== lastQueuedDetails) nextElements.detailspanel_body = nextDetails;
++		if (force || nextActivity !== lastQueuedActivity) nextElements.activity = nextActivity;
 +		const contentChanged = force || nextContent !== lastQueuedContent;
 +		const statusChanged = force || nextStatus !== lastQueuedStatus;
 +		const elementsChanged = Object.keys(nextElements).length > 0;
@@ -524,8 +546,7 @@
 +					lastReasoningQueuedAt = Date.now();
 +				}
 +			}
-+			lastQueuedTools = nextTools;
-+			lastQueuedErrors = nextErrors;
++			if (nextElements.activity !== void 0) lastQueuedActivity = nextActivity;
 +		}
 +		partialUpdateQueue = queued.finally(() => {
 +			cardFlushPending = false;
@@ -644,7 +665,7 @@
  	};
  	const queueStreamingUpdate = (nextText, options) => {
  		if (!nextText) return;
-@@ -1688,10 +2211,24 @@
+@@ -1688,10 +2232,24 @@
  			} else streamText = `${snapshotBaseText}${mergeStreamingText(currentSnapshotText, nextText)}`;
  			lastSnapshotTextLength = nextText.length;
  		}
@@ -670,7 +691,7 @@
  		streamingStartPromise = (async () => {
  			const creds = account.appId && account.appSecret ? {
  				appId: account.appId,
-@@ -1700,7 +2237,8 @@
+@@ -1700,7 +2258,8 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -680,7 +701,7 @@
  			const generation = ++streamingGeneration;
  			streaming = session;
  			activeStreamingGeneration = generation;
-@@ -1715,6 +2253,14 @@
+@@ -1715,6 +2274,14 @@
  					header: cardHeader,
  					note: cardNote
  				});
@@ -695,7 +716,7 @@
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
-@@ -1735,11 +2281,68 @@
+@@ -1735,11 +2302,70 @@
  		streamText = "";
  		lastPartial = "";
  		reasoningText = "";
@@ -708,6 +729,8 @@
 +		aggregatedToolSummaryCounts.clear();
 +		aggregatedToolTotal = 0;
 +		narrationEntries = [];
++		activityTimeline = [];
++		lastQueuedActivity = null;
 +		toolErrors = [];
 +		cardStartedAt = 0;
 +		lastQueuedReasoning = null;
@@ -765,7 +788,7 @@
  	const rememberClosedStreamingSettlement = (generation, content, result, error, disposition = "closed") => {
  		if (generation === void 0 || !content && disposition === "closed") return;
  		closedStreamingSettlements.set(generation, {
-@@ -1750,6 +2353,13 @@
+@@ -1750,6 +2376,13 @@
  		});
  	};
  	const performStreamingClose = async (disposition) => {
@@ -779,7 +802,7 @@
  		const streamingToClose = streaming;
  		const generationToClose = activeStreamingGeneration;
  		const startPromiseToClose = streamingStartPromise;
-@@ -1767,13 +2377,34 @@
+@@ -1767,13 +2400,34 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -796,8 +819,7 @@
 +				// nothing worth expanding; otherwise strip reasoning from the final
 +				// panel when an answer exists.
 +				const finalReasoningForPanel = HIDE_REASONING_IN_FINAL && finalizedAnswerText.trim() ? "" : finalizedReasoningText;
-+				const finalNarrationForPanel = !finalizedAnswerText.trim() && carriedNarration ? "" : buildNarrationPanelContent();
-+				const finalDetails = buildDetailsPanelContent(finalReasoningForPanel, finalNarrationForPanel, buildToolsPanelContent(), buildErrorsPanelContent());
++				const finalDetails = buildDetailsPanelContent(finalReasoningForPanel, buildTimelinePanelContent());
 +				if (finalDetails.trim()) {
 +					await streamingToClose.writeElementContent("detailspanel_body", finalDetails).catch(() => false);
 +				} else {
@@ -813,12 +835,13 @@
 +					if (disposition === "discarded" || shouldDiscardEmptyCard) closed = await streamingToClose.discard();
  					else {
 -						const finalNote = resolveCardNote(agentId, identity, responsePrefixContextProvider());
++						await streamingToClose.writeElementContent("activity", "\u200B").catch(() => false);
 +						const baseNote = resolveCardNote(agentId, identity, responsePrefixContextProvider());
 +						const finalNote = pendingPageSuffix ? `${baseNote} \u00b7 ${pendingPageSuffix}` : baseNote;
  						closed = await streamingToClose.closeWithResult(text, { note: finalNote });
  					}
  				} catch (error) {
-@@ -1788,7 +2419,8 @@
+@@ -1788,7 +2442,8 @@
  					kind: "card"
  				});
  				if (result.visibleReplySent) visibleReplySent = true;
@@ -828,7 +851,7 @@
  				if (finalizationError instanceof FeishuStreamingFinalizationError && result.visibleReplySent) finalizationError = createFeishuPartialReplyDeliveryError(finalizationError.cause ?? finalizationError, result);
  			}
  			if (disposition === "discarded" || finalizationError !== void 0 || result.visibleReplySent && finalizedAnswerText) rememberClosedStreamingSettlement(generationToClose, finalizedAnswerText, result, finalizationError, disposition);
-@@ -1830,6 +2462,31 @@
+@@ -1830,6 +2485,31 @@
  		}
  		return closePromise;
  	};
@@ -860,7 +883,7 @@
  	const deferStreamingDelivery = (result, infoKind, ownerGeneration) => {
  		const { promise: finalization, resolve, reject } = createDeferred();
  		pendingStreamingDeliveries.push({
-@@ -1853,13 +2510,193 @@
+@@ -1853,13 +2533,196 @@
  		const outcome = await closeStreaming("discarded");
  		if (outcome.error !== void 0) throw toStringifiedError(outcome.error);
  	};
@@ -999,6 +1022,7 @@
 +		}
 +		while (narrationEntries.length > NARRATION_MAX_ENTRIES) narrationEntries.shift();
 +		while (narrationEntries.reduce((sum, entry) => sum + entry.text.length, 0) > NARRATION_TOTAL_MAX_CHARS) narrationEntries.shift();
++		if (typeof pushActivityTimeline === "function") pushActivityTimeline("\u{1F4AC}", next);
 +		narrationLine = nextLine;
 +		lastToolActivityAt = Date.now();
 +		clearIdleCloseTimer();
@@ -1021,6 +1045,7 @@
 +		});
 +		aggregatedToolTotal += 1;
 +		lastToolLabel = entry.label;
++		if (typeof pushActivityTimeline === "function") pushActivityTimeline(entry.icon || "\u{1F527}", entry.label);
 +		if (aggregatedToolTotal === 1) {
 +			toolPhaseStartedAt = Date.now();
 +			scheduleWaitingRefresh();
@@ -1051,6 +1076,7 @@
 +		if (epoch !== renderEpoch || !streaming?.isActive()) return false;
 +		toolErrors.push(truncateDisplayText(raw.replace(/\s+/g, " "), 220));
 +		if (toolErrors.length > 8) toolErrors = toolErrors.slice(-8);
++		if (typeof pushActivityTimeline === "function") pushActivityTimeline("\u26A0\uFE0F", sanitizeToolErrorText(raw));
 +		lastToolActivityAt = Date.now();
 +		clearIdleCloseTimer();
 +		flushCardUpdate();
@@ -1060,7 +1086,7 @@
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
  		const note = paramsLocal.useCard ? resolveCardNote(agentId, identity, responsePrefixContextProvider()) : void 0;
-@@ -2003,12 +2840,16 @@
+@@ -2003,12 +2866,16 @@
  	};
  	const ensureVisibleStreamingDelivery = async (result, content, infoKind) => {
  		if (result?.visibleReplySent === true || !content?.trim()) return result;
@@ -1078,7 +1104,7 @@
  	};
  	function queueIdleSideEffects() {
  		idleRequestedForReply = true;
-@@ -2117,7 +2958,8 @@
+@@ -2117,7 +2984,8 @@
  			return payload;
  		},
  		onReplyStart: async () => {
@@ -1088,7 +1114,7 @@
  				replyLifecycleStateInitialized = true;
  				deliveredFinalTexts.clear();
  				closedStreamingSettlements.clear();
-@@ -2125,13 +2967,70 @@
+@@ -2125,13 +2993,70 @@
  				idleRequestedForReply = false;
  				visibleReplySent = false;
  				replyOutcome = void 0;
@@ -1162,7 +1188,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -2157,6 +3056,61 @@
+@@ -2157,6 +3082,61 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -1224,7 +1250,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -2184,7 +3138,8 @@
+@@ -2184,7 +3164,8 @@
  					ttsSupplement
  				}));
  				const finalTextExceedsStreamingLimit = info?.kind === "final" && hasText && text.length > textChunkLimit;
@@ -1234,7 +1260,7 @@
  				const useStaticCard = hasText && cardRenderingRequested && withinCardTableLimit(text);
  				const useStreamingCard = hasText && streamingEnabled && !finalTextExceedsStreamingLimit && (info?.kind === "final" || cardRenderingRequested);
  				const skipTextForDuplicateFinal = !hasIndependentPresentation && info?.kind === "final" && hasText && deliveredFinalTexts.has(text);
-@@ -2211,8 +3166,56 @@
+@@ -2211,8 +3192,56 @@
  						});
  					}
  				};
@@ -1291,7 +1317,7 @@
  					if (hasMedia) await collectDelivery(sendMediaReplies(payload));
  					await collectDelivery(sendCardFeishu({
  						...replyTarget,
-@@ -2245,16 +3248,13 @@
+@@ -2245,16 +3274,13 @@
  					const ownerGeneration = activeStreamingGeneration ?? matchingInFlightClose?.generation;
  					if (shouldStreamText && ownerGeneration !== void 0 && (streaming?.isActive() || matchingInFlightClose !== void 0)) {
  						if (activeStreamingGeneration !== void 0) {
@@ -1310,7 +1336,7 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2268,6 +3268,10 @@
+@@ -2268,6 +3294,10 @@
  							});
  						}
  						return deferStreamingDelivery(mergeFeishuReplyDeliveryResults(deliveredResults, text), info?.kind, ownerGeneration);
@@ -1321,7 +1347,7 @@
  					}
  					if (useStaticCard || useStreamingCard && !isStreamingStartBackedOff(account.accountId) && withinCardTableLimit(text)) deliveredResults.push(await sendChunkedTextReply({
  						text,
-@@ -2284,6 +3288,9 @@
+@@ -2284,6 +3314,9 @@
  				const result = mergeFeishuReplyDeliveryResults(deliveredResults, deliveredContent);
  				if (priorClosedStreamingSettlement?.error !== void 0) throw createFeishuPartialReplyDeliveryError(isChannelPartialDeliveryError(priorClosedStreamingSettlement.error) && priorClosedStreamingSettlement.error instanceof Error ? priorClosedStreamingSettlement.error.cause ?? priorClosedStreamingSettlement.error : priorClosedStreamingSettlement.error, result);
  				return result;
@@ -1331,7 +1357,7 @@
  			},
  			onError: handleDeliveryError
  		},
-@@ -2309,15 +3316,21 @@
+@@ -2309,15 +3342,21 @@
  				startStreaming();
  				const nextThinking = formatReasoningMessage(payload.text);
  				if (nextThinking) {
@@ -1354,7 +1380,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2326,9 +3339,42 @@
+@@ -2326,9 +3365,42 @@
  				if (statusLineLocal) return updateStreamingStatusLine(statusLineLocal);
  				return false;
  			} : void 0,

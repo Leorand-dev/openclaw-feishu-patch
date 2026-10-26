@@ -30,7 +30,7 @@ ok("blanket kind:tool drop removed", !/if \(info\?\.kind === "tool" && inputPayl
 ok("structured display state exists", ["waitingLine", "itemStatusLine", "compactionLine", "narrationLine", "lastToolLabel"].every((v) => src.includes(`let ${v} = "";`)));
 ok("running total counter exists", /let aggregatedToolTotal = 0;/.test(src) && /aggregatedToolTotal \+= 1;/.test(src));
 ok("no per-event reduce over counts", !src.includes("Array.from(aggregatedToolSummaryCounts.values()).reduce"));
-ok("status renderer uses one phase line with latest narration", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine;/.test(src) && /latestNarration = narrationLine/.test(src) && !/const secondary = extras/.test(src));
+ok("status renderer is phase-only", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine;/.test(src) && /if \(streamText\.trim\(\)\) return/.test(src) && !/const secondary = extras/.test(src));
 ok("content renderer separated from status and panels", /return \[streamText, statusFallback\]/.test(src) && /buildReasoningPanelContent/.test(src) && /buildToolsPanelContent/.test(src));
 ok("flush uses latest-state providers + dirty split + budget", /content: contentChanged \? \(\) => renderCardContent\(\) : void 0/.test(src) && /status: shouldQueueStatus \? \(\) => buildStatusText\(\) : void 0/.test(src) && /nextContent !== lastQueuedContent/.test(src) && /statusUpdatesQueuedThisTurn/.test(src));
 ok("card-start pending flush is coalesced", /cardFlushPending/.test(src) && /if \(!active && cardFlushPending && !force\) return;/.test(src));
@@ -112,7 +112,7 @@ ok("reasoning panel is capped by lines and chars", /lines\.slice\(0, REASONING_M
 ok("tool errors are sanitized before display", /sanitizeToolErrorText/.test(src) && /redacted/.test(src));
 ok("card flushes are coalesced", /CARD_FLUSH_COALESCE_MS/.test(src) && /flushCardUpdateNow/.test(src));
 ok("details panel writes are budgeted", /DETAILS_UPDATE_MAX_PER_TURN/.test(src) && /detailsUpdatesQueuedThisTurn/.test(src));
-ok("narration section exists in details", /buildNarrationPanelContent/.test(src) && /\u{1F4AC} \\u65C1\\u767D/.test(src));
+ok("process timeline exists in details", /buildTimelinePanelContent/.test(src) && /activityTimeline/.test(src));
 ok("background card starts when no active card", /backgroundCardActive/.test(src) && /startStreaming\(\)/.test(src) && /scheduleBackgroundClose/.test(src));
 ok("over-limit final keeps preview and paginates", /pendingPageSuffix/.test(src) && /pageChunks\.length > 1/.test(src) && /finalTextExceedsStreamingLimit/.test(src));
 ok("continuation cards are numbered and omit details", /1F4C4/.test(src) && /headerTemplate/.test(src));

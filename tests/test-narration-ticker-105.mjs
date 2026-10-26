@@ -7,6 +7,7 @@ const { ok, finish } = makeCounter();
 const truncateBody = extractArrow(src, "truncateDisplayText");
 const buildBody = extractArrow(src, "buildCombinedStreamText");
 const statusBody = extractArrow(src, "buildStatusText");
+const activityBody = extractArrow(src, "buildActivityText");
 const normalizeBody = extractArrow(src, "normalizeNarrationLine");
 const deliverBody = extractAsyncArrow(src, "deliverNarrationToCard");
 
@@ -27,6 +28,7 @@ const NARRATION_TOTAL_MAX_CHARS = 800;
 const params = { runtime: { log: () => {} } };
 const account = { accountId: "test" };
 let reasoningText = "", streamText = "";
+let finalDeliveryInProgress = false;
 const NARRATION_MAX_CHARS = 240;
 const STATUS_LINE_MAX_CHARS = 160;
 const STATUS_MAX_CHARS = 400;
@@ -42,6 +44,7 @@ ${extractNarrationPrefix(src)}
 ${truncateBody}
 ${buildBody}
 ${statusBody}
+${activityBody}
 ${normalizeBody}
 ${deliverBody}
 return {
@@ -49,7 +52,8 @@ return {
   deliver: deliverNarrationToCard,
   build: (thinking, answer) => buildCombinedStreamText(thinking, answer),
   status: () => buildStatusText(),
-  renderCard: () => [buildCombinedStreamText(reasoningText, streamText), buildStatusText()].filter(Boolean).join("\\n\\n"),
+  activity: () => buildActivityText(),
+  renderCard: () => [buildActivityText(), buildCombinedStreamText(reasoningText, streamText), buildStatusText()].filter(Boolean).join("\\n\\n"),
   getLine: () => narrationLine,
   getStatus: () => lastStatus,
   flushes: () => flushCount,
@@ -82,20 +86,22 @@ return {
 
   // ticker behaviour
   ok("delivers narration into card", await sandbox.deliver("💬 first narration") === true);
-  ok("ticker renders 💬 line in status element", sandbox.status().includes("💬 first narration"), sandbox.status());
-  ok("ticker line itself is single-line", !sandbox.status().includes("first narration\n"));
+  ok("activity renders 💬 line", sandbox.activity().includes("💬 first narration"), sandbox.activity());
+  ok("activity line itself is single-line", !sandbox.activity().includes("first narration\n"));
+  ok("narration sits above answer in card", sandbox.renderCard().includes("💬 first narration") && !sandbox.renderCard().includes("answer"), JSON.stringify(sandbox.renderCard()));
   sandbox.setAnswer("answer");
-  ok("narration sits above answer in card", sandbox.renderCard() === "answer\n\n💬 first narration", JSON.stringify(sandbox.renderCard()));
+  ok("activity hides after answer starts", !sandbox.renderCard().includes("💬 first narration"), JSON.stringify(sandbox.renderCard()));
   ok("narration refreshes hold activity", sandbox.lastActivity() > 0);
   ok("narration cancels pending hold timer", sandbox.timerClears() >= 1);
   const flushesAfterFirst = sandbox.flushes();
   ok("duplicate narration is deduped (no extra flush)", await sandbox.deliver("💬 first narration") === true && sandbox.flushes() === flushesAfterFirst);
   ok("latest narration replaces previous", await (async () => {
+    sandbox.setAnswer("");
     await sandbox.deliver("💬 second narration");
-    return sandbox.status().includes("💬 second narration") && !sandbox.status().includes("first narration");
+    return sandbox.activity().includes("💬 second narration") && !sandbox.activity().includes("first narration");
   })());
   ok("flush called per changed narration", sandbox.flushes() >= 2);
-  ok("last status mirrors card status", sandbox.getStatus().includes("💬"));
+  ok("activity hides once answer starts", (() => { sandbox.setAnswer("answer"); return !sandbox.activity().includes("💬"); })());
 
   // renderEpoch race: a clear while the card is starting must not resurrect the ticker
   const race = makeSandbox(true);
@@ -119,13 +125,15 @@ return {
   // structural wiring
   ok("deliver routes narration into ticker", /if \(narrationPayload\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);/.test(src));
   ok("content renderer excludes narration/status", /const buildCombinedStreamText = \(thinking, answer\) => \[thinking \? formatReasoningPrefix\(thinking\) : "", answer\]\.filter\(Boolean\)\.join\("\\n\\n---\\n\\n"\);/.test(src));
-  ok("status renderer includes latest narration", /const latestNarration = narrationLine;/.test(src) && /truncateDisplayText\(latestNarration, 60\)/.test(src));
+  ok("activity line carries latest narration", /const buildActivityText = \(\) => \{/.test(src) && /if \(streamText\.trim\(\) \|\| finalDeliveryInProgress\) return/.test(src));
   ok("final content clears status/ticker", /if \(info\?\.kind === "final"\) \{\s*renderEpoch \+= 1;\s*clearWaitingRefreshTimer\(\);\s*clearCardStatusLines\(\);\s*flushCardUpdate\(true\);/.test(src));
 ok("assistant start keeps initial status when blank", /onAssistantMessageStart: previewStreamingEnabled \? \(\) => \{\s*renderEpoch \+= 1;\s*if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);/.test(src));
   ok("close clears status fields", /const carriedNarration = narrationLine;\s*clearCardStatusLines\(\);/.test(src));
   ok("reset/new reply clear status", /const resetStreamingState = \(\) => \{[\s\S]*?clearCardStatusLines\(\);/.test(src) && /onReplyStart: async \(\) => \{[\s\S]*?clearCardStatusLines\(\);/.test(src));
   ok("dedupe guard exists", /if \(nextLine === narrationLine && streaming\?\.isActive\(\) === true\) return true;/.test(src));
   ok("no standalone narration delivery", /return noVisibleFeishuReplyDelivery;/.test(src));
+  ok("activity element exists", /element_id: "activity"/.test(src));
+  ok("details timeline exists", /buildTimelinePanelContent/.test(src) && /activityTimeline/.test(src));
   ok("ticker uses safe truncation helper", /return truncateDisplayText\(collapsed, NARRATION_MAX_CHARS\);/.test(src));
 
 

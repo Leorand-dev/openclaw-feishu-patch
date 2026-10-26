@@ -43,6 +43,6 @@ ok("compaction end clears line", /onCompactionEnd:[\s\S]{0,160}compactionLine = 
 // --- assistant text still owns the card ---
 ok("assistant start clears transient status / keeps initial status when blank", /onAssistantMessageStart: previewStreamingEnabled \? \(\) => \{\s*renderEpoch \+= 1;\s*if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);\s*waitingLine = buildToolDoneLine\(aggregatedToolTotal\);/.test(src) && /const clearTransientStatusLines = \(\) => \{/.test(src));
 ok("structured status fields exist", ["waitingLine", "itemStatusLine", "compactionLine", "narrationLine"].every((v) => src.includes(`let ${v} = "";`)));
-ok("status renderer uses one phase line with latest narration", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine;/.test(src) && /latestNarration = narrationLine/.test(src) && !/const secondary = extras/.test(src));
+ok("status renderer is phase-only", /const primary = waitingLine \|\| itemStatusLine \|\| compactionLine;/.test(src) && /if \(streamText\.trim\(\)\) return/.test(src) && !/const secondary = extras/.test(src));
 
 finish("2026.10.5 block-fold/status-line");
