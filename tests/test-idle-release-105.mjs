@@ -157,15 +157,18 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   // 9) terminal card content for tool-only turns
   const bcl = extractArrow(src, "buildFinalSummaryLine");
   const rf = extractArrow(src, "resolveFinalCardText");
-  const resolveSandbox = new Function(`let aggregatedToolTotal = 0; let toolErrors = []; const formatElapsedDuration = (ms) => { const s = Math.max(0, Math.floor(ms / 1e3)); return s < 60 ? s + "s" : Math.floor(s / 60) + "m" + String(s % 60).padStart(2, "0") + "s"; };${bcl}\n${rf}\nreturn { resolve: (a, e) => resolveFinalCardText(a, e), setTotal: (n) => { aggregatedToolTotal = n; } };`)();
+  const resolveSandbox = new Function(`let aggregatedToolTotal = 0; let toolErrorTotal = 0; const formatElapsedDuration = (ms) => { const s = Math.max(0, Math.floor(ms / 1e3)); return s < 60 ? s + "s" : Math.floor(s / 60) + "m" + String(s % 60).padStart(2, "0") + "s"; };${bcl}\n${rf}\nreturn { resolve: (a, e, su) => resolveFinalCardText(a, e, su), setTotal: (n) => { aggregatedToolTotal = n; }, setErrors: (n) => { toolErrorTotal = n; } };`)();
   resolveSandbox.setTotal(3);
-  const toolOnly = resolveSandbox.resolve("", 0);
-  ok("tool-only close text", toolOnly.startsWith("> ") && toolOnly.includes("3"), toolOnly);
+  ok("tool-only body stays invisible when the status shows the summary", resolveSandbox.resolve("", 0, false) === "\u200B");
+  ok("tool-only body mirrors the summary when status is unavailable", resolveSandbox.resolve("", 0, true).startsWith("> ") && resolveSandbox.resolve("", 0, true).includes("3"));
   resolveSandbox.setTotal(3);
-  ok("answer text preserved", resolveSandbox.resolve("final answer", 0) === "final answer");
+  ok("answer text preserved", resolveSandbox.resolve("final answer", 0, false) === "final answer");
   resolveSandbox.setTotal(0);
-  ok("empty without tools stays empty", resolveSandbox.resolve("", 0) === "");
-  ok("final card text helper wired into close", /let text = resolveFinalCardText\(finalizedAnswerText, finalElapsedMs\);/.test(src));
+  resolveSandbox.setErrors(2);
+  ok("error-only turn is not treated as an empty card", resolveSandbox.resolve("", 0, false) === "\u200B");
+  resolveSandbox.setErrors(0);
+  ok("empty without tools/errors stays empty", resolveSandbox.resolve("", 0, true) === "");
+  ok("final card text helper wired into close", /let text = finalizedAnswerText;/.test(src) && /resolveFinalCardText\("", finalElapsedMs, streamingToClose\.isStatusUnavailable\?\.\(\) === true\)/.test(src));
 
   finish("2026.10.5 idle/timer/content");
 })().catch((error) => {

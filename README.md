@@ -4,7 +4,7 @@ An installable, **build-pinned** patch for the OpenClaw Feishu channel plugin.
 
 It turns tool-call progress, commentary and process events into **one readable streaming card** instead of a wall of bubbles. The answer body stays clean: a phase status line and a transient activity line show progress while the turn runs, and the full history collapses into a chronological process record after the answer.
 
-- **Supported plugin build:** `@openclaw/feishu` **2026.10.5 / 2026.10.6 / 2026.10.7**
+- **Supported plugin build:** `@openclaw/feishu` **2026.10.5 / 2026.10.6 / 2026.10.7 / 2026.10.8**
 - **Patch type:** unified diff against the installed `dist/.setup/monitor.account-*.mjs`
 - **Install:** one shell script; exact SHA-256 check; automatic backup; automatic rollback on failure
 - **No credentials required by this repository**
@@ -17,6 +17,10 @@ It turns tool-call progress, commentary and process events into **one readable s
 
 - Folds recognized tool/narration/process progress into one streaming card, including generic bare labels such as `Nodes`.
 - Phase status line shows stage, tool count and elapsed time; the final status keeps a single completion summary.
+- Phase status line is a single **grey** row that also carries the latest narration while the turn runs; the separate activity row was removed.
+- Process panel header shows only the event count (`🧾 过程记录 · 12 事件`); tool/error counts stay in the grey status row so the two rows do not repeat the same numbers.
+- Process rows use per-tool icons with bold relative timestamps and code-styled labels.
+- Long answers surface the page index in the status line (`✅ 完成 · … · 📄 1/3`) instead of hiding it in the footer; tool errors raise a 4s transient status notice.
 - Transient activity line shows only the latest narration before the answer starts, then disappears so the answer body is not displaced.
 - One collapsed `🧾 过程记录` panel contains reasoning plus a chronological activity timeline.
 - Consecutive identical tools are merged (`Exec ×N`); the timeline header reports the true total event count.
@@ -26,12 +30,13 @@ It turns tool-call progress, commentary and process events into **one readable s
 - Final dedupe covers paginated sends; background card closes are serialized so a new turn cannot race a stale background card.
 - Prewarms the card at reply start and shows an immediate status (no blank warm card).
 - Holds an active card until final delivery; merges cumulative block text instead of blindly appending; prevents duplicate cards and duplicated answer prefixes.
+- On 2026.10.8 builds, carries upstream's frozen-prefix streaming model (`onAssistantMessageStart` boundary, PR #182438) and the Card JSON 2.0 `column_set` action-card fix (PR #79832) on top of the aggregation layout.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
 - Card updates are coalesced into a 300ms window; status and process-record writes have per-turn budgets.
 - A card watchdog force-finalizes cards that exceed the maximum lifetime.
 - Reasoning and tool-error text are capped/redacted before entering the process record.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched; automatic backup and rollback.
-- Anchor adapter for future builds; CI matrix validates 10.5 / 10.6 / 10.7.
+- Anchor adapter for future builds; CI matrix validates 10.5 / 10.6 / 10.7 / 10.8.
 - Content-free diagnostics for tool-shaped payloads that could not be aggregated.
 - Installer `--check` / `--dry-run`, atomic target replacement, install lock and GNU `sha256sum` / BSD `shasum` fallback.
 - Generated installer version table + CI release/docs consistency checks.
@@ -42,14 +47,17 @@ It turns tool-call progress, commentary and process events into **one readable s
 
 | item | value |
 | --- | --- |
-| OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` / `@openclaw/feishu@2026.10.6` / `@openclaw/feishu@2026.10.7` |
-| pristine bundle SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched bundle SHA-256 | `8100bd50695c0d48c25a3fd8aae05d7052cba997f2d97256bd8a8c841e674426` |
-| patch SHA-256 | `2a568a51251bc19e729db9040e64a4416e9eaaecf2563539bea5f0cdf0ace6f6` (identical patch for both builds) |
-| patch hunks | 29 |
-| test assertions | 419 |
+| OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.5` / `2026.10.6` / `2026.10.7` / `2026.10.8` |
+| pristine bundle, 2026.10.5–10.7 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
+| patched bundle, 2026.10.5–10.7 | `25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c` |
+| patch, 2026.10.5–10.7 | `f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988` |
+| pristine bundle, 2026.10.8 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
+| patched bundle, 2026.10.8 | `178d201de988bd6cb183dea5ae15e30702c2c34c222f585cd1f17738f5d531bd` |
+| patch, 2026.10.8 | `a0fcd7066417e49dbfb38aad1b1fb7163a9f5a5cde164c1479fd3f3261a28435` |
+| patch hunks | 32 (2026.10.5–10.7), 31 (2026.10.8) |
+| test assertions | 500 (2026.10.5–10.7), 508 (2026.10.8) |
 
-The installer computes the SHA-256 of the target bundle and only applies when it matches the pristine hash above. If the target is already patched, it reports `already patched`. Any other build is **refused**.
+The installer computes the SHA-256 of the target bundle and only applies when it matches one of the pristine hashes above. If the target is already patched, it reports `already patched`. Any other build is **refused**.
 
 ---
 
@@ -83,15 +91,16 @@ cd tests
 node run-all.mjs "$TARGET"
 ```
 
-`run-all.mjs` runs all eight suites. Node 24+ is expected. The suites read the bundle path from `argv[2]` (or `BUNDLE`), so they can also audit an installed live copy.
+`run-all.mjs` runs all eleven suites. Node 24+ is expected. The suites read the bundle path from `argv[2]` (or `BUNDLE`), so they can also audit an installed live copy.
 
 Mechanical checks:
 
 ```sh
+# requires the pristine/patched bundle pairs next to each patch (internal worktree)
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results for the supported build: 30 hunks, forward/reverse byte-exact, 8/8 suites, 440 assertions.
+Expected results: 2026.10.5–10.7 → 32 hunks, forward/reverse byte-exact, 11/11 suites, 500 assertions; 2026.10.8 → 31 hunks, forward/reverse byte-exact, 11/11 suites, 508 assertions. CI re-runs all of it against the pristine npm tarballs.
 
 ---
 
@@ -214,7 +223,9 @@ patches/
     feishu-tool-aggregation.patch
   2026.10.7/
     feishu-tool-aggregation.patch
-tests/                        eight JavaScript suites
+  2026.10.8/
+    feishu-tool-aggregation.patch
+tests/                        nine JavaScript suites
 tools/
   adapt_patch.py              anchor-based adapter for future builds
   verify_patch.py             strict patch applier/verifier

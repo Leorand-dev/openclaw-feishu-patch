@@ -100,19 +100,21 @@ ok("prewarm text configurable", /progressTexts\?\.\[key\]/.test(src) || /progres
 const truncateStart = src.indexOf("const truncateDisplayText = (text, max) => {");
 const statusStart = src.indexOf("const buildStatusText = () => {");
 const statusEnd = src.indexOf("\n\t};", statusStart) + 4;
+const greyLine = src.match(/const greyStatus = [^\n]+/)[0];
 const statusFn = new Function(`
-let waitingLine = "waiting"; let narrationLine = "narration"; let itemStatusLine = "item"; let compactionLine = "compact";
+let waitingLine = "waiting"; let narrationLine = "\u{1F4AC} narration"; let itemStatusLine = "item"; let compactionLine = "compact";
+let errorNoticeLine = "", reasoningText = "", streamText = "", finalDeliveryInProgress = false;
 const STATUS_LINE_MAX_CHARS = 160;
-const STATUS_MAX_CHARS = 400;
 ${src.slice(truncateStart, src.indexOf("\n\t};", truncateStart) + 4)}
+${greyLine}
 ${src.slice(statusStart, statusEnd)}
 return buildStatusText;
 `)();
-ok("compact status: phase only", statusFn() === "waiting", JSON.stringify(statusFn()));
+ok("merged status: phase plus narration, grey", statusFn().includes("waiting") && statusFn().includes("narration") && statusFn().startsWith("<font"), statusFn());
 
 // ---------- 5) display batch 1: compact status, elapsed/last tool, narration cap, timer ----------
-ok("narration max is a fixed constant", /const NARRATION_MAX_CHARS = 240;/.test(src));
-ok("status renderer stays single-line", /return truncateDisplayText\(primary, STATUS_LINE_MAX_CHARS\);/.test(src));
+ok("narration max is a single-line cap", /const NARRATION_MAX_CHARS = 120;/.test(src));
+ok("status renderer stays single-line and grey", /greyStatus\(truncateDisplayText\(merged, STATUS_LINE_MAX_CHARS\)\)/.test(src));
 ok("waiting line has last-tool detail", /SHOW_LAST_TOOL_LABEL && lastToolLabel/.test(src) && /const details = \[\];/.test(src));
 ok("waiting line has elapsed detail", /SHOW_TOOL_ELAPSED && toolPhaseStartedAt > 0/.test(src) && /formatElapsedDuration\(elapsedMs\)/.test(src));
 ok("elapsed refresh timer is a fixed 15s", /TOOL_ELAPSED_REFRESH_MS = 15e3/.test(src) && /if \(!SHOW_TOOL_ELAPSED \|\| waitingRefreshTimer/.test(src) && /scheduleWaitingRefresh\(\);/.test(src));

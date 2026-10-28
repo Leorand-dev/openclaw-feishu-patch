@@ -37,6 +37,12 @@ export function extractBareToolLabels(src) {
   return m[0];
 }
 
+export function extractIconMap(src) {
+  const m = src.match(/const TOOL_ICON_BY_LABEL = [\s\S]*?\]\);/);
+  if (!m) throw new Error("TOOL_ICON_BY_LABEL not found");
+  return m[0];
+}
+
 export function extractNarrationPrefix(src) {
   const m = src.match(/const TOOL_NARRATION_TEXT_PREFIX = [^\n]+/);
   if (!m) throw new Error("TOOL_NARRATION_TEXT_PREFIX not found");
@@ -53,9 +59,11 @@ export function extractConstLine(src, name) {
 /** Closure preamble needed to execute the tool-summary parsers. */
 export function buildParserEnv(src) {
   return [
+    extractIconMap(src),
     extractConstLine(src, "TOOL_NARRATION_TEXT_PREFIX"),
     extractConstLine(src, "TOOL_LABEL_ALIASES"),
     extractArrow(src, "normalizeToolLabel"),
+    extractConstLine(src, "resolveToolIcon"),
     extractConstLine(src, "TOOL_SUMMARY_MAX_CHARS"),
     extractArrow(src, "getToolSummaryText"),
   ].join("\n");

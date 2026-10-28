@@ -14,6 +14,9 @@ const suites = [
   "test-narration-ticker-105.mjs",
   "test-display-backfill-105.mjs",
   "audit-agg-105.mjs",
+  "test-stream-boundary-108.mjs",
+  "test-regressions-108.mjs",
+  "test-layout-108.mjs",
 ];
 const bundle = process.argv[2] || "../patches/2026.10.5/patched.mjs";
 

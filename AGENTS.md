@@ -6,7 +6,7 @@ patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.10.5`, `@openclaw/feishu@2026.10.6`, or `@openclaw/feishu@2026.10.7`**.
+- Target plugin build must be **`@openclaw/feishu@2026.10.5`, `2026.10.6`, `2026.10.7`, or `2026.10.8`**.
 - The target file is the installed monitor bundle:
 
   ```
@@ -26,11 +26,11 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 ./install.sh "$TARGET"
 ```
 
-Expected installer output includes:
+Expected installer output includes one of:
 
 ```
-patched OK: ...
-sha256: 8100bd50695c0d48c25a3fd8aae05d7052cba997f2d97256bd8a8c841e674426
+sha256: 25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c   # 2026.10.5-10.7
+sha256: 178d201de988bd6cb183dea5ae15e30702c2c34c222f585cd1f17738f5d531bd   # 2026.10.8
 ```
 
 Then restart the OpenClaw gateway using the host's normal supervisor
@@ -50,7 +50,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `8/8 suites passed`, `440` assertions.
+Expected: `11/11 suites passed` (500 assertions on 2026.10.5–10.7, 508 on 2026.10.8).
 
 Optional mechanical check:
 
@@ -86,9 +86,12 @@ systemctl --user restart openclaw-gateway.service
 
 | item | value |
 | --- | --- |
-| plugin build | 2026.10.5 / 2026.10.6 / 2026.10.7 |
-| pristine SHA-256 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched SHA-256 | `8100bd50695c0d48c25a3fd8aae05d7052cba997f2d97256bd8a8c841e674426` |
-| patch SHA-256 | `2a568a51251bc19e729db9040e64a4416e9eaaecf2563539bea5f0cdf0ace6f6` |
+| plugin build | 2026.10.5 / 2026.10.6 / 2026.10.7 / 2026.10.8 |
+| pristine SHA-256, 2026.10.5–10.7 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
+| patched SHA-256, 2026.10.5–10.7 | `25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c` |
+| patch SHA-256, 2026.10.5–10.7 | `f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988` |
+| pristine SHA-256, 2026.10.8 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
+| patched SHA-256, 2026.10.8 | `178d201de988bd6cb183dea5ae15e30702c2c34c222f585cd1f17738f5d531bd` |
+| patch SHA-256, 2026.10.8 | `a0fcd7066417e49dbfb38aad1b1fb7163a9f5a5cde164c1479fd3f3261a28435` |
 
 See `README.md` for behavior, limitations and adapter workflow.

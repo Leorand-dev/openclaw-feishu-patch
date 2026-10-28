@@ -1,100 +1,157 @@
 # -*- coding: utf-8 -*-
-"""Regenerate the fixed patch from final patched.mjs and sync all hashes/docs."""
+"""Regenerate per-build patches from each build's patched.mjs.
+
+Keeps the reviewed bundle pairs as the source of truth:
+
+* buildings with local ``original.mjs``/``patched.mjs`` get their patch
+  regenerated from that pair (2026.10.5, 2026.10.8, ...);
+* builds that share the exact same bundle bytes simply reuse the reviewed
+  patch (2026.10.6 and 2026.10.7 mirror 2026.10.5).
+
+Then syncs MANIFEST.json, install.sh's VERSIONS block and
+patches/SHA256SUMS so the installer, CI and docs stay consistent.
+"""
 import difflib
 import hashlib
+import json
 import pathlib
 import re
 
-ROOT = pathlib.Path(r"D:\deepseek\review-wayE\fixed")
-BASE = ROOT / "patches" / "2026.10.5"
-ORIG = BASE / "original.mjs"
-PATCHED = BASE / "patched.mjs"
-PATCH = BASE / "feishu-tool-aggregation.patch"
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+PATCHES = ROOT / "patches"
+MANIFEST_PATH = PATCHES / "MANIFEST.json"
+
+# version -> version whose reviewed bundle/patch bytes it reuses
+MIRRORED = {
+    "2026.10.6": "2026.10.5",
+    "2026.10.7": "2026.10.5",
+}
 
 
-def sha_bytes(b):
-    return hashlib.sha256(b).hexdigest()
+def sha_bytes(data):
+    return hashlib.sha256(data).hexdigest()
 
 
-orig_text = ORIG.read_text(encoding="utf-8")
-patched_text = PATCHED.read_text(encoding="utf-8")
-assert "\r\n" not in orig_text and "\r\n" not in patched_text
+def regen(version):
+    directory = PATCHES / version
+    orig_path = directory / "original.mjs"
+    patched_path = directory / "patched.mjs"
+    orig_text = orig_path.read_text(encoding="utf-8")
+    patched_text = patched_path.read_text(encoding="utf-8")
+    assert "\r\n" not in orig_text and "\r\n" not in patched_text
+    diff = difflib.unified_diff(
+        orig_text.splitlines(), patched_text.splitlines(),
+        fromfile="original.mjs", tofile="patched.mjs", lineterm="",
+    )
+    patch_text = "\n".join(diff) + "\n"
+    patch_path = directory / "feishu-tool-aggregation.patch"
+    patch_path.write_text(patch_text, encoding="utf-8", newline="\n")
+    return {
+        "version": version,
+        "original_sha256": sha_bytes(orig_path.read_bytes()),
+        "patched_sha256": sha_bytes(patched_path.read_bytes()),
+        "patch_sha256": sha_bytes(patch_text.encode("utf-8")),
+        "patch": f"{version}/feishu-tool-aggregation.patch",
+        "hunks": patch_text.count("\n@@ "),
+        "has_bundle_files": True,
+    }
 
-diff = difflib.unified_diff(
-    orig_text.splitlines(), patched_text.splitlines(),
-    fromfile="original.mjs", tofile="patched.mjs", lineterm="",
+
+builds = {}
+for directory in sorted(PATCHES.iterdir()):
+    if not directory.is_dir():
+        continue
+    if not (directory / "original.mjs").is_file() or not (directory / "patched.mjs").is_file():
+        continue
+    builds[directory.name] = regen(directory.name)
+
+for target, source in MIRRORED.items():
+    if source not in builds:
+        raise SystemExit(f"mirror source {source} has no reviewed bundle pair")
+    target_dir = PATCHES / target
+    target_dir.mkdir(parents=True, exist_ok=True)
+    patch_bytes = (PATCHES / builds[source]["patch"]).read_bytes()
+    (target_dir / "feishu-tool-aggregation.patch").write_bytes(patch_bytes)
+    builds[target] = {
+        **{k: builds[source][k] for k in ("original_sha256", "patched_sha256", "patch_sha256", "hunks")},
+        "version": target,
+        "patch": f"{target}/feishu-tool-aggregation.patch",
+        "has_bundle_files": False,
+    }
+
+# ---- MANIFEST.json --------------------------------------------------------
+manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+versions = [builds[v] for v in sorted(builds)]
+manifest["versions"] = [
+    {
+        "version": entry["version"],
+        "original_sha256": entry["original_sha256"],
+        "patched_sha256": entry["patched_sha256"],
+        "patch_sha256": entry["patch_sha256"],
+        "patch": entry["patch"],
+        "tests": "tests/run-all.mjs",
+        "adapter": "anchor-rebase-v1",
+        "status": "supported",
+    }
+    for entry in versions
+]
+manifest["current"] = versions[-1]["version"]
+MANIFEST_PATH.write_text(
+    json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8", newline="\n",
 )
-patch_text = "\n".join(diff) + "\n"
-PATCH.write_text(patch_text, encoding="utf-8", newline="\n")
-hunks = patch_text.count("\n@@ ")
+print(f"manifest: {len(versions)} builds, current {manifest['current']}")
 
-h_orig = sha_bytes(ORIG.read_bytes())
-h_patched = sha_bytes(PATCHED.read_bytes())
-h_patch = sha_bytes(patch_text.encode())
-print(f"hunks={hunks}")
-print(f"orig   ={h_orig}")
-print(f"patched={h_patched}")
-print(f"patch  ={h_patch}")
-
-# ---- MANIFEST.json ----
-import json
-manifest_path = ROOT / "patches" / "MANIFEST.json"
-if manifest_path.exists():
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    for entry in manifest.get("versions", []):
-        if entry.get("version") == "2026.10.5":
-            entry["original_sha256"] = h_orig
-            entry["patched_sha256"] = h_patched
-            entry["patch_sha256"] = h_patch
-            entry["patch"] = "2026.10.5/feishu-tool-aggregation.patch"
-            entry["tests"] = "tests/run-all.mjs"
-            entry["adapter"] = "anchor-rebase-v1"
-            entry["status"] = "supported"
-    manifest["current"] = "2026.10.5"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-    print(f"manifest={manifest_path}")
-
-# ---- SHA256SUMS ----
-sums_path = ROOT / "patches" / "SHA256SUMS"
-lines = sums_path.read_text(encoding="utf-8").splitlines()
-for n, ln in enumerate(lines):
-    if ln.endswith("2026.10.5/feishu-tool-aggregation.patch"):
-        lines[n] = f"{h_patch}  2026.10.5/feishu-tool-aggregation.patch"
-    elif ln.endswith("2026.10.5/patched.mjs"):
-        lines[n] = f"{h_patched}  2026.10.5/patched.mjs"
-    elif ln.endswith("2026.10.5/original.mjs"):
-        lines[n] = f"{h_orig}  2026.10.5/original.mjs"
-sums_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-
-# ---- install.sh ----
+# ---- install.sh VERSIONS block -------------------------------------------
 inst_path = ROOT / "install.sh"
 inst = inst_path.read_text(encoding="utf-8")
-inst, n = re.subn(
-    r'"2026\.10\.5 [0-9a-f]{64} [0-9a-f]{64} \$HERE/patches/2026\.10\.5/feishu-tool-aggregation\.patch"',
-    f'"2026.10.5 {h_orig} {h_patched} $HERE/patches/2026.10.5/feishu-tool-aggregation.patch"',
-    inst,
-)
-assert n == 1, n
-assert 'if ! patch -p0 "$TARGET" < "$PATCH"; then' in inst
+entries = []
+for entry in manifest["versions"]:
+    entries.append(
+        f'  "{entry["version"]} {entry["original_sha256"]} {entry["patched_sha256"]} '
+        f'{entry["patch_sha256"]} $HERE/patches/{entry["patch"]}"'
+    )
+block = "\n".join([
+    "# BEGIN GENERATED VERSIONS",
+    "# version -> \"pristine_sha patched_sha patch_path\"; regenerated by tools/finalize.py",
+    "VERSIONS=(",
+    *entries,
+    ")",
+    "# END GENERATED VERSIONS",
+])
+inst, count = re.subn(r"# BEGIN GENERATED VERSIONS.*?# END GENERATED VERSIONS", block, inst, flags=re.S)
+assert count == 1, count
+assert "--check" in inst and "--dry-run" in inst
 inst_path.write_text(inst, encoding="utf-8", newline="\n")
 
-# ---- README ----
-rd_path = ROOT / "README.md"
-rd = rd_path.read_text(encoding="utf-8")
-rd, n = re.subn(r"The patch \(\d+ hunks\)", f"The patch ({hunks} hunks)", rd)
-assert n == 1, n
-# layout text is version-agnostic in the single-version layout
-rd, n = re.subn(
-    r"(\| `@openclaw/feishu` 2026\.10\.5 \| `patches/2026\.10\.5/feishu-tool-aggregation\.patch` \| `[0-9a-f]{8}…[0-9a-f]{4}` \| `)[0-9a-f]{8}…[0-9a-f]{4}(` \|)",
-    rf"\g<1>{h_patched[:8]}…{h_patched[-4:]}\g<2>",
-    rd,
-)
-assert n == 1, n
-rd_path.write_text(rd, encoding="utf-8", newline="\n")
+# ---- patches/SHA256SUMS ---------------------------------------------------
+sum_lines = []
+for entry in versions:
+    version = entry["version"]
+    if entry["has_bundle_files"]:
+        sum_lines.append(f'{builds[version]["original_sha256"]}  {version}/original.mjs')
+    sum_lines.append(f'{entry["patch_sha256"]}  {version}/feishu-tool-aggregation.patch')
+    if entry["has_bundle_files"]:
+        sum_lines.append(f'{builds[version]["patched_sha256"]}  {version}/patched.mjs')
+sums_path = PATCHES / "SHA256SUMS"
+sums_path.write_text("\n".join(sum_lines) + "\n", encoding="utf-8", newline="\n")
 
-# ---- consistency re-checks ----
+# ---- README hunk count (internal copy; optional) --------------------------
+rd_path = ROOT / "README.md"
+if rd_path.is_file():
+    rd = rd_path.read_text(encoding="utf-8")
+    base_hunks = builds["2026.10.5"]["hunks"]
+    rd, count = re.subn(r"The patch \(\d+ hunks\)", f"The patch ({base_hunks} hunks)", rd)
+    if count:
+        rd_path.write_text(rd, encoding="utf-8", newline="\n")
+
+# ---- consistency re-checks ------------------------------------------------
 sums = sums_path.read_text(encoding="utf-8")
-for h in (h_orig, h_patched, h_patch):
-    assert h in sums, h
-assert f"The patch ({hunks} hunks)" in rd
+for entry in versions:
+    for key in ("original_sha256", "patched_sha256", "patch_sha256"):
+        assert entry[key] in inst
+        assert entry[key] in sums
+    patch_text = (PATCHES / entry["patch"]).read_text(encoding="utf-8")
+    assert sha_bytes(patch_text.encode("utf-8")) == entry["patch_sha256"]
+    assert patch_text.count("\n@@ ") == entry["hunks"]
 print("metadata synced OK")

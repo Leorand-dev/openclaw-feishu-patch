@@ -18,6 +18,8 @@ jobs:
             patch: "patches/2026.10.6/feishu-tool-aggregation.patch"
           - plugin_version: "2026.10.7"
             patch: "patches/2026.10.7/feishu-tool-aggregation.patch"
+          - plugin_version: "2026.10.8"
+            patch: "patches/2026.10.8/feishu-tool-aggregation.patch"
 
     env:
       PLUGIN_VERSION: ${{ matrix.plugin_version }}
@@ -92,7 +94,7 @@ jobs:
           set -euo pipefail
           patch -R --dry-run -p0 "$TARGET" < "$PATCH"
 
-      - name: Run the 2026.10.5 test suites
+      - name: Run the patch test suites
         run: |
           set -euo pipefail
           cd tests
