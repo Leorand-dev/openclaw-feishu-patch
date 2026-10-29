@@ -4,10 +4,12 @@ import { loadBundle, extractArrow, extractAsyncArrow, extractNarrationPrefix, ma
 
 const src = loadBundle();
 const { ok, finish } = makeCounter();
+const modern = src.includes("UPDATE_BUDGET_WINDOW_MS");
 
 const truncateBody = extractArrow(src, "truncateDisplayText");
 const statusBody = extractArrow(src, "buildStatusText");
 const greyBody = src.match(/const greyStatus = [^\n]+/)[0];
+const sanitizeBody = src.match(/const sanitizeStatusNarration = [^\n]+/)?.[0] || "const sanitizeStatusNarration = (text) => text;";
 const normalizeBody = extractArrow(src, "normalizeNarrationLine");
 const deliverBody = extractAsyncArrow(src, "deliverNarrationToCard");
 
@@ -42,6 +44,7 @@ const flushCardUpdate = () => { flushCount += 1; lastStatus = buildStatusText();
 ${extractNarrationPrefix(src)}
 ${truncateBody}
 ${greyBody}
+${sanitizeBody}
 ${statusBody}
 ${normalizeBody}
 ${deliverBody}
@@ -120,9 +123,9 @@ return {
 
   // structural wiring
   ok("deliver routes narration into ticker", /if \(narrationPayload\) \{\s*await deliverNarrationToCard\(inputPayload\.text\);/.test(src));
-  ok("status merges the latest narration with the phase line", /const merged = narration \? `\$\{primary\} \\u00b7 \$\{narration\}` : primary;/.test(src) && /const narration = !streamText\.trim\(\) && !finalDeliveryInProgress \? narrationLine : "";/.test(src));
+  ok("status merges the latest narration with the phase line", /const merged = narration \? `\$\{primary\} \\u00b7 \$\{narration\}` : primary;/.test(src) && /const narration = !streamText\.trim\(\) && !finalDeliveryInProgress \? .*narrationLine.* : "";/.test(src));
   ok("final content clears status/ticker", /if \(info\?\.kind === "final"\) \{\s*renderEpoch \+= 1;\s*clearWaitingRefreshTimer\(\);\s*clearCardStatusLines\(\);\s*flushCardUpdate\(true\);/.test(src));
-  ok("assistant start keeps initial status when blank", /onAssistantMessageStart: previewStreamingEnabled \? \(\) => \{\s*renderEpoch \+= 1;\s*if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);/.test(src));
+  ok("assistant start keeps initial status when blank", /onAssistantMessageStart: previewStreamingEnabled \? \(\) => \{\s*(?:clearErrorNotice\(\);\s*)?renderEpoch \+= 1;\s*if \(aggregatedToolTotal > 0\) \{\s*clearTransientStatusLines\(\);\s*toolPhaseCompleted = true;\s*clearWaitingRefreshTimer\(\);/.test(src));
   ok("close clears status fields", /const carriedNarration = normalizeNarrationLine\(narrationLine\);\s*clearCardStatusLines\(\);/.test(src));
   ok("reset/new reply clear status", /const resetStreamingState = \(\) => \{[\s\S]*?clearCardStatusLines\(\);/.test(src) && /onReplyStart: async \(\) => \{[\s\S]*?clearCardStatusLines\(\);/.test(src));
   ok("dedupe guard exists", /if \(nextLine === narrationLine && streaming\?\.isActive\(\) === true\) return true;/.test(src));
@@ -130,7 +133,7 @@ return {
   ok("separate activity element removed", !src.includes('element_id: "activity"') && !src.includes("buildActivityText"));
   ok("details timeline exists", /buildTimelinePanelContent/.test(src) && /activityTimeline/.test(src));
   ok("ticker uses safe truncation helper", /return truncateDisplayText\(collapsed, NARRATION_MAX_CHARS\);/.test(src));
-  ok("narration timeline is capped", /NARRATION_MAX_ENTRIES/.test(src) && /NARRATION_TOTAL_MAX_CHARS/.test(src));
+  ok("narration timeline bookkeeping removed", modern ? !/NARRATION_MAX_ENTRIES/.test(src) && !/NARRATION_TOTAL_MAX_CHARS/.test(src) : /NARRATION_MAX_ENTRIES/.test(src) && /NARRATION_TOTAL_MAX_CHARS/.test(src));
   ok("background card scheduler exists", /BACKGROUND_IDLE_CLOSE_MS/.test(src) && /scheduleBackgroundClose/.test(src));
 
   finish("2026.10.5 narration ticker (merged status row)");

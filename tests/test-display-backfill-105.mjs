@@ -2,6 +2,7 @@
 import { loadBundle, extractArrow, makeCounter } from "./_harness.mjs";
 
 const src = loadBundle();
+const modern = src.includes("UPDATE_BUDGET_WINDOW_MS");
 const { ok, finish } = makeCounter();
 
 // ---------- 1) queueFeishuStreamingUpdate: providers are evaluated after card start ----------
@@ -79,13 +80,13 @@ ok("close deletes status element (fallback zero-width)", /async deleteStatusElem
 ok("empty status maps to zero-width marker", /CardKit rejects empty element content/.test(src) && /const safeText = typeof text === "string" && text\.trim\(\) !== "" \? text : "\\u200B";/.test(src));
 ok("updateStatus normalizes empty text", /const safeText = text\.trim\(\) !== "" \? text : "\\u200B";/.test(src));
 ok("status updates throttled", /schedulePendingStatusFlush/.test(src) && /statusLastUpdateTime/.test(src));
-ok("status element can be disabled", /cardStatusElement !== false/.test(src));
+ok("status element is a fixed default", modern ? /const statusElementEnabled = true;/.test(src) : /cardStatusElement !== false/.test(src));
 ok("content/status flush is coalesced while starting", /cardFlushPending/.test(src));
-ok("early card prewarm configured", /prewarmCard !== false/.test(src));
+ok("early card prewarm is a fixed default", modern ? /if \(previewStreamingEnabled && renderMode !== "raw"\) \{/.test(src) : /prewarmCard !== false/.test(src));
 ok("start latency logged", /streaming card ready in \$\{Date\.now\(\) - cardStartAt\}ms/.test(src));
 ok("backoff reduced to 15s", /STREAMING_START_FAILURE_BACKOFF_MS = 15e3;/.test(src));
-ok("hold window configurable", /cardIdleHoldMs/.test(src));
-ok("progress text overrides configurable", /progressTexts/.test(src));
+ok("hold window is a fixed default", modern ? /const CARD_IDLE_HOLD_MS = 8000;/.test(src) : /cardIdleHoldMs/.test(src));
+ok("progress texts are fixed defaults", modern ? /const resolveProgressText = \(key, fallback\) => \{\s*return fallback;/.test(src) : /progressTexts/.test(src));
 ok("compact status budget configured", /STATUS_LINE_MAX_CHARS = 160;/.test(src));
 
 // ---------- 3b) prewarm keeps the card non-blank ----------
@@ -94,7 +95,7 @@ ok("prewarm status rendered when card becomes ready", src.includes('resolveProgr
 ok("prewarm text is thinking", src.includes("\\u23F3 \\u601d\\u8003\\u4e2d\\u2026"));
 ok("prewarm status clears on first content/waiting/narration", /const clearPrewarmStatus = \(\) => \{/.test(src) && (src.match(/clearPrewarmStatus\(\);/g) || []).length >= 5);
 ok("waiting line replaces prewarm status", /prewarmStatusLine = "";\s*waitingLine = nextWaitingLine;/.test(src));
-ok("prewarm text configurable", /progressTexts\?\.\[key\]/.test(src) || /progressTexts/.test(src));
+ok("prewarm text source is fixed", modern ? !/progressTexts/.test(src) : (/progressTexts\?\.\[key\]/.test(src) || /progressTexts/.test(src)));
 
 // ---------- 4) status fallback text renderer ordering ----------
 const truncateStart = src.indexOf("const truncateDisplayText = (text, max) => {");
@@ -107,6 +108,7 @@ let errorNoticeLine = "", reasoningText = "", streamText = "", finalDeliveryInPr
 const STATUS_LINE_MAX_CHARS = 160;
 ${src.slice(truncateStart, src.indexOf("\n\t};", truncateStart) + 4)}
 ${greyLine}
+${src.match(/const sanitizeStatusNarration = [^\n]+/)?.[0] || "const sanitizeStatusNarration = (text) => text;"}
 ${src.slice(statusStart, statusEnd)}
 return buildStatusText;
 `)();

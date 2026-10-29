@@ -18,8 +18,9 @@ It turns tool-call progress, commentary and process events into **one readable s
 - Folds recognized tool/narration/process progress into one streaming card, including generic bare labels such as `Nodes`.
 - Phase status line shows stage, tool count and elapsed time; the final status keeps a single completion summary.
 - Phase status line is a single **grey** row that also carries the latest narration while the turn runs; the separate activity row was removed.
-- Process panel header shows only the event count (`🧾 过程记录 · 12 事件`); tool/error counts stay in the grey status row so the two rows do not repeat the same numbers.
+- Process panel keeps a static header and writes its body in place, so an expanded panel stays expanded; the body opens with grey event/tool/error counts.
 - Process rows use per-tool icons with bold relative timestamps and code-styled labels.
+- Empty/tool-only turns keep a readable chat preview (`✅ 完成 · N 工具 · Xs`) instead of an invisible zero-width summary; per-turn update budgets roll over each minute so long tool runs are not frozen.
 - Long answers surface the page index in the status line (`✅ 完成 · … · 📄 1/3`) instead of hiding it in the footer; tool errors raise a 4s transient status notice.
 - Transient activity line shows only the latest narration before the answer starts, then disappears so the answer body is not displaced.
 - One collapsed `🧾 过程记录` panel contains reasoning plus a chronological activity timeline.
@@ -52,10 +53,10 @@ It turns tool-call progress, commentary and process events into **one readable s
 | patched bundle, 2026.10.5–10.7 | `25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c` |
 | patch, 2026.10.5–10.7 | `f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988` |
 | pristine bundle, 2026.10.8 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched bundle, 2026.10.8 | `178d201de988bd6cb183dea5ae15e30702c2c34c222f585cd1f17738f5d531bd` |
-| patch, 2026.10.8 | `a0fcd7066417e49dbfb38aad1b1fb7163a9f5a5cde164c1479fd3f3261a28435` |
+| patched bundle, 2026.10.8 | `6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092` |
+| patch, 2026.10.8 | `cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f` |
 | patch hunks | 32 (2026.10.5–10.7), 31 (2026.10.8) |
-| test assertions | 500 (2026.10.5–10.7), 508 (2026.10.8) |
+| test assertions | 502 (2026.10.5–10.7), 513 (2026.10.8) |
 
 The installer computes the SHA-256 of the target bundle and only applies when it matches one of the pristine hashes above. If the target is already patched, it reports `already patched`. Any other build is **refused**.
 
@@ -100,7 +101,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected results: 2026.10.5–10.7 → 32 hunks, forward/reverse byte-exact, 11/11 suites, 500 assertions; 2026.10.8 → 31 hunks, forward/reverse byte-exact, 11/11 suites, 508 assertions. CI re-runs all of it against the pristine npm tarballs.
+Expected results: 2026.10.5–10.7 → 32 hunks, forward/reverse byte-exact, 11/11 suites, 502 assertions; 2026.10.8 → 31 hunks, forward/reverse byte-exact, 11/11 suites, 513 assertions. CI re-runs all of it against the pristine npm tarballs.
 
 ---
 

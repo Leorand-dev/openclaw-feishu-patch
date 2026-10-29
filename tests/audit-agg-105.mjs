@@ -2,6 +2,7 @@
 import { loadBundle, count, makeCounter } from "./_harness.mjs";
 
 const src = loadBundle();
+const modern = src.includes("UPDATE_BUDGET_WINDOW_MS");
 const { ok, finish } = makeCounter();
 
 // --- dead code from the 2026.10.2 port stays gone ---
@@ -38,7 +39,7 @@ ok("queue evaluates providers after start", /if \(startPromise\) await startProm
 ok("identical card text deduped by session", /if \(this\.statusPendingText === null \|\| this\.closed\) return;/.test(src));
 
 // --- V1: early warm start + ticker polish ---
-ok("early card prewarm wired", /previewStreamingEnabled && renderMode !== "raw" && account\.config\?\.prewarmCard !== false\) \{\s*prewarmRequested = true;\s*startStreaming\(\);/.test(src) && /prewarmStatusLine = resolveProgressText\("prewarm"/.test(src));
+ok("early card prewarm wired", (modern ? /previewStreamingEnabled && renderMode !== "raw"\) \{\s*prewarmRequested = true;\s*startStreaming\(\);/.test(src) : /previewStreamingEnabled && renderMode !== "raw" && account\.config\?\.prewarmCard !== false\) \{\s*prewarmRequested = true;\s*startStreaming\(\);/.test(src)) && /prewarmStatusLine = resolveProgressText\("prewarm"/.test(src));
 ok("ticker dedupes identical line", /if \(nextLine === narrationLine && streaming\?\.isActive\(\) === true\) return true;/.test(src));
 ok("ticker uses safe truncation", /return truncateDisplayText\(collapsed, NARRATION_MAX_CHARS\);/.test(src));
 ok("surrogate-safe truncate helper", /const truncateDisplayText = \(text, max\) => \{\s*const chars = Array\.from\(text\);/.test(src));
@@ -59,9 +60,9 @@ ok("compact status budget present", /const STATUS_LINE_MAX_CHARS = 160;/.test(sr
 
 // --- V3: backoff / hold config / observability ---
 ok("streaming start backoff reduced", /STREAMING_START_FAILURE_BACKOFF_MS = 15e3;/.test(src));
-ok("hold window configurable", /cardIdleHoldMs/.test(src) && /configured >= 2e3 && configured <= 3e4 \? configured : 8000/.test(src));
+ok("hold window default", modern ? /const CARD_IDLE_HOLD_MS = 8000;/.test(src) : /cardIdleHoldMs/.test(src) && /configured >= 2e3 && configured <= 3e4 \? configured : 8000/.test(src));
 ok("card start latency logged", /streaming card ready in \$\{Date\.now\(\) - cardStartAt\}ms/.test(src));
-ok("status element can be disabled by config", /cardStatusElement !== false/.test(src));
+ok("status element is a fixed default", modern ? /const statusElementEnabled = true;/.test(src) : /cardStatusElement !== false/.test(src));
 
 // --- preserved 2026.10.5 features ---
 ok("waiting string intact", src.includes("\\u23F3 \\u5df2\\u6267\\u884c {count} \\u4e2a\\u5de5\\u5177") && src.includes("\\uff0c\\u7b49\\u5f85\\u4e2d\\u2026"));
@@ -121,7 +122,7 @@ ok("page cards preserve required mentions", /pageFirstMentionParams/.test(src) &
 ok("paginated final records delivered text", /deliveredFinalTexts\.add\(text\)/.test(src));
 ok("long media replies paginate then send media", /finalTextExceedsStreamingLimit[^\n]*!presentationCard/.test(src) && /sendMediaReplies\(payload, !shouldDeliverText/.test(src));
 ok("background card close is serialized", /backgroundClosePromise/.test(src) && /closeBackgroundCard/.test(src));
-ok("timeline total is tracked in the panel title", /const buildPanelTitle = \(\) => \{[\s\S]*?activityTimelineTotal/.test(src));
+ok("timeline total is tracked in the panel stats", modern ? /const buildPanelStatsLine = \(\) => \{[\s\S]*?activityTimelineTotal/.test(src) : /const buildPanelTitle = \(\) => \{[\s\S]*?activityTimelineTotal/.test(src));
 ok("consecutive tools merge counts", /mergeConsecutive/.test(src) && /entry\.count/.test(src));
 ok("final completion status is kept and grey", /keepStatus: disposition === "closed"/.test(src) && /statusText: greyStatus\(\`\$\{buildFinalSummaryLine\(finalElapsedMs\)\}\$\{pageSuffix\}\`\)/.test(src));
 ok("background card has distinct header", /resolveBackgroundCardHeader/.test(src) && /backgroundCardActive \? resolveBackgroundCardHeader/.test(src));

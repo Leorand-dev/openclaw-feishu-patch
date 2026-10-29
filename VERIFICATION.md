@@ -10,11 +10,11 @@ Current supported versions: **`@openclaw/feishu@2026.10.5`, `2026.10.6`, `2026.1
 | `patches/2026.10.5/feishu-tool-aggregation.patch` | `f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988` |
 | `patches/2026.10.6/feishu-tool-aggregation.patch` | `f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988` |
 | `patches/2026.10.7/feishu-tool-aggregation.patch` | `f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988` |
-| `patches/2026.10.8/feishu-tool-aggregation.patch` | `a0fcd7066417e49dbfb38aad1b1fb7163a9f5a5cde164c1479fd3f3261a28435` |
+| `patches/2026.10.8/feishu-tool-aggregation.patch` | `cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f` |
 | pristine bundle, 2026.10.5–10.7 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
 | patched bundle, 2026.10.5–10.7 | `25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c` |
 | pristine bundle, 2026.10.8 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched bundle, 2026.10.8 | `178d201de988bd6cb183dea5ae15e30702c2c34c222f585cd1f17738f5d531bd` |
+| patched bundle, 2026.10.8 | `6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092` |
 
 The bundle files are not redistributed here; hashes are reference values for the
 exact supported builds.
@@ -62,8 +62,8 @@ display/backfill/session                 53             53
 structural audit                        123            123
 stream boundary / action card            13             21
 regressions (sanitizer/summary/errors)   16             16
-layout pass                               28             28
-total                                  500            508
+layout pass                               33             33
+total                                  502            513
 ```
 
 Both matrices pass: `11/11 suites passed`.

@@ -102,7 +102,7 @@ return {
   shrink.setBase("\u524d\u6587\n\n");
   shrink.setText("\u524d\u6587\n\n\u7b2c\u4e00\u6bb5\u524d\u534a");
   shrink.update("\u53e6\u4e00\u6bb5");
-  ok("shorter corrected snapshot replaces the current message", shrink.text() === "\u524d\u6587\n\n\u53e6\u4e00\u6bb5", shrink.text());
+  ok(modern ? "shorter block delta is merged, never replaces prior text" : "shorter corrected snapshot replaces the current message", modern ? shrink.text() === "\u524d\u6587\n\n\u7b2c\u4e00\u6bb5\u524d\u534a\u53e6\u4e00\u6bb5" : shrink.text() === "\u524d\u6587\n\n\u53e6\u4e00\u6bb5", shrink.text());
   ok("corrected snapshot still flushes", shrink.flushes() === 1);
 
   const append = makeBlockSandbox();
