@@ -3,10 +3,10 @@
 
 Keeps the reviewed bundle pairs as the source of truth:
 
-* buildings with local ``original.mjs``/``patched.mjs`` get their patch
-  regenerated from that pair (2026.10.5, 2026.10.8, ...);
+* builds with local ``original.mjs``/``patched.mjs`` get their patch
+  regenerated from that pair;
 * builds that share the exact same bundle bytes simply reuse the reviewed
-  patch (2026.10.6 and 2026.10.7 mirror 2026.10.5).
+  patch (``MIRRORED``).
 
 Then syncs MANIFEST.json, install.sh's VERSIONS block and
 patches/SHA256SUMS so the installer, CI and docs stay consistent.
@@ -22,10 +22,7 @@ PATCHES = ROOT / "patches"
 MANIFEST_PATH = PATCHES / "MANIFEST.json"
 
 # version -> version whose reviewed bundle/patch bytes it reuses
-MIRRORED = {
-    "2026.10.6": "2026.10.5",
-    "2026.10.7": "2026.10.5",
-}
+MIRRORED = {}
 
 
 def sha_bytes(data):
@@ -140,7 +137,7 @@ sums_path.write_text("\n".join(sum_lines) + "\n", encoding="utf-8", newline="\n"
 rd_path = ROOT / "README.md"
 if rd_path.is_file():
     rd = rd_path.read_text(encoding="utf-8")
-    base_hunks = builds["2026.10.5"]["hunks"]
+    base_hunks = versions[-1]["hunks"]
     rd, count = re.subn(r"The patch \(\d+ hunks\)", f"The patch ({base_hunks} hunks)", rd)
     if count:
         rd_path.write_text(rd, encoding="utf-8", newline="\n")

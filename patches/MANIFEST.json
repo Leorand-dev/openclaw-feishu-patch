@@ -1,43 +1,13 @@
 {
   "schema": 1,
-  "current": "2026.10.8",
+  "current": "2026.10.9",
   "versions": [
     {
-      "version": "2026.10.5",
-      "original_sha256": "72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe",
-      "patched_sha256": "25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c",
-      "patch_sha256": "f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988",
-      "patch": "2026.10.5/feishu-tool-aggregation.patch",
-      "tests": "tests/run-all.mjs",
-      "adapter": "anchor-rebase-v1",
-      "status": "supported"
-    },
-    {
-      "version": "2026.10.6",
-      "original_sha256": "72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe",
-      "patched_sha256": "25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c",
-      "patch_sha256": "f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988",
-      "patch": "2026.10.6/feishu-tool-aggregation.patch",
-      "tests": "tests/run-all.mjs",
-      "adapter": "anchor-rebase-v1",
-      "status": "supported"
-    },
-    {
-      "version": "2026.10.7",
-      "original_sha256": "72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe",
-      "patched_sha256": "25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c",
-      "patch_sha256": "f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988",
-      "patch": "2026.10.7/feishu-tool-aggregation.patch",
-      "tests": "tests/run-all.mjs",
-      "adapter": "anchor-rebase-v1",
-      "status": "supported"
-    },
-    {
-      "version": "2026.10.8",
+      "version": "2026.10.9",
       "original_sha256": "ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4",
       "patched_sha256": "6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092",
       "patch_sha256": "cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f",
-      "patch": "2026.10.8/feishu-tool-aggregation.patch",
+      "patch": "2026.10.9/feishu-tool-aggregation.patch",
       "tests": "tests/run-all.mjs",
       "adapter": "anchor-rebase-v1",
       "status": "supported"

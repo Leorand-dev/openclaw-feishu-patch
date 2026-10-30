@@ -10,21 +10,21 @@ inside a hunk, the adapter fails loudly and the patch must be reviewed manually.
 Usage:
   # regression: regenerate the current patched bundle from pristine and compare
   python3 tools/adapt_patch.py \
-    --pristine patches/2026.10.5/original.mjs \
-    --from-patch patches/2026.10.5/feishu-tool-aggregation.patch \
-    --version 2026.10.5 --self-check
+    --pristine patches/2026.10.9/original.mjs \
+    --from-patch patches/2026.10.9/feishu-tool-aggregation.patch \
+    --version 2026.10.9 --self-check
 
   # adapt to a new build (writes patches/<version>/ + manifest entry)
   python3 tools/adapt_patch.py \
     --pristine /path/to/new/monitor.account-*.mjs \
-    --from-patch patches/2026.10.5/feishu-tool-aggregation.patch \
+    --from-patch patches/2026.10.9/feishu-tool-aggregation.patch \
     --version 2026.11.0 --out-dir patches/2026.11.0 \
     --update-manifest --set-current
 
   # CI: check a fetched pristine bundle without local original/patched files
   python3 tools/adapt_patch.py \
-    --pristine "$TARGET" --from-patch patches/2026.10.5/feishu-tool-aggregation.patch \
-    --version 2026.10.5 --out-dir "$RUNNER_TEMP/adapted" \
+    --pristine "$TARGET" --from-patch patches/2026.10.9/feishu-tool-aggregation.patch \
+    --version 2026.10.9 --out-dir "$RUNNER_TEMP/adapted" \
     --expect-sha <patched_sha_from_MANIFEST> --no-manifest
 """
 import argparse
@@ -198,7 +198,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "original.mjs").write_bytes(pristine_bytes)
     (out_dir / "patched.mjs").write_bytes(patched_bytes)
-    patch_file = out_dir / ("feishu-tool-aggregation.patch" if args.version == "2026.10.5" else "feishu-tool-aggregation.patch")
+    patch_file = out_dir / "feishu-tool-aggregation.patch"
     patch_file.write_text(new_patch, encoding="utf-8", newline="\n")
 
     print(f"version   = {args.version}")

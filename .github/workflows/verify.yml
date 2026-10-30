@@ -12,14 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - plugin_version: "2026.10.5"
-            patch: "patches/2026.10.5/feishu-tool-aggregation.patch"
-          - plugin_version: "2026.10.6"
-            patch: "patches/2026.10.6/feishu-tool-aggregation.patch"
-          - plugin_version: "2026.10.7"
-            patch: "patches/2026.10.7/feishu-tool-aggregation.patch"
-          - plugin_version: "2026.10.8"
-            patch: "patches/2026.10.8/feishu-tool-aggregation.patch"
+          - plugin_version: "2026.10.9"
+            patch: "patches/2026.10.9/feishu-tool-aggregation.patch"
 
     env:
       PLUGIN_VERSION: ${{ matrix.plugin_version }}

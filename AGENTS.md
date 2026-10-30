@@ -6,14 +6,14 @@ patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.10.5`, `2026.10.6`, `2026.10.7`, or `2026.10.8`**.
+- Target plugin build must be **`@openclaw/feishu@2026.10.9`**.
 - The target file is the installed monitor bundle:
 
   ```
   ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup/monitor.account-*.mjs
   ```
 
-- Required tools: `bash`, `patch`, `sha256sum`.
+- Required tools: `bash`, `patch`, `sha256sum` (or `shasum`).
 - No credentials or network access to Feishu are needed for installation.
 
 ## Install
@@ -26,11 +26,10 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 ./install.sh "$TARGET"
 ```
 
-Expected installer output includes one of:
+Expected installer output:
 
 ```
-sha256: 25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c   # 2026.10.5-10.7
-sha256: 6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092   # 2026.10.8
+sha256: 6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092
 ```
 
 Then restart the OpenClaw gateway using the host's normal supervisor
@@ -50,7 +49,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `11/11 suites passed` (502 assertions on 2026.10.5–10.7, 513 on 2026.10.8).
+Expected: `11/11 suites passed` (513 assertions).
 
 Optional mechanical check:
 
@@ -62,12 +61,15 @@ python3 tools/verify_patch.py --all=patches
 
 - **Do not** apply this patch to a different plugin build. The installer will
   refuse an unknown pristine hash; report the actual target hash and stop.
+- The 2026.10.9 monitor bundle is byte-identical to 2026.10.8 in upstream;
+  only the 2026.10.9 patch directory ships. Do not recreate older version
+  directories.
 - **Do not** set new Feishu config keys such as `cardStatusPosition` or
   `reasoningMaxLines`: OpenClaw's plugin schema rejects unknown keys and marks
   the config invalid. Behavior defaults are compiled into the patch.
 - **Do not** paste credentials, tokens, hostnames, or chat contents into this
   repository.
-- **Do not restart the gateway mid-turn.** During restart recovery, tool/narration
+- **Do not** restart the gateway mid-turn. During restart recovery, tool/narration
   progress may appear as temporary standalone posts because no streaming card
   exists yet. This is expected recovery behavior, not a patch failure; the next
   turn after the gateway is healthy returns to the single-card flow.
@@ -86,12 +88,9 @@ systemctl --user restart openclaw-gateway.service
 
 | item | value |
 | --- | --- |
-| plugin build | 2026.10.5 / 2026.10.6 / 2026.10.7 / 2026.10.8 |
-| pristine SHA-256, 2026.10.5–10.7 | `72a0a198e31e71e4690e2b86296d53983863e99e8d3a0872ac4cbb83aefe3bfe` |
-| patched SHA-256, 2026.10.5–10.7 | `25bf3802fbf87768c27132952d83c238063f5612c550b1ebb64eee66306db23c` |
-| patch SHA-256, 2026.10.5–10.7 | `f3ed1a22375fd74da571ed5a3d005c94ed6116683c1f01192e63e8772c76e988` |
-| pristine SHA-256, 2026.10.8 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched SHA-256, 2026.10.8 | `6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092` |
-| patch SHA-256, 2026.10.8 | `cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f` |
+| plugin build | 2026.10.9 |
+| pristine SHA-256 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
+| patched SHA-256 | `6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092` |
+| patch SHA-256 | `cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f` |
 
 See `README.md` for behavior, limitations and adapter workflow.
