@@ -4,3 +4,5 @@
 backup/
 .monitor.backup-*.mjs
 node_modules/
+patches/*/original.mjs
+patches/*/patched.mjs

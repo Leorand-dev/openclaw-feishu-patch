@@ -1,5 +1,3 @@
 b8ef53ba7fd43623920b5f203ea28b9c63e73b603bd28e55ed713dc4e68b3279  install.sh
 323c116c264dc6cdebaa201ee5a422eb6815b17de3768ecdf0b913f4203a7b77  patches/MANIFEST.json
-ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4  patches/2026.10.9/original.mjs
 cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f  patches/2026.10.9/feishu-tool-aggregation.patch
-6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092  patches/2026.10.9/patched.mjs
