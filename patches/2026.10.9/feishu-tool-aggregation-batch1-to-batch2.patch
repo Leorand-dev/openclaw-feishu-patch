@@ -1,0 +1,345 @@
+--- patched-batch1.mjs
++++ patched.mjs
+@@ -1056,6 +1056,11 @@
+ };
+ const STREAMING_UPDATE_THROTTLE_MS = 160;
+ const STREAMING_SIGNIFICANT_DELTA_CHARS = 18;
++const STATUS_UPDATE_MAX_ATTEMPTS = 3;
++const STATUS_RETRY_BASE_DELAY_MS = 250;
++const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;
++const CARD_WRITE_RETRY_BASE_DELAY_MS = 500;
++const CARD_WRITE_RETRY_MAX_DELAY_MS = 4e3;
+ const FEISHU_STREAMING_TOKEN_DEFAULT_LIFETIME_SECONDS = 7200;
+ const tokenCache = /* @__PURE__ */ new Map();
+ function resolveStreamingTokenExpiresAt(value, nowMs = Date.now()) {
+@@ -1083,11 +1088,31 @@
+ async function assertSuccessfulCardKitResponse(response, auditContext, action) {
+ 	if (!response.ok) {
+ 		cancelUnreadResponseBody(response);
+-		throw new Error(`${action} failed with HTTP ${response.status}`);
++		const error = new Error(`${action} failed with HTTP ${response.status}`);
++		error.httpStatus = response.status;
++		error.retryable = response.status === 408 || response.status === 429 || response.status >= 500;
++		throw error;
+ 	}
+ 	const data = await readFeishuJsonResponse(response, auditContext);
+-	if (data.code !== 0) throw new Error(`${action} failed: ${data.msg ?? "unknown error"} (code=${String(data.code)})`);
+-}
++	if (data.code !== 0) {
++		const error = new Error(`${action} failed: ${data.msg ?? "unknown error"} (code=${String(data.code)})`);
++		error.feishuCode = data.code;
++		error.retryable = data.code === 429 || data.code === 99991400 || data.code === 99991403;
++		throw error;
++	}
++}
++/** True for transient CardKit failures that are safe to retry. */
++function isRetryableCardKitError(error) {
++	if (error?.retryable === true) return true;
++	if (error?.retryable === false) return false;
++	const status = Number(error?.httpStatus);
++	if (status === 408 || status === 429 || status >= 500) return true;
++	const code = Number(error?.feishuCode ?? error?.code);
++	if (code === 429 || code === 99991400 || code === 99991403) return true;
++	const message = String(error?.message ?? error ?? "");
++	return /\bHTTP (?:429|5\d\d)\b|timed? ?out|timeout|ECONN|fetch failed|network|socket|aborted/i.test(message);
++}
++const delayMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+ async function getToken(creds) {
+ 	const key = `${creds.domain ?? "feishu"}|${creds.appId}`;
+ 	const cached = tokenCache.get(key);
+@@ -1348,29 +1373,33 @@
+ 		}, delayMs);
+ 	}
+ 	async flushPendingUpdate() {
++		let sent = true;
+ 		this.queue = this.queue.then(async () => {
+ 			if (!this.state || this.closed) return;
+ 			const nextText = this.pendingText;
+ 			if (!nextText) return;
+ 			this.pendingText = null;
+ 			if (nextText === this.state.sentText) return;
+-			if (await this.writeCardContent(nextText, false, (e) => this.log?.(`Update failed: ${String(e)}`)) && this.state) this.state.sentText = nextText;
++			sent = await this.writeCardContent(nextText, false, (e) => this.log?.(`Update failed: ${String(e)}`));
++			if (sent && this.state) this.state.sentText = nextText;
+ 		});
+ 		await this.queue;
+-	}
+-	async update(text) {
+-		if (!this.state || this.closed || !text) return;
++		return sent;
++	}
++	async update(text, options = {}) {
++		if (!this.state || this.closed) return false;
++		if (!text) return true;
+ 		this.state.currentText = text;
+ 		this.pendingText = text;
+ 		this.clearFlushTimer();
+ 		const shouldForceUpdate = shouldPushStreamingUpdate(this.state.sentText, text);
+ 		const now = Date.now();
+-		if (!shouldForceUpdate && now - this.lastUpdateTime < this.updateThrottleMs) {
++		if (!options.awaitWrite && !shouldForceUpdate && now - this.lastUpdateTime < this.updateThrottleMs) {
+ 			this.schedulePendingFlush();
+-			return;
++			return true;
+ 		}
+ 		this.lastUpdateTime = now;
+-		await this.flushPendingUpdate();
++		return await this.flushPendingUpdate();
+ 	}
+ 	clearStatusFlushTimer() {
+ 		if (this.statusFlushTimer) {
+@@ -1392,23 +1421,32 @@
+ 		if (!this.state || !this.statusElementEnabled) return false;
+ 		// CardKit rejects empty element content (HTTP 400 / field validation failed).
+ 		const safeText = typeof text === "string" && text.trim() !== "" ? text : "\u200B";
+-		this.state.sequence += 1;
+-		try {
+-			await this.requestCardKit(`/${this.state.cardId}/elements/status/content`, "status-update", "PUT", () => ({
+-				content: safeText,
+-				sequence: this.state.sequence,
+-				uuid: `st_${this.state.cardId}_${this.state.sequence}`
+-			}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, "Update card status content"));
+-			if (!this.statusConfirmed) {
+-				this.statusConfirmed = true;
+-				this.log?.("Card status element update OK");
+-			}
+-			return true;
+-		} catch (error) {
+-			this.statusUnavailable = true;
+-			this.log?.(`Status update failed: ${String(error)}`);
+-			return false;
+-		}
++		let lastError;
++		let attempts = 0;
++		for (let attempt = 1; attempt <= STATUS_UPDATE_MAX_ATTEMPTS; attempt += 1) {
++			if (!this.state || this.closed) return false;
++			attempts = attempt;
++			this.state.sequence += 1;
++			try {
++				await this.requestCardKit(`/${this.state.cardId}/elements/status/content`, "status-update", "PUT", () => ({
++					content: safeText,
++					sequence: this.state.sequence,
++					uuid: `st_${this.state.cardId}_${this.state.sequence}`
++				}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, "Update card status content"));
++				if (!this.statusConfirmed) {
++					this.statusConfirmed = true;
++					this.log?.("Card status element update OK");
++				}
++				return true;
++			} catch (error) {
++				lastError = error;
++				if (attempt >= STATUS_UPDATE_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
++				await delayMs(STATUS_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
++			}
++		}
++		this.statusUnavailable = true;
++		this.log?.(`Status update failed after ${attempts} attempt(s): ${String(lastError)}`);
++		return false;
+ 	}
+ 	async deleteStatusElement() {
+ 		if (!this.state || !this.statusElementEnabled) return false;
+@@ -1470,14 +1508,13 @@
+ 			this.statusPendingText = null;
+ 			if (nextText === this.statusSentText) return;
+ 			sent = await this.writeStatusContent(nextText);
+-			// Cache the attempted text either way to avoid tight retry loops; the caller
+-			// falls back to rendering status inside the content element on failure.
+-			this.statusSentText = nextText;
++			if (sent) this.statusSentText = nextText;
++			else if (!this.statusUnavailable) this.statusPendingText = nextText;
+ 		});
+ 		await this.queue;
+ 		return sent;
+ 	}
+-	async updateStatus(text) {
++	async updateStatus(text, options = {}) {
+ 		if (!this.state || this.closed || !this.statusElementEnabled || this.statusUnavailable || typeof text !== "string") return true;
+ 		const safeText = text.trim() !== "" ? text : "\u200B";
+ 		if (safeText === this.statusSentText && safeText === this.statusPendingText) return true;
+@@ -1485,7 +1522,7 @@
+ 		this.clearStatusFlushTimer();
+ 		const shouldForce = shouldPushStreamingUpdate(this.statusSentText, safeText);
+ 		const now = Date.now();
+-		if (!shouldForce && now - this.statusLastUpdateTime < this.updateThrottleMs) {
++		if (!options.awaitWrite && !shouldForce && now - this.statusLastUpdateTime < this.updateThrottleMs) {
+ 			this.schedulePendingStatusFlush();
+ 			return true;
+ 		}
+@@ -1605,24 +1642,32 @@
+ function queueFeishuStreamingUpdate(params) {
+ 	const { queue, session, generation, startPromise, content, status, elements, text, accountId, runtime, statusElement = true, onStatusUnavailable } = params;
+ 	return queue.then(async () => {
++		const result = { content: void 0, status: void 0, elements: {} };
+ 		if (startPromise) await startPromise;
+-		if (!(generation !== void 0 && session?.isActive())) return;
++		if (!(generation !== void 0 && session?.isActive())) return result;
+ 		const contentText = typeof content === "function" ? content() : content ?? text;
+-		if (contentText !== void 0) await session.update(contentText).catch((error) => runtime.error?.(`feishu[${accountId}] streaming update failed: ${String(error)}`));
++		if (contentText !== void 0) result.content = await session.update(contentText, { awaitWrite: true }).then((sent) => sent !== false).catch((error) => {
++			runtime.error?.(`feishu[${accountId}] streaming update failed: ${String(error)}`);
++			return false;
++		});
+ 		if (statusElement && typeof session.updateStatus === "function") {
+ 			const statusText = typeof status === "function" ? status() : status;
+ 			if (statusText !== void 0) {
+-				const sent = await session.updateStatus(statusText).catch(() => false);
+-				if (sent === false) onStatusUnavailable?.();
++				result.status = await session.updateStatus(statusText, { awaitWrite: true }).then((sent) => sent !== false).catch(() => false);
++				if (result.status === false) onStatusUnavailable?.();
+ 			}
+ 		}
+ 		if (elements && typeof session.writeElementContent === "function") {
+ 			for (const [elementId, value] of Object.entries(elements)) {
+ 				const elementText = typeof value === "function" ? value() : value;
+ 				if (elementText === void 0) continue;
+-				await session.writeElementContent(elementId, elementText).catch((error) => runtime.error?.(`feishu[${accountId}] element update failed (${elementId}): ${String(error)}`));
+-			}
+-		}
++				result.elements[elementId] = await session.writeElementContent(elementId, elementText).then((sent) => sent !== false).catch((error) => {
++					runtime.error?.(`feishu[${accountId}] element update failed (${elementId}): ${String(error)}`);
++					return false;
++				});
++			}
++		}
++		return result;
+ 	});
+ }
+ //#endregion
+@@ -1917,6 +1962,15 @@
+ 	let toolPhaseCompleted = false;
+ 	let lastQueuedContent = null;
+ 	let lastQueuedStatus = null;
++	// lastQueued* coalesces in-flight intents; lastAcked* is the last state the
++	// provider confirmed, and is restored when a write fails.
++	let lastAckedContent = null;
++	let lastAckedStatus = null;
++	let lastAckedDetails = null;
++	let lastAckedReasoning = null;
++	let cardUpdateSerial = 0;
++	let cardWriteRetryTimer;
++	let cardWriteRetryAttempt = 0;
+ 	let errorNoticeLine = "";
+ 	let errorNoticeTimer;
+ 	let lastToolActivityAt = 0;
+@@ -2079,6 +2133,66 @@
+ 		detailsUpdatesQueuedThisTurn = 0;
+ 		detailsBudgetWarned = false;
+ 	};
++	const clearCardWriteRetryTimer = () => {
++		if (cardWriteRetryTimer !== void 0) {
++			clearTimeout(cardWriteRetryTimer);
++			cardWriteRetryTimer = void 0;
++		}
++	};
++	const resetCardWriteTracking = () => {
++		clearCardWriteRetryTimer();
++		cardWriteRetryAttempt = 0;
++		cardUpdateSerial += 1;
++		lastAckedContent = null;
++		lastAckedStatus = null;
++		lastAckedDetails = null;
++		lastAckedReasoning = null;
++	};
++	const scheduleCardWriteRetry = () => {
++		if (cardWriteRetryTimer !== void 0) return;
++		if (cardWriteRetryAttempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS) return;
++		const retryDelay = Math.min(CARD_WRITE_RETRY_MAX_DELAY_MS, CARD_WRITE_RETRY_BASE_DELAY_MS * 2 ** cardWriteRetryAttempt);
++		cardWriteRetryAttempt += 1;
++		cardWriteRetryTimer = setTimeout(() => {
++			cardWriteRetryTimer = void 0;
++			if (streaming?.isActive() !== true) return;
++			flushCardUpdate(true);
++		}, retryDelay);
++		cardWriteRetryTimer.unref?.();
++	};
++	/** Only acknowledge a write after the provider reports success. */
++	const acknowledgeCardUpdate = (serial, snapshot, result) => {
++		if (serial !== cardUpdateSerial) return;
++		let failed = false;
++		if (snapshot.contentQueued) {
++			if (result?.content === true) lastAckedContent = snapshot.content;
++			else {
++				failed = true;
++				lastQueuedContent = lastAckedContent;
++			}
++		}
++		if (snapshot.statusQueued) {
++			if (result?.status === true) lastAckedStatus = snapshot.status;
++			else if (streaming?.isStatusUnavailable?.() !== true) {
++				failed = true;
++				lastQueuedStatus = lastAckedStatus;
++			}
++		}
++		if (snapshot.detailsQueued) {
++			const elementResults = result?.elements ?? {};
++			if (Object.values(elementResults).length > 0 && Object.values(elementResults).every((sent) => sent === true)) {
++				lastAckedDetails = snapshot.details;
++				if (snapshot.reasoningDue) lastAckedReasoning = snapshot.reasoning;
++			} else {
++				failed = true;
++				lastQueuedDetails = lastAckedDetails;
++				lastQueuedReasoning = lastAckedReasoning;
++				lastReasoningQueuedAt = 0;
++			}
++		}
++		if (failed) scheduleCardWriteRetry();
++		else if (cardWriteRetryAttempt > 0) cardWriteRetryAttempt = 0;
++	};
+ 	const flushCardUpdateNow = (force = false) => {
+ 		if (!streamingEnabled || renderMode === "raw") return;
+ 		refreshUpdateBudgetWindow();
+@@ -2111,6 +2225,17 @@
+ 			return;
+ 		}
+ 		if (!active) cardFlushPending = true;
++		const serial = ++cardUpdateSerial;
++		const snapshot = {
++			content: nextContent,
++			status: nextStatus,
++			details: nextDetails,
++			reasoning: nextReasoning,
++			contentQueued: contentChanged,
++			statusQueued: shouldQueueStatus,
++			detailsQueued: shouldQueueElements,
++			reasoningDue
++		};
+ 		const queued = queueFeishuStreamingUpdate({
+ 			queue: partialUpdateQueue,
+ 			session: streaming,
+@@ -2137,7 +2262,19 @@
+ 				lastReasoningQueuedAt = Date.now();
+ 			}
+ 		}
+-		partialUpdateQueue = queued.finally(() => {
++		const settleQueuedUpdate = (result, error) => {
++			if (error !== void 0) params.runtime.error?.(`feishu[${account.accountId}] streaming update failed: ${String(error)}`);
++			try {
++				acknowledgeCardUpdate(serial, snapshot, result);
++			} catch (ackError) {
++				params.runtime.error?.(`feishu[${account.accountId}] streaming update acknowledgement failed: ${String(ackError)}`);
++			}
++		};
++		partialUpdateQueue = queued.then((result) => {
++			settleQueuedUpdate(result, void 0);
++		}, (error) => {
++			settleQueuedUpdate(void 0, error);
++		}).finally(() => {
+ 			cardFlushPending = false;
+ 		});
+ 	};
+@@ -2353,6 +2490,7 @@
+ 		toolPhaseCompleted = false;
+ 		lastQueuedContent = null;
+ 		lastQueuedStatus = null;
++		resetCardWriteTracking();
+ 		cardFlushPending = false;
+ 		clearCardFlushTimer();
+ 		clearWaitingRefreshTimer();
+@@ -3103,6 +3241,7 @@
+ 				toolPhaseCompleted = false;
+ 				lastQueuedContent = null;
+ 				lastQueuedStatus = null;
++				resetCardWriteTracking();
+ 				cardFlushPending = false;
+ 				clearCardStatusLines();
+ 				clearWaitingRefreshTimer();

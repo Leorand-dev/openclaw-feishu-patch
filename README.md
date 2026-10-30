@@ -34,13 +34,15 @@ It turns tool-call progress, commentary and process events into **one readable s
 - The 2026.10.9 monitor bundle is byte-identical to 2026.10.8: it keeps upstream's frozen-prefix streaming model (`onAssistantMessageStart` boundary, PR #182438) and the Card JSON 2.0 `column_set` action-card fix (PR #79832) on top of the aggregation layout.
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists. Truncated reasoning closes open code fences so it cannot swallow the activity timeline.
 - Card updates are coalesced into a 300ms window; status and process-record writes have per-turn budgets.
+- **Reliability batch 2:** status-element writes retry transient failures (HTTP 408/429/5xx, network, Feishu backoff codes) with a bounded backoff before falling back into the content element; permanent validation/permission errors fall back immediately.
+- **Reliability batch 2:** content/status/detail writes only advance the acknowledged cache after the provider confirms success; failed writes are retried (bounded) instead of being treated as delivered.
 - A card watchdog force-finalizes cards that exceed the maximum lifetime.
 - Reasoning and tool-error text are capped/redacted before entering the process record; dynamic card text is HTML/markdown escaped and the footer note is escaped before its grey wrapper.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched; automatic backup and rollback.
 - Anchor adapter for future builds; CI validates the pinned 2026.10.9 npm tarball.
 - Content-free diagnostics for tool-shaped payloads that could not be aggregated.
 - Installer `--check` / `--dry-run`, atomic target replacement, install lock and GNU `sha256sum` / BSD `shasum` fallback.
-- Generated installer version table + CI release/docs consistency checks.
+- Generated installer version/upgrade tables + CI release/docs consistency checks.
 
 ---
 
@@ -50,12 +52,13 @@ It turns tool-call progress, commentary and process events into **one readable s
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.9` |
 | pristine bundle | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched bundle | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
-| patch | `b8ee0366f0191443b89c4d58beb3d8e2498daf760cb7fc07cefbd355fd8e148c` |
-| patch hunks | 32 |
-| test assertions | 530 |
+| patched bundle | `c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1` |
+| patch | `df6a57767197b5dd413a49c0656f75ab453991186fc91cbc23a8291c3c181730` |
+| batch-1 upgrade source | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
+| patch hunks | 34 |
+| test assertions | 571 |
 
-The installer computes the SHA-256 of the target bundle and only applies when it matches one of the pristine hashes above. If the target is already patched, it reports `already patched`. Any other build is **refused**.
+The installer computes the SHA-256 of the target bundle and applies when it matches a pristine build or a known upgradable batch-1 build. If the target is already patched, it reports `already patched`. Any other build is **refused**.
 
 ---
 
@@ -76,6 +79,20 @@ systemctl --user restart openclaw-gateway.service
 
 The installer prints the backup path and the patched SHA-256. It verifies the post-patch hash and restores the backup automatically on any failure.
 
+### Upgrading an already patched batch 1 install
+
+The installer also accepts the UI-batch-1 bundle (`9cd54d32…`) and applies a
+separate `batch1 → batch2` delta. No pristine restore is required:
+
+```sh
+./install.sh --check "$TARGET"   # status=upgradable from=9cd54d32…
+./install.sh "$TARGET"           # applies the delta, verifies c70fc9c5…
+```
+
+The delta is shipped as `patches/2026.10.9/feishu-tool-aggregation-batch1-to-batch2.patch`
+and recorded in `patches/UPGRADES.json`. A backup of the batch-1 bundle is
+created before the upgrade.
+
 For agent-oriented instructions see [`AGENTS.md`](./AGENTS.md).
 
 ---
@@ -89,7 +106,7 @@ cd tests
 node run-all.mjs "$TARGET"
 ```
 
-`run-all.mjs` runs all eleven suites. Node 24+ is expected. The suites read the bundle path from `argv[2]` (or `BUNDLE`), so they can also audit an installed live copy.
+`run-all.mjs` runs all twelve suites. Node 24+ is expected. The suites read the bundle path from `argv[2]` (or `BUNDLE`), so they can also audit an installed live copy.
 
 Mechanical checks:
 
@@ -98,7 +115,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected result: 32 hunks, forward/reverse byte-exact, 11/11 suites, 530 assertions. CI re-runs all of it against the pristine 2026.10.9 npm tarball.
+Expected result: 34 hunks, forward/reverse byte-exact, 12/12 suites, 571 assertions. CI re-runs all of it against the pristine 2026.10.9 npm tarball.
 
 ---
 
@@ -212,12 +229,14 @@ AGENTS.md                     concise instructions for automated agents
 VERIFICATION.md               verification evidence for the current build
 LICENSE                       MIT
 install.sh                    exact-build installer: hash select, backup, rollback
-SHA256SUMS                    installer + manifest + patch hashes
+SHA256SUMS                    installer + manifest/upgrade + patch hashes
 patches/
-  MANIFEST.json               supported version hashes/status
+  MANIFEST.json               supported version hashes/status + upgrade sources
+  UPGRADES.json               batch-1 -> batch-2 delta metadata
   2026.10.9/
     feishu-tool-aggregation.patch
-tests/                        eleven JavaScript suites
+    feishu-tool-aggregation-batch1-to-batch2.patch
+tests/                        twelve JavaScript suites
 tools/
   adapt_patch.py              anchor-based adapter for future builds
   verify_patch.py             strict patch applier/verifier

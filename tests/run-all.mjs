@@ -17,6 +17,7 @@ const suites = [
   "test-stream-boundary-108.mjs",
   "test-regressions-108.mjs",
   "test-layout-108.mjs",
+  "test-reliability-109.mjs",
 ];
 const bundle = process.argv[2] || "../patches/2026.10.5/patched.mjs";
 

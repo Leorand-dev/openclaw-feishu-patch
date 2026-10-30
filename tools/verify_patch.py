@@ -217,10 +217,14 @@ def all_versions(repo_patches):
         d = os.path.join(repo_patches, name)
         if not os.path.isdir(d):
             continue
-        patches = sorted(f for f in os.listdir(d) if f.endswith('.patch'))
-        if not patches:
-            continue
-        patch = os.path.join(d, patches[0])
+        canonical = os.path.join(d, 'feishu-tool-aggregation.patch')
+        if os.path.isfile(canonical):
+            patch = canonical
+        else:
+            patches = sorted(f for f in os.listdir(d) if f.endswith('.patch'))
+            if not patches:
+                continue
+            patch = os.path.join(d, patches[0])
         orig = os.path.join(d, 'original.mjs')
         patched = os.path.join(d, 'patched.mjs')
         if os.path.isfile(orig) and os.path.isfile(patched) and os.path.isfile(patch):

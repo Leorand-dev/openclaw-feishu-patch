@@ -71,7 +71,7 @@ ok("status failure invokes fallback callback", statusFailed === true);
 // ---------- 3) structural: dual element + status API + fallback + configs ----------
 ok("card JSON includes status element", /element_id: "status"/.test(src));
 ok("status element only when enabled / position configurable", /element_id: "status"/.test(src) && /this\.statusElementEnabled && this\.statusPosition === "top"/.test(src) && /this\.statusElementEnabled && this\.statusPosition !== "top"/.test(src));
-ok("session has updateStatus", /async updateStatus\(text\) \{/.test(src));
+ok("session has updateStatus", /async updateStatus\(text, options = \{\}\) \{/.test(src));
 ok("status element endpoint used", /`\/\$\{this\.state\.cardId\}\/elements\/status\/content`/.test(src));
 ok("status write uses shared sequence/uuid", /uuid: `st_\$\{this\.state\.cardId\}_\$\{this\.state\.sequence\}`/.test(src));
 ok("status update failure marks unavailable", /this\.statusUnavailable = true;/.test(src));

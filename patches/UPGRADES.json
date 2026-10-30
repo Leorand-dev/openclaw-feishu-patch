@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "upgrades": [
+    {
+      "from_sha256": "9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496",
+      "to_sha256": "c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1",
+      "from_version": "2026.10.9",
+      "patch": "2026.10.9/feishu-tool-aggregation-batch1-to-batch2.patch",
+      "patch_sha256": "3611d0e1cad1325b4b14f1ed6efcbed3851c4787186de13d053e284fe608ad6b"
+    }
+  ]
+}

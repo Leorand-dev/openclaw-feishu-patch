@@ -53,4 +53,22 @@ for entry in supported:
     if expected not in blocks[0]:
         fail(f"install.sh VERSIONS block is stale for {entry['version']}")
 
-print(f"release checks OK: {len(supported)} supported version(s), {len(present_docs)} docs")
+# Upgrade deltas must be listed in the installer and in SHA256SUMS.
+upgrades = manifest.get("upgrades", [])
+if upgrades:
+    upgrade_blocks = re.findall(r"# BEGIN GENERATED UPGRADES(.*?)# END GENERATED UPGRADES", installer, re.S)
+    if len(upgrade_blocks) != 1:
+        fail(f"install.sh must have exactly one generated UPGRADES block, found {len(upgrade_blocks)}")
+    sums = (ROOT / "patches" / "SHA256SUMS").read_text(encoding="utf-8")
+    for upgrade in upgrades:
+        expected = f'{upgrade["from_sha256"]} {upgrade["to_sha256"]} {upgrade["patch_sha256"]}'
+        if expected not in upgrade_blocks[0]:
+            fail(f"install.sh UPGRADES block is stale for {upgrade['patch']}")
+        if upgrade["patch_sha256"] not in sums:
+            fail(f"patches/SHA256SUMS is missing {upgrade['patch']}")
+        for doc in present_docs:
+            text = doc.read_text(encoding="utf-8")
+            if upgrade["from_sha256"] not in text:
+                fail(f"{doc.name} is missing the upgradable source SHA-256 {upgrade['from_sha256']}")
+
+print(f"release checks OK: {len(supported)} supported version(s), {len(upgrades)} upgrade(s), {len(present_docs)} docs")

@@ -46,7 +46,7 @@ ok("surrogate-safe truncate helper", /const truncateDisplayText = \(text, max\) 
 
 // --- V2: dual card element + structured status ---
 ok("card JSON has status element", /element_id: "status"/.test(src) && /this\.statusElementEnabled && this\.statusPosition === "top"/.test(src) && /this\.statusElementEnabled && this\.statusPosition !== "top"/.test(src));
-ok("session updates status element", /async updateStatus\(text\) \{/.test(src) && src.includes("elements/status/content"));
+ok("session updates status element", /async updateStatus\(text, options = \{\}\) \{/.test(src) && src.includes("elements/status/content"));
 ok("status write asserts CardKit response", /assertSuccessfulCardKitResponse\(response, auditContext, "Update card status content"\)/.test(src));
 ok("close deletes status element", /async deleteStatusElement\(\) \{/.test(src) && src.includes("elements/status") && /Delete card status element/.test(src));
 ok("status failure falls back into content", /streaming\?\.isStatusUnavailable\?\.\(\) === true \? buildStatusText\(\)/.test(src) && /onStatusUnavailable: \(\) => \{/.test(src));
