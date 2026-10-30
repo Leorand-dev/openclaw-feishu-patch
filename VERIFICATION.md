@@ -59,7 +59,7 @@ exact supported build.
 
 The same patched bundle (`6f229a5a…`) is deployed to the seven monitored
 hosts running OpenClaw 2026.10.9; each host keeps a
-`.monitor.backup-108-*.mjs` backup next to the bundle and returned
+`.monitor.backup-109-*.mjs` backup next to the bundle and returned
 `health=200` after restart.
 
 ## Behavior covered by this patch
