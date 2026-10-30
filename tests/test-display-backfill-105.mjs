@@ -131,18 +131,28 @@ ok("assistant start keeps initial status when blank", /else \{[\s\S]{0,400}if \(
 {
   const fmtBody = extractArrow(src, "formatElapsedDuration");
   const bwl = extractArrow(src, "buildWaitingLine");
+  const displayMap = src.match(/const TOOL_DISPLAY_NAME_BY_LABEL = [\s\S]*?\]\);/)[0];
+  const aliases = src.match(/const TOOL_LABEL_ALIASES = [^\n]+/)[0];
+  const normalize = extractArrow(src, "normalizeToolLabel");
+  const display = extractArrow(src, "formatToolDisplayName");
+  const escapeHtml = src.slice(src.indexOf("function escapeCardHtml(text)"), src.indexOf("\n}", src.indexOf("function escapeCardHtml(text)")) + 2);
   const fn = new Function(`
 let waitingLine = "", lastToolLabel = "Read", toolPhaseStartedAt = 0;
 const SHOW_LAST_TOOL_LABEL = true, SHOW_TOOL_ELAPSED = true;
 const resolveProgressText = (key, fallback) => fallback;
 ${fmtBody}
+${escapeHtml}
+${displayMap}
+${aliases}
+${normalize}
+${display}
 ${bwl}
 return { build: buildWaitingLine, start: (ms) => { toolPhaseStartedAt = Date.now() - ms; } };
 `)();
-  ok("waiting line includes last tool", fn.build(3) === "⏳ 已执行 3 个工具 · 最后：Read", fn.build(3));
+  ok("waiting line includes a friendly last tool", fn.build(3) === "⏳ 已执行 3 个工具 · 最近：读取", fn.build(3));
   fn.start(12_000);
   const line = fn.build(3);
-  ok("waiting line includes elapsed", /12s/.test(line) && line.includes("最后：Read"), line);
+  ok("waiting line includes elapsed", /12s/.test(line) && line.includes("最近：读取"), line);
 }
 
 // ---------- 6) display batch 2: status position, reasoning cap/final hide, final summary ----------

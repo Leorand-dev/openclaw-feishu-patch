@@ -10,24 +10,24 @@ npm tarball, so the repository ships only the 2026.10.9 patch.
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.10.9/feishu-tool-aggregation.patch` | `cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f` |
+| `patches/2026.10.9/feishu-tool-aggregation.patch` | `b8ee0366f0191443b89c4d58beb3d8e2498daf760cb7fc07cefbd355fd8e148c` |
 | pristine bundle, 2026.10.9 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched bundle, 2026.10.9 | `6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092` |
+| patched bundle, 2026.10.9 | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
 
 The bundle files are not redistributed here; hashes are reference values for the
 exact supported build.
 
 ## Patch shape
 
-- **31 hunks**, unified diff against `original.mjs`.
-- Forward apply: `ec9d77bf…` → `6f229a5a…` (byte-exact).
-- Reverse apply: `6f229a5a…` → `ec9d77bf…` (byte-exact).
-- Anchor adapter: all 31 hunks relocated by exact old-block match with
+- **32 hunks**, unified diff against `original.mjs`.
+- Forward apply: `ec9d77bf…` → `9cd54d32…` (byte-exact).
+- Reverse apply: `9cd54d32…` → `ec9d77bf…` (byte-exact).
+- Anchor adapter: all 32 hunks relocated by exact old-block match with
   `offset=+0`; no fuzz, no line-number drift.
 
 ## Test results (2026.10.9 patched bundle)
 
-`tests/run-all.mjs` → **11/11 suites, 0 failed, 513 assertions**:
+`tests/run-all.mjs` → **11/11 suites, 0 failed, 530 assertions**:
 
 | suite | assertions |
 | --- | --- |
@@ -41,8 +41,11 @@ exact supported build.
 | structural audit | 123 |
 | 2026.10.8 streamed-text boundary / action card | 21 |
 | error sanitizer / duplicate summary / error totals | 16 |
-| layout: merged status / icons / panel stats / pagination | 33 |
-| **total** | **513** |
+| layout: merged status / icons / panel stats / pagination | 50 |
+| **total** | **530** |
+
+The same suite was re-run on the deployed bundle on the canary host:
+**11/11 suites, 0 failed, 530 assertions**, target SHA-256 `9cd54d32…`.
 
 ## Release checks
 
@@ -57,17 +60,23 @@ exact supported build.
 
 ## Deployment evidence
 
-The same patched bundle (`6f229a5a…`) is deployed to the seven monitored
-hosts running OpenClaw 2026.10.9; each host keeps a
-`.monitor.backup-109-*.mjs` backup next to the bundle and returned
-`health=200` after restart.
+The UI-batch-1 bundle (`9cd54d32…`) was deployed to all seven monitored hosts
+on 2026-10-30: one canary host at 13:06 CST, five more Linux hosts at
+15:06–15:08 CST, and the macOS host at 19:31 CST. Each host was upgraded from
+the previous patched bundle (`6f229a5a…`); every replacement was backed up as
+`.monitor.backup-ui-batch1-<UTC timestamp>.mjs` next to the target. After
+restart all seven hosts reported the gateway active and `/health` = `200`, and
+the deployed bundle SHA-256 was re-checked as `9cd54d32…` on every host. The
+first post-deploy Feishu turn (13:31:32–13:34:25 CST, canary host) opened and
+closed its streaming card normally, with `dispatch complete` and no
+`Status update failed` entries; a second turn at 13:36 also completed normally.
 
 ## Behavior covered by this patch
 
 - Empty/tool-only turns keep a readable chat preview (`✅ 完成 · N 工具 · Xs`).
 - The process panel keeps a static header and writes its body in place, so an
-  expanded panel stays expanded; the body opens with grey event/tool/error
-  counts.
+  expanded panel stays expanded; the body opens with a grey breakdown
+  (`N 次工具 · N 条旁白 · N 个错误`) instead of overlapping event/tool totals.
 - Block updates merge cumulative text; a shorter delta never replaces longer
   accumulated prose.
 - Narration merged into the grey status row strips `<`/`>`.

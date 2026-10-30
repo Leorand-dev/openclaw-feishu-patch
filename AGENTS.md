@@ -29,7 +29,7 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 Expected installer output:
 
 ```
-sha256: 6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092
+sha256: 9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496
 ```
 
 Then restart the OpenClaw gateway using the host's normal supervisor
@@ -49,7 +49,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `11/11 suites passed` (513 assertions).
+Expected: `11/11 suites passed` (530 assertions).
 
 Optional mechanical check:
 
@@ -90,7 +90,7 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- |
 | plugin build | 2026.10.9 |
 | pristine SHA-256 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched SHA-256 | `6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092` |
-| patch SHA-256 | `cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f` |
+| patched SHA-256 | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
+| patch SHA-256 | `b8ee0366f0191443b89c4d58beb3d8e2498daf760cb7fc07cefbd355fd8e148c` |
 
 See `README.md` for behavior, limitations and adapter workflow.

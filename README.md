@@ -18,13 +18,13 @@ It turns tool-call progress, commentary and process events into **one readable s
 - Folds recognized tool/narration/process progress into one streaming card, including generic bare labels such as `Nodes`.
 - Phase status line shows stage, tool count and elapsed time; the final status keeps a single completion summary.
 - Phase status line is a single **grey** row that also carries the latest narration while the turn runs; the separate activity row was removed.
-- Process panel keeps a static header and writes its body in place, so an expanded panel stays expanded; the body opens with grey event/tool/error counts.
-- Process rows use per-tool icons with bold relative timestamps and code-styled labels.
+- Process panel keeps a static header and writes its body in place, so an expanded panel stays expanded; the body opens with a grey breakdown such as `3 次工具 · 2 条旁白 · 1 个错误` instead of overlapping totals.
+- Process rows use per-tool icons with grey relative timestamps and friendly display names (`读取`, `网页抓取`); zero-second stamps and code-styled labels are gone, and dropped early entries are marked explicitly.
 - Empty/tool-only turns keep a readable chat preview (`✅ 完成 · N 工具 · Xs`) instead of an invisible zero-width summary; per-turn update budgets roll over each minute so long tool runs are not frozen.
 - Long answers surface the page index in the status line (`✅ 完成 · … · 📄 1/3`) instead of hiding it in the footer; tool errors raise a 4s transient status notice.
 - Transient activity line shows only the latest narration before the answer starts, then disappears so the answer body is not displaced.
 - One collapsed `🧾 过程记录` panel contains reasoning plus a chronological activity timeline.
-- Consecutive identical tools are merged (`Exec ×N`); the timeline header reports the true total event count.
+- Consecutive identical tools are merged (`Exec ×N`); the timeline marks how many earlier entries were omitted when the 12-entry/1200-character cap is reached.
 - Background progress gets a dedicated `🧾 后台任务 · <agent>` card instead of standalone posts.
 - Long answers paginate: the first chunk stays in the streaming card (footer `1/N`), continuation cards are numbered `2/N`, `3/N` and omit details/footer; media is delivered after the page sequence.
 - Group mention requirements are preserved on paginated cards and continuations.
@@ -32,10 +32,10 @@ It turns tool-call progress, commentary and process events into **one readable s
 - Prewarms the card at reply start and shows an immediate status (no blank warm card).
 - Holds an active card until final delivery; merges cumulative block text instead of blindly appending; prevents duplicate cards and duplicated answer prefixes.
 - The 2026.10.9 monitor bundle is byte-identical to 2026.10.8: it keeps upstream's frozen-prefix streaming model (`onAssistantMessageStart` boundary, PR #182438) and the Card JSON 2.0 `column_set` action-card fix (PR #79832) on top of the aggregation layout.
-- Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists.
+- Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists. Truncated reasoning closes open code fences so it cannot swallow the activity timeline.
 - Card updates are coalesced into a 300ms window; status and process-record writes have per-turn budgets.
 - A card watchdog force-finalizes cards that exceed the maximum lifetime.
-- Reasoning and tool-error text are capped/redacted before entering the process record.
+- Reasoning and tool-error text are capped/redacted before entering the process record; dynamic card text is HTML/markdown escaped and the footer note is escaped before its grey wrapper.
 - Exact-build installer: unknown builds are refused, never fuzzy-patched; automatic backup and rollback.
 - Anchor adapter for future builds; CI validates the pinned 2026.10.9 npm tarball.
 - Content-free diagnostics for tool-shaped payloads that could not be aggregated.
@@ -50,10 +50,10 @@ It turns tool-call progress, commentary and process events into **one readable s
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.9` |
 | pristine bundle | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched bundle | `6f229a5a43d108679c5d09770f88ae0849b18d62771bd9131a338b20db8c7092` |
-| patch | `cd64578f8d12a0ede4bb50f18666948b272682c14543ffa4124a4fc1e3dfd54f` |
-| patch hunks | 31 |
-| test assertions | 513 |
+| patched bundle | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
+| patch | `b8ee0366f0191443b89c4d58beb3d8e2498daf760cb7fc07cefbd355fd8e148c` |
+| patch hunks | 32 |
+| test assertions | 530 |
 
 The installer computes the SHA-256 of the target bundle and only applies when it matches one of the pristine hashes above. If the target is already patched, it reports `already patched`. Any other build is **refused**.
 
@@ -98,7 +98,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected result: 31 hunks, forward/reverse byte-exact, 11/11 suites, 513 assertions. CI re-runs all of it against the pristine 2026.10.9 npm tarball.
+Expected result: 32 hunks, forward/reverse byte-exact, 11/11 suites, 530 assertions. CI re-runs all of it against the pristine 2026.10.9 npm tarball.
 
 ---
 

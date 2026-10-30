@@ -3,10 +3,10 @@
 
 Keeps the reviewed bundle pairs as the source of truth:
 
-* builds with local ``original.mjs``/``patched.mjs`` get their patch
-  regenerated from that pair;
+* buildings with local ``original.mjs``/``patched.mjs`` get their patch
+  regenerated from that pair (2026.10.5, 2026.10.8, ...);
 * builds that share the exact same bundle bytes simply reuse the reviewed
-  patch (``MIRRORED``).
+  patch (2026.10.6 and 2026.10.7 mirror 2026.10.5).
 
 Then syncs MANIFEST.json, install.sh's VERSIONS block and
 patches/SHA256SUMS so the installer, CI and docs stay consistent.

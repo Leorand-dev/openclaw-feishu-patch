@@ -122,7 +122,7 @@ ok("page cards preserve required mentions", /pageFirstMentionParams/.test(src) &
 ok("paginated final records delivered text", /deliveredFinalTexts\.add\(text\)/.test(src));
 ok("long media replies paginate then send media", /finalTextExceedsStreamingLimit[^\n]*!presentationCard/.test(src) && /sendMediaReplies\(payload, !shouldDeliverText/.test(src));
 ok("background card close is serialized", /backgroundClosePromise/.test(src) && /closeBackgroundCard/.test(src));
-ok("timeline total is tracked in the panel stats", modern ? /const buildPanelStatsLine = \(\) => \{[\s\S]*?activityTimelineTotal/.test(src) : /const buildPanelTitle = \(\) => \{[\s\S]*?activityTimelineTotal/.test(src));
+ok("panel stats break down tools/narration/errors", modern ? /const buildPanelStatsLine = \(\) => \{[\s\S]*?aggregatedToolTotal[\s\S]*?narrationTimelineTotal[\s\S]*?toolErrorTotal/.test(src) : /const buildPanelTitle = \(\) => \{[\s\S]*?activityTimelineTotal/.test(src));
 ok("consecutive tools merge counts", /mergeConsecutive/.test(src) && /entry\.count/.test(src));
 ok("final completion status is kept and grey", /keepStatus: disposition === "closed"/.test(src) && /statusText: greyStatus\(\`\$\{buildFinalSummaryLine\(finalElapsedMs\)\}\$\{pageSuffix\}\`\)/.test(src));
 ok("background card has distinct header", /resolveBackgroundCardHeader/.test(src) && /backgroundCardActive \? resolveBackgroundCardHeader/.test(src));

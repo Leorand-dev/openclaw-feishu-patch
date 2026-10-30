@@ -44,7 +44,7 @@ ok(
 
 // --- P1: accurate error totals --------------------------------------------
 ok("tool error array replaced by a total", !src.includes("toolErrors") && src.includes("toolErrorTotal += 1"));
-ok("final summary uses the true error total", /toolErrorTotal > 0 \? "\\u26a0\\ufe0f \\u5b8c\\u6210\\u4f46\\u6709\\u9519\\u8bef"/.test(src));
+ok("final summary uses the true error total", /toolErrorTotal > 0 \? "\\u26a0\\ufe0f \\u5df2\\u5b8c\\u6210"/.test(src));
 ok("final summary uses the true error total", /parts\.push\(`\$\{toolErrorTotal\} \\u4e2a\\u9519\\u8bef`\)/.test(src));
 ok("discard guard keeps error-only cards", /shouldDiscardEmptyCard = .*toolErrorTotal === 0/.test(src));
 
