@@ -61,7 +61,8 @@ SHA-256 `c70fc9c5…`.
 - `node --check` on the patched bundle → pass.
 - `tools/check_docs.py` → release checks OK (1 supported version, 1 upgrade, 3 docs).
 - Installer tested on pristine and batch-1 copies: `--check`, `--dry-run`,
-  apply and idempotency all pass; both produce `c70fc9c5…`.
+  apply and idempotency all pass with GNU `patch` on Linux and BSD `patch` on
+  macOS; both paths produce `c70fc9c5…`.
 - GitHub Actions `verify-patch` fetches `@openclaw/feishu@2026.10.9` from npm,
   runs the anchor adapter, installer apply/idempotency/reverse-diff and the full
   test suite.
