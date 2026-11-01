@@ -1,8 +1,8 @@
-// Shared helpers for the 2026.10.5 test suites.
+// Shared helpers for the 2026.10.9 test suites.
 import fs from "node:fs";
 
 export function loadBundle(argv = process.argv) {
-  const file = argv[2] || process.env.BUNDLE || "../patches/2026.10.5/patched.mjs";
+  const file = argv[2] || process.env.BUNDLE || "../patches/2026.10.9/patched.mjs";
   return fs.readFileSync(file, "utf8");
 }
 

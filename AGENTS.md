@@ -29,11 +29,12 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 Expected installer output:
 
 ```
-sha256: c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1
+sha256: 6b183987c2d954c99693ce3b94a7a47e05e8bac87a7fa94a8aaca7a6b9aab1e9
 ```
 
-If the target is still the UI-batch-1 bundle (`9cd54d32…`), the installer
-detects it as `upgradable` and applies the shipped delta instead of refusing.
+If the target is the UI-batch-1 bundle (`9cd54d32...`), the batch-2 bundle
+(`c70fc9c5...`) or the batch-3 bundle (`e49cb6da...`), the installer detects it
+as `upgradable` and applies the matching shipped delta instead of refusing.
 Then restart the OpenClaw gateway using the host's normal supervisor
 (for example `systemctl --user restart openclaw-gateway.service`).
 
@@ -51,7 +52,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `12/12 suites passed` (571 assertions).
+Expected: `13/13 suites passed` (578 assertions).
 
 Optional mechanical check:
 
@@ -92,8 +93,10 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- |
 | plugin build | 2026.10.9 |
 | pristine SHA-256 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched SHA-256 | `c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1` |
-| patch SHA-256 | `df6a57767197b5dd413a49c0656f75ab453991186fc91cbc23a8291c3c181730` |
+| patched SHA-256 | `6b183987c2d954c99693ce3b94a7a47e05e8bac87a7fa94a8aaca7a6b9aab1e9` |
+| patch SHA-256 | `c00af363bf35c6384f26eef029e5ff70f54982d94f49e295a401a9bc4fc85686` |
 | batch-1 upgrade source | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
+| batch-2 upgrade source | `c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1` |
+| batch-3 upgrade source | `e49cb6dab0d7c2b408f86304e7d93ce18b6ad542cc1d44a73fe4aa9f5359c6b0` |
 
 See `README.md` for behavior, limitations and adapter workflow.

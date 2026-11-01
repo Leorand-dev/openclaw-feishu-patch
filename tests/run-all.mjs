@@ -1,4 +1,4 @@
-// Run all 2026.10.5 suites against one bundle.
+// Run all 2026.10.9 suites against one bundle.
 // Usage: node run-all.mjs [bundle-path]
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -18,8 +18,9 @@ const suites = [
   "test-regressions-108.mjs",
   "test-layout-108.mjs",
   "test-reliability-109.mjs",
+  "test-batch3-status-close.mjs",
 ];
-const bundle = process.argv[2] || "../patches/2026.10.5/patched.mjs";
+const bundle = process.argv[2] || "../patches/2026.10.9/patched.mjs";
 
 let passed = 0;
 const failed = [];

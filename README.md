@@ -35,6 +35,7 @@ It turns tool-call progress, commentary and process events into **one readable s
 - Caches/limits reasoning preview; final cards remove the thinking panel when an answer exists. Truncated reasoning closes open code fences so it cannot swallow the activity timeline.
 - Card updates are coalesced into a 300ms window; status and process-record writes have per-turn budgets.
 - **Reliability batch 2:** status-element writes retry transient failures (HTTP 408/429/5xx, network, Feishu backoff codes) with a bounded backoff before falling back into the content element; permanent validation/permission errors fall back immediately.
+- **Batch 3/4:** the final grey completion status is written even after the session is marked closed; it no longer stays at `✍️ 生成回复中` when a turn finishes. The delete-failure fallback clears the status element through the same post-close path.
 - **Reliability batch 2:** content/status/detail writes only advance the acknowledged cache after the provider confirms success; failed writes are retried (bounded) instead of being treated as delivered.
 - A card watchdog force-finalizes cards that exceed the maximum lifetime.
 - Reasoning and tool-error text are capped/redacted before entering the process record; dynamic card text is HTML/markdown escaped and the footer note is escaped before its grey wrapper.
@@ -52,13 +53,15 @@ It turns tool-call progress, commentary and process events into **one readable s
 | --- | --- |
 | OpenClaw Feishu plugin | `@openclaw/feishu@2026.10.9` |
 | pristine bundle | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched bundle | `c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1` |
-| patch | `df6a57767197b5dd413a49c0656f75ab453991186fc91cbc23a8291c3c181730` |
+| patched bundle | `6b183987c2d954c99693ce3b94a7a47e05e8bac87a7fa94a8aaca7a6b9aab1e9` |
+| patch | `c00af363bf35c6384f26eef029e5ff70f54982d94f49e295a401a9bc4fc85686` |
 | batch-1 upgrade source | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
+| batch-2 upgrade source | `c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1` |
+| batch-3 upgrade source | `e49cb6dab0d7c2b408f86304e7d93ce18b6ad542cc1d44a73fe4aa9f5359c6b0` |
 | patch hunks | 34 |
-| test assertions | 571 |
+| test assertions | 578 |
 
-The installer computes the SHA-256 of the target bundle and applies when it matches a pristine build or a known upgradable batch-1 build. If the target is already patched, it reports `already patched`. Any other build is **refused**.
+The installer computes the SHA-256 of the target bundle and applies when it matches a pristine build or a known upgradable batch-1/batch-2/batch-3 build. If the target is already patched, it reports `already patched`. Any other build is **refused**.
 
 ---
 
@@ -79,19 +82,23 @@ systemctl --user restart openclaw-gateway.service
 
 The installer prints the backup path and the patched SHA-256. It verifies the post-patch hash and restores the backup automatically on any failure.
 
-### Upgrading an already patched batch 1 install
+### Upgrading an already patched batch 1, batch 2 or batch 3 install
 
-The installer also accepts the UI-batch-1 bundle (`9cd54d32…`) and applies a
-separate `batch1 → batch2` delta. No pristine restore is required:
+The installer also accepts the UI-batch-1 bundle (`9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496`), the batch-2
+bundle (`c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1`) and the batch-3 bundle
+(`e49cb6dab0d7c2b408f86304e7d93ce18b6ad542cc1d44a73fe4aa9f5359c6b0`) and applies the matching delta. No pristine restore is
+required:
 
 ```sh
-./install.sh --check "$TARGET"   # status=upgradable from=9cd54d32…
-./install.sh "$TARGET"           # applies the delta, verifies c70fc9c5…
+./install.sh --check "$TARGET"   # status=upgradable from=<current sha>
+./install.sh "$TARGET"           # applies the delta, verifies 6b183987c2d954c99693ce3b94a7a47e05e8bac87a7fa94a8aaca7a6b9aab1e9
 ```
 
-The delta is shipped as `patches/2026.10.9/feishu-tool-aggregation-batch1-to-batch2.patch`
-and recorded in `patches/UPGRADES.json`. A backup of the batch-1 bundle is
-created before the upgrade.
+The deltas are shipped as
+`patches/2026.10.9/feishu-tool-aggregation-batch1-to-batch4.patch`,
+`patches/2026.10.9/feishu-tool-aggregation-batch2-to-batch4.patch` and
+`patches/2026.10.9/feishu-tool-aggregation-batch3-to-batch4.patch`, recorded in
+`patches/UPGRADES.json`. A backup is created before the upgrade.
 
 For agent-oriented instructions see [`AGENTS.md`](./AGENTS.md).
 
@@ -106,7 +113,7 @@ cd tests
 node run-all.mjs "$TARGET"
 ```
 
-`run-all.mjs` runs all twelve suites. Node 24+ is expected. The suites read the bundle path from `argv[2]` (or `BUNDLE`), so they can also audit an installed live copy.
+`run-all.mjs` runs all thirteen suites. Node 24+ is expected. The suites read the bundle path from `argv[2]` (or `BUNDLE`), so they can also audit an installed live copy.
 
 Mechanical checks:
 
@@ -115,7 +122,7 @@ Mechanical checks:
 python3 tools/verify_patch.py --all=patches
 ```
 
-Expected result: 34 hunks, forward/reverse byte-exact, 12/12 suites, 571 assertions. CI re-runs all of it against the pristine 2026.10.9 npm tarball.
+Expected result: 34 hunks, forward/reverse byte-exact, 13/13 suites, 578 assertions. CI re-runs all of it against the pristine 2026.10.9 npm tarball.
 
 ---
 
@@ -232,13 +239,17 @@ install.sh                    exact-build installer: hash select, backup, rollba
 SHA256SUMS                    installer + manifest/upgrade + patch hashes
 patches/
   MANIFEST.json               supported version hashes/status + upgrade sources
-  UPGRADES.json               batch-1 -> batch-2 delta metadata
+  UPGRADES.json               batch-1/batch-2/batch-3 -> batch-4 delta metadata
   2026.10.9/
     feishu-tool-aggregation.patch
-    feishu-tool-aggregation-batch1-to-batch2.patch
-tests/                        twelve JavaScript suites
+    feishu-tool-aggregation-batch1-to-batch4.patch
+    feishu-tool-aggregation-batch2-to-batch4.patch
+    feishu-tool-aggregation-batch3-to-batch4.patch
+tests/                        thirteen JavaScript suites
 tools/
   adapt_patch.py              anchor-based adapter for future builds
+  check_docs.py               release metadata/docs consistency check
+  finalize.py                 regenerate canonical patch + metadata + checksums
   verify_patch.py             strict patch applier/verifier
 .github/workflows/verify.yml  CI matrix
 ```

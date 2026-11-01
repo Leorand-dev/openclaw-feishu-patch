@@ -88,7 +88,12 @@
  	}
  	clearStatusFlushTimer() {
  		if (this.statusFlushTimer) {
-@@ -1392,23 +1421,32 @@
+@@ -1388,27 +1417,36 @@
+ 			this.flushPendingStatusUpdate().catch((error) => this.log?.(`Scheduled status flush failed: ${String(error)}`));
+ 		}, delayMs);
+ 	}
+-	async writeStatusContent(text) {
++	async writeStatusContent(text, options = {}) {
  		if (!this.state || !this.statusElementEnabled) return false;
  		// CardKit rejects empty element content (HTTP 400 / field validation failed).
  		const safeText = typeof text === "string" && text.trim() !== "" ? text : "\u200B";
@@ -112,7 +117,7 @@
 +		let lastError;
 +		let attempts = 0;
 +		for (let attempt = 1; attempt <= STATUS_UPDATE_MAX_ATTEMPTS; attempt += 1) {
-+			if (!this.state || this.closed) return false;
++			if (!this.state || (!options.allowClosed && this.closed)) return false;
 +			attempts = attempt;
 +			this.state.sequence += 1;
 +			try {
@@ -165,7 +170,25 @@
  			this.schedulePendingStatusFlush();
  			return true;
  		}
-@@ -1605,24 +1642,32 @@
+@@ -1533,13 +1570,15 @@
+ 			if (options?.keepStatus === true && typeof options.statusText === "string" && options.statusText.trim()) {
+ 				this.statusPendingText = null;
+ 				this.clearStatusFlushTimer();
+-				const wrote = await this.writeStatusContent(options.statusText).catch(() => false);
++				// closeWithResult() marks the session closed before this write; allow it explicitly.
++				const wrote = await this.writeStatusContent(options.statusText, { allowClosed: true }).catch(() => false);
+ 				this.statusSentText = wrote ? options.statusText : "\u200B";
++				if (!wrote) await this.writeStatusContent("\u200B", { allowClosed: true }).catch(() => false);
+ 			} else {
+ 				const deleted = await this.deleteStatusElement().catch(() => false);
+ 				if (!deleted) {
+ 					this.statusSentText = "\u200B";
+-					await this.writeStatusContent("\u200B").catch(() => false);
++					await this.writeStatusContent("\u200B", { allowClosed: true }).catch(() => false);
+ 				}
+ 			}
+ 		}
+@@ -1605,24 +1644,32 @@
  function queueFeishuStreamingUpdate(params) {
  	const { queue, session, generation, startPromise, content, status, elements, text, accountId, runtime, statusElement = true, onStatusUnavailable } = params;
  	return queue.then(async () => {
@@ -205,7 +228,7 @@
  	});
  }
  //#endregion
-@@ -1917,6 +1962,15 @@
+@@ -1917,6 +1964,15 @@
  	let toolPhaseCompleted = false;
  	let lastQueuedContent = null;
  	let lastQueuedStatus = null;
@@ -221,7 +244,7 @@
  	let errorNoticeLine = "";
  	let errorNoticeTimer;
  	let lastToolActivityAt = 0;
-@@ -2079,6 +2133,66 @@
+@@ -2079,6 +2135,66 @@
  		detailsUpdatesQueuedThisTurn = 0;
  		detailsBudgetWarned = false;
  	};
@@ -288,7 +311,7 @@
  	const flushCardUpdateNow = (force = false) => {
  		if (!streamingEnabled || renderMode === "raw") return;
  		refreshUpdateBudgetWindow();
-@@ -2111,6 +2225,17 @@
+@@ -2111,6 +2227,17 @@
  			return;
  		}
  		if (!active) cardFlushPending = true;
@@ -306,7 +329,7 @@
  		const queued = queueFeishuStreamingUpdate({
  			queue: partialUpdateQueue,
  			session: streaming,
-@@ -2137,7 +2262,19 @@
+@@ -2137,7 +2264,19 @@
  				lastReasoningQueuedAt = Date.now();
  			}
  		}
@@ -327,7 +350,7 @@
  			cardFlushPending = false;
  		});
  	};
-@@ -2353,6 +2490,7 @@
+@@ -2353,6 +2492,7 @@
  		toolPhaseCompleted = false;
  		lastQueuedContent = null;
  		lastQueuedStatus = null;
@@ -335,7 +358,7 @@
  		cardFlushPending = false;
  		clearCardFlushTimer();
  		clearWaitingRefreshTimer();
-@@ -3103,6 +3241,7 @@
+@@ -3103,6 +3243,7 @@
  				toolPhaseCompleted = false;
  				lastQueuedContent = null;
  				lastQueuedStatus = null;

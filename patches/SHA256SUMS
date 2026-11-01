@@ -1,2 +1,4 @@
-df6a57767197b5dd413a49c0656f75ab453991186fc91cbc23a8291c3c181730  2026.10.9/feishu-tool-aggregation.patch
-3611d0e1cad1325b4b14f1ed6efcbed3851c4787186de13d053e284fe608ad6b  2026.10.9/feishu-tool-aggregation-batch1-to-batch2.patch
+c00af363bf35c6384f26eef029e5ff70f54982d94f49e295a401a9bc4fc85686  2026.10.9/feishu-tool-aggregation.patch
+030899820edd4294a0bad9c2cd439af199dc294037e811c5323e9bdda1501063  2026.10.9/feishu-tool-aggregation-batch1-to-batch4.patch
+6c0b9a58335f3fe845dff22ac0d91c211cc1399ef3371351449adf484b7d6f31  2026.10.9/feishu-tool-aggregation-batch2-to-batch4.patch
+2a0489b9a38b4f9d0098858d0a236aa48a8cbb0231be94be0d5c6d13da737195  2026.10.9/feishu-tool-aggregation-batch3-to-batch4.patch

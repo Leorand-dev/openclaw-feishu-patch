@@ -19,7 +19,7 @@ const extractMethodBody = (signature, nextSignature) => {
   const end = src.indexOf(nextSignature, start);
   if (end < 0) throw new Error(`missing next method: ${nextSignature}`);
   const method = src.slice(start, end);
-  const bodyStart = method.indexOf("{") + 1;
+  const bodyStart = method.indexOf(") {") + 3;
   const bodyEnd = method.lastIndexOf("}");
   return method.slice(bodyStart, bodyEnd);
 };
@@ -37,13 +37,13 @@ ok("permanent: HTTP 404", isRetryableCardKitError({ httpStatus: 404 }) === false
 ok("permanent: validation error", isRetryableCardKitError(new Error("Update card status content failed: field validation failed (code=2007401)")) === false);
 
 // ---------- 2) writeStatusContent retries transient failures with a cap ----------
-const statusBody = extractMethodBody("\tasync writeStatusContent(text) {", "\n\tasync deleteStatusElement(");
+const statusBody = extractMethodBody("\tasync writeStatusContent(text, options = {}) {", "\n\tasync deleteStatusElement(");
 const makeWriteStatus = () => new Function(
   "STATUS_UPDATE_MAX_ATTEMPTS",
   "STATUS_RETRY_BASE_DELAY_MS",
   "isRetryableCardKitError",
   "delayMs",
-  `return async function writeStatusContent(text) {${statusBody}};`
+  `return async function writeStatusContent(text, options = {}) {${statusBody}};`
 )(3, 0, isRetryableCardKitError, () => Promise.resolve());
 
 const makeSession = (failures, failure) => {
