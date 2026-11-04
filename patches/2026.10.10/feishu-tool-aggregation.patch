@@ -1,0 +1,577 @@
+--- original.mjs
++++ patched.mjs
+@@ -945,11 +945,32 @@
+ async function assertSuccessfulCardKitResponse(response, auditContext, action) {
+ 	if (!response.ok) {
+ 		cancelUnreadResponseBody(response);
+-		throw new Error(`${action} failed with HTTP ${response.status}`);
++		const error = new Error(`${action} failed with HTTP ${response.status}`);
++		error.httpStatus = response.status;
++		error.retryable = response.status === 408 || response.status === 429 || response.status >= 500;
++		throw error;
+ 	}
+ 	const data = await readFeishuJsonResponse(response, auditContext);
+-	if (data.code !== 0) throw new Error(`${action} failed: ${data.msg ?? "unknown error"} (code=${String(data.code)})`);
+-}
++	if (data.code !== 0) {
++		const error = new Error(`${action} failed: ${data.msg ?? "unknown error"} (code=${String(data.code)})`);
++		error.feishuCode = data.code;
++		error.retryable = data.code === 429 || data.code === 99991400 || data.code === 99991403;
++		throw error;
++	}
++}
++/** True for transient CardKit failures that are safe to retry. */
++function isRetryableCardKitError(error) {
++	if (error?.retryable === true) return true;
++	if (error?.retryable === false) return false;
++	const status = Number(error?.httpStatus);
++	if (status === 408 || status === 429 || status >= 500) return true;
++	const code = Number(error?.feishuCode ?? error?.code);
++	if (code === 429 || code === 99991400 || code === 99991403) return true;
++	const message = String(error?.message ?? error ?? "");
++	return /\bHTTP (?:408|429|5\d\d)\b|timed? ?out|timeout|ECONN|fetch failed|network|socket|aborted/i.test(message);
++}
++const delayMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
++
+ async function getToken(creds) {
+ 	const key = `${creds.domain ?? "feishu"}|${creds.appId}`;
+ 	const cached = tokenCache.get(key);
+@@ -1011,6 +1032,144 @@
+ 	for (let overlap = maxOverlap; overlap > 0; overlap -= 1) if (previous.slice(-overlap) === next.slice(0, overlap)) return `${previous}${next.slice(overlap)}`;
+ 	return `${previous}${next}`;
+ }
++const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;
++const CARD_WRITE_RETRY_BASE_DELAY_MS = 400;
++const CARD_IDLE_HOLD_MS = 8e3;
++const CARD_IDLE_HOLD_MAX_RENEWALS = 2;
++const TOOL_SUMMARY_MAX_CHARS = 400;
++const TOOL_NARRATION_TEXT_PREFIX = "\u{1F4AC} ";
++const TOOL_LABEL_ALIASES = /* @__PURE__ */ new Map([["session_settings", "sessions"]]);
++const BARE_TOOL_LABELS = /* @__PURE__ */ new Set([
++	"exec", "bash", "shell", "read", "write", "edit", "apply_patch", "patch", "grep", "search",
++	"glob", "ls", "browser", "web_fetch", "web_search", "image", "view_image", "open", "click",
++	"find", "screenshot", "process", "sessions", "session_status", "message", "task", "todo", "nodes",
++	"memory", "node", "canvas", "tool_call", "tool_result", "function_call", "update_plan", "command",
++	"automations", "session_history", "session_search", "tool_describe", "tool_search",
++	"computer", "mobile_ui", "screen", "theme", "terminal", "portal", "background_shell",
++	"api", "dashboard", "gateway", "plugins", "openclaw", "get_goal", "create_goal",
++	"update_goal", "conversations", "conversation_send", "conversation_turn", "session_send",
++	"sub_agent", "wait_for_agents", "agents", "structured_output", "memory_search",
++	"memory_get", "skill_search", "skill_read", "code_execution", "decision_evaluation",
++	"github_publish", "github_identity_status", "skill_workshop", "suggest_task",
++	"dismiss_task", "secrets"
++]);
++const TOOL_ICON_BY_LABEL = /* @__PURE__ */ new Map([
++	["exec", "\u{1F4BB}"], ["bash", "\u{1F4BB}"], ["shell", "\u{1F4BB}"], ["terminal", "\u{1F4BB}"],
++	["background_shell", "\u{1F4BB}"], ["read", "\u{1F4D6}"], ["write", "\u270D\uFE0F"],
++	["edit", "\u270D\uFE0F"], ["apply_patch", "\u270D\uFE0F"], ["patch", "\u270D\uFE0F"],
++	["grep", "\u{1F50D}"], ["search", "\u{1F50D}"], ["glob", "\u{1F50D}"], ["find", "\u{1F50D}"],
++	["web_fetch", "\u{1F310}"], ["web_search", "\u{1F310}"], ["browser", "\u{1F9ED}"],
++	["open", "\u{1F9ED}"], ["click", "\u{1F9ED}"], ["screenshot", "\u{1F5A5}\uFE0F"],
++	["image", "\u{1F5BC}\uFE0F"], ["view_image", "\u{1F5BC}\uFE0F"],
++	["sessions", "\u{1F5C2}\uFE0F"], ["session_status", "\u{1F5C2}\uFE0F"],
++	["session_history", "\u{1F5C2}\uFE0F"], ["session_search", "\u{1F5C2}\uFE0F"],
++	["memory", "\u{1F9E0}"], ["memory_search", "\u{1F9E0}"], ["memory_get", "\u{1F9E0}"],
++	["nodes", "\u{1F5A5}\uFE0F"], ["node", "\u{1F5A5}\uFE0F"], ["canvas", "\u{1F5A5}\uFE0F"],
++	["computer", "\u{1F5A5}\uFE0F"], ["screen", "\u{1F5A5}\uFE0F"], ["mobile_ui", "\u{1F4F1}"],
++	["api", "\u{1F50C}"], ["gateway", "\u{1F50C}"], ["plugins", "\u{1F50C}"],
++	["task", "\u{1F9E9}"], ["todo", "\u{1F9E9}"], ["agents", "\u{1F9E9}"], ["sub_agent", "\u{1F9E9}"],
++	["wait_for_agents", "\u{1F9E9}"], ["update_plan", "\u{1F9E9}"], ["create_goal", "\u{1F3AF}"],
++	["get_goal", "\u{1F3AF}"], ["update_goal", "\u{1F3AF}"], ["message", "\u2709\uFE0F"],
++	["conversations", "\u{1F4AC}"], ["conversation_send", "\u{1F4AC}"], ["conversation_turn", "\u{1F4AC}"],
++	["session_send", "\u{1F4AC}"], ["tool_search", "\u{1F9F0}"], ["tool_describe", "\u{1F9F0}"],
++	["skill_search", "\u{1F9F0}"], ["skill_read", "\u{1F9F0}"], ["skill_workshop", "\u{1F9F0}"]
++]);
++const TOOL_DISPLAY_NAME_BY_LABEL = /* @__PURE__ */ new Map([
++	["exec", "终端"], ["bash", "终端"], ["shell", "终端"], ["terminal", "终端"], ["background_shell", "终端"],
++	["read", "读取"], ["write", "编辑"], ["edit", "编辑"], ["apply_patch", "编辑"], ["patch", "编辑"],
++	["grep", "搜索"], ["search", "搜索"], ["glob", "搜索"], ["find", "搜索"], ["ls", "浏览"],
++	["web_fetch", "网页抓取"], ["web_search", "网页搜索"], ["browser", "浏览网页"], ["open", "打开网页"],
++	["click", "点击页面"], ["screenshot", "截图"], ["image", "图片"], ["view_image", "查看图片"],
++	["sessions", "会话"], ["session_status", "会话状态"], ["session_history", "会话历史"], ["session_search", "会话搜索"],
++	["memory", "记忆"], ["memory_search", "记忆搜索"], ["memory_get", "读取记忆"],
++	["nodes", "设备"], ["node", "设备"], ["canvas", "画布"], ["computer", "电脑操作"], ["screen", "屏幕"], ["mobile_ui", "手机界面"],
++	["api", "接口"], ["gateway", "网关"], ["plugins", "插件"], ["openclaw", "控制台"], ["dashboard", "控制台"],
++	["task", "任务"], ["todo", "待办"], ["agents", "子代理"], ["sub_agent", "子代理"], ["wait_for_agents", "等待子代理"],
++	["update_plan", "更新计划"], ["suggest_task", "建议任务"], ["dismiss_task", "关闭任务"],
++	["get_goal", "读取目标"], ["create_goal", "创建目标"], ["update_goal", "更新目标"],
++	["message", "发送消息"], ["conversations", "会话消息"], ["conversation_send", "发送消息"],
++	["conversation_turn", "会话轮次"], ["session_send", "发送消息"],
++	["automations", "自动化"], ["portal", "门户"], ["process", "进程"], ["secrets", "密钥"],
++	["structured_output", "结构化输出"], ["github_publish", "GitHub 发布"], ["github_identity_status", "GitHub 身份"],
++	["code_execution", "执行代码"], ["decision_evaluation", "评估决策"],
++	["tool_search", "查找工具"], ["tool_describe", "工具说明"], ["skill_search", "查找技能"],
++	["skill_read", "读取技能"], ["skill_workshop", "技能工坊"],
++	["tool_call", "工具调用"], ["tool_result", "工具结果"], ["function_call", "函数调用"], ["command", "命令"], ["theme", "主题"]
++]);
++const normalizeToolLabel = (label) => {
++	const normalized = label.trim().toLowerCase().replace(/[\s-]+/g, "_").replace(/^_+|_+$/g, "");
++	return TOOL_LABEL_ALIASES.get(normalized) ?? normalized;
++};
++const resolveToolIcon = (label) => TOOL_ICON_BY_LABEL.get(label) || "\u{1F6E0}\uFE0F";
++const formatToolDisplayName = (label) => {
++	const normalized = normalizeToolLabel(typeof label === "string" ? label : "");
++	if (!normalized) return "工具";
++	const mapped = TOOL_DISPLAY_NAME_BY_LABEL.get(normalized);
++	if (mapped) return mapped;
++	return normalized.split("_").filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ") || "工具";
++};
++const getToolSummaryText = (payload, info) => {
++	if (info?.kind !== "tool" || !payload || typeof payload !== "object" || payload.isError === true) return void 0;
++	if (!Object.prototype.hasOwnProperty.call(payload, "mediaUrls")) return void 0;
++	if (payload.mediaUrls !== void 0 && (!Array.isArray(payload.mediaUrls) || payload.mediaUrls.length > 0)) return void 0;
++	if (payload.mediaUrl || payload.mediaUrlFull || payload.audioAsVoice === true) return void 0;
++	if (payload.channelData && Object.keys(payload.channelData).length > 0) return void 0;
++	if (payload.presentation || payload.interactive) return void 0;
++	if (Object.entries(payload).some(([key, value]) => key !== "text" && key !== "mediaUrls" && value !== void 0)) return void 0;
++	const text = typeof payload.text === "string" ? payload.text.trim() : "";
++	if (!text || /[\r\n]/.test(text) || text.length > TOOL_SUMMARY_MAX_CHARS) return void 0;
++	if (text.startsWith(TOOL_NARRATION_TEXT_PREFIX)) return void 0;
++	return text;
++};
++const parseCollapsibleToolSummary = (payload, info) => {
++	const text = getToolSummaryText(payload, info);
++	if (!text) return void 0;
++	const match = text.match(/^(\S+)\s+(.+)$/u);
++	if (!match || !/^\p{Extended_Pictographic}/u.test(match[1])) return void 0;
++	const label = match[2].split(":", 1)[0].trim();
++	if (!label || label.length > 80) return void 0;
++	return {
++		key: `${match[1]}\u0000${label.toLowerCase()}`,
++		icon: match[1] === "\u{1F6E0}\uFE0F" ? resolveToolIcon(normalizeToolLabel(label)) : match[1],
++		label
++	};
++};
++const parseBareToolLabel = (payload, info) => {
++	const text = getToolSummaryText(payload, info);
++	if (!text) return void 0;
++	const colon = text.indexOf(":");
++	const labelText = colon > 0 ? text.slice(0, colon) : text;
++	const normalized = normalizeToolLabel(labelText);
++	if (!BARE_TOOL_LABELS.has(normalized)) return void 0;
++	return {
++		key: `\u{1F6E0}\uFE0F\u0000${normalized}`,
++		icon: resolveToolIcon(normalized),
++		label: normalized
++	};
++};
++const truncateDisplayText = (text, max) => {
++	const chars = Array.from(text);
++	if (chars.length <= max) return text;
++	return `${chars.slice(0, Math.max(0, max - 1)).join("")}\u2026`;
++};
++const formatElapsedDuration = (elapsedMs) => {
++	const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1e3));
++	if (totalSeconds < 60) return `${totalSeconds}s`;
++	return `${Math.floor(totalSeconds / 60)}m${String(totalSeconds % 60).padStart(2, "0")}s`;
++};
++const escapeCardHtml = (text) => String(text ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
++const escapeCardMarkdown = (text) => String(text ?? "").replace(/[`*_\[\]<>]/g, "\\$&");
++const detectOpenCodeFence = (text) => {
++	let marker = "";
++	for (const line of String(text ?? "").split("\n")) {
++		const match = line.match(/^\s*(`{3,}|~{3,})/);
++		if (!match) continue;
++		const next = match[1][0];
++		if (!marker) marker = next;
++		else if (marker === next) marker = "";
++	}
++	return marker;
++};
+ var FeishuStreamingSession = class {
+ 	constructor(client, creds, log) {
+ 		this.state = null;
+@@ -1020,6 +1179,7 @@
+ 		this.pendingText = null;
+ 		this.flushTimer = null;
+ 		this.updateThrottleMs = STREAMING_UPDATE_THROTTLE_MS;
++		this.detailsSentText = "";
+ 		this.client = client;
+ 		this.creds = creds;
+ 		this.log = log;
+@@ -1053,6 +1213,12 @@
+ 			tag: "markdown",
+ 			content: "",
+ 			element_id: "content"
++		}, {
++			tag: "collapsible_panel",
++			element_id: "detailspanel",
++			expanded: false,
++			header: { title: { tag: "plain_text", content: "\u{1F9FE} 过程记录" } },
++			elements: [{ tag: "markdown", content: "\u200B", element_id: "detailspanel_body" }]
+ 		}];
+ 		if (options?.note) {
+ 			elements.push({ tag: "hr" });
+@@ -1128,22 +1294,68 @@
+ 	}
+ 	async writeCardContent(text, replace, onError) {
+ 		if (!this.state) return false;
+-		this.state.sequence += 1;
+-		try {
+-			await this.requestCardKit(`/${this.state.cardId}/elements/content${replace ? "" : "/content"}`, replace ? "replace" : "update", "PUT", () => ({
+-				...replace ? { element: JSON.stringify({
+-					tag: "markdown",
+-					content: text,
+-					element_id: "content"
+-				}) } : { content: text },
+-				sequence: this.state.sequence,
+-				uuid: `${replace ? "r" : "s"}_${this.state.cardId}_${this.state.sequence}`
+-			}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, replace ? "Replace card content" : "Update card content"));
+-			return true;
+-		} catch (error) {
+-			onError?.(error);
++		const sequence = this.state.sequence += 1;
++		const uuid = `${replace ? "r" : "s"}_${this.state.cardId}_${sequence}`;
++		let lastError;
++		for (let attempt = 1; attempt <= CARD_WRITE_RETRY_MAX_ATTEMPTS; attempt += 1) {
++			if (!this.state) {
++				lastError = new Error("Streaming state cleared before card content write");
++				break;
++			}
++			try {
++				await this.requestCardKit(`/${this.state.cardId}/elements/content${replace ? "" : "/content"}`, replace ? "replace" : "update", "PUT", () => ({
++					...replace ? { element: JSON.stringify({
++						tag: "markdown",
++						content: text,
++						element_id: "content"
++					}) } : { content: text },
++					sequence,
++					uuid
++				}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, replace ? "Replace card content" : "Update card content"));
++				return true;
++			} catch (error) {
++				lastError = error;
++				if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
++				await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
++			}
++		}
++		onError?.(lastError);
++		this.log?.(`Card content write failed after retries: ${String(lastError)}`);
++		return false;
++	}
++	async writeElementContent(elementId, text) {
++		if (!this.state || this.closed || typeof text !== "string" || !text.trim()) return false;
++		const run = this.queue.then(async () => {
++			if (!this.state || this.closed) return false;
++			const sequence = this.state.sequence += 1;
++			const uuid = `el_${this.state.cardId}_${sequence}`;
++			let lastError;
++			for (let attempt = 1; attempt <= CARD_WRITE_RETRY_MAX_ATTEMPTS; attempt += 1) {
++				try {
++					await this.requestCardKit(`/${this.state.cardId}/elements/${elementId}/content`, "element-update", "PUT", () => ({
++						content: text,
++						sequence,
++						uuid
++					}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, `Update card element ${elementId}`));
++					return true;
++				} catch (error) {
++					lastError = error;
++					if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
++					await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
++				}
++			}
++			this.log?.(`Element ${elementId} update failed after retries: ${String(lastError)}`);
+ 			return false;
+-		}
++		});
++		this.queue = run.then(() => void 0, () => void 0);
++		return run;
++	}
++	async updateDetails(text) {
++		if (!this.state || this.closed || typeof text !== "string" || !text.trim()) return false;
++		if (text === this.detailsSentText) return true;
++		const sent = await this.writeElementContent("detailspanel_body", text);
++		if (sent) this.detailsSentText = text;
++		return sent;
+ 	}
+ 	clearFlushTimer() {
+ 		if (this.flushTimer) {
+@@ -1211,29 +1423,36 @@
+ 				finalWriteError = e;
+ 				this.log?.(`Final ${replace ? "replace" : "update"} failed: ${String(e)}`);
+ 			});
+-			this.state.currentText = text;
+-			if (sent) {
++			if (this.state) this.state.currentText = text;
++			if (sent && this.state) {
+ 				this.state.sentText = text;
+ 				visibleContentSent = Boolean(text.trim());
+ 			}
+ 		}
+ 		if (options?.note) await this.updateNoteContent(options.note);
+ 		const acceptedText = this.state.sentText;
+-		this.state.sequence += 1;
++		const closeSequence = this.state.sequence += 1;
++		const closeUuid = `c_${this.state.cardId}_${closeSequence}`;
+ 		let closeError;
+-		try {
+-			await this.requestCardKit(`/${this.state.cardId}/settings`, "close", "PATCH", () => ({
+-				settings: JSON.stringify({ config: {
+-					streaming_mode: false,
+-					summary: { content: truncateSummary(acceptedText) }
+-				} }),
+-				sequence: this.state.sequence,
+-				uuid: `c_${this.state.cardId}_${this.state.sequence}`
+-			}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, "Close streaming card"));
+-		} catch (error) {
+-			closeError = error;
+-			this.log?.(`Close failed: ${String(error)}`);
+-		}
++		for (let attempt = 1; attempt <= CARD_WRITE_RETRY_MAX_ATTEMPTS; attempt += 1) {
++			try {
++				await this.requestCardKit(`/${this.state.cardId}/settings`, "close", "PATCH", () => ({
++					settings: JSON.stringify({ config: {
++						streaming_mode: false,
++						summary: { content: truncateSummary(acceptedText) }
++					} }),
++					sequence: closeSequence,
++					uuid: closeUuid
++				}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, "Close streaming card"));
++				closeError = void 0;
++				break;
++			} catch (error) {
++				closeError = error;
++				if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
++				await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
++			}
++		}
++		if (closeError !== void 0) this.log?.(`Close failed after retries: ${String(closeError)}`);
+ 		const finalState = this.state;
+ 		this.state = null;
+ 		this.pendingText = null;
+@@ -1498,6 +1717,15 @@
+ 	let lastPartial = "";
+ 	let reasoningText = "";
+ 	let statusLine = "";
++	let aggregatedToolTotal = 0;
++	let lastToolLabel = "";
++	let toolPhaseStartedAt = 0;
++	let toolPhaseCompleted = false;
++	let toolEvents = [];
++	let cardStartedAt = 0;
++	let idleHoldTimer = null;
++	let idleHoldRenewals = 0;
++	let idleHeldClose = false;
+ 	let snapshotBaseText = "";
+ 	let lastSnapshotTextLength = 0;
+ 	let hasStreamingFinalText = false;
+@@ -1521,6 +1749,78 @@
+ 	};
+ 	const buildCombinedStreamText = (thinking, answer) => {
+ 		return [[thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n"), statusLine].filter(Boolean).join("\n\n");
++	};
++	const buildWaitingLine = (total) => {
++		const elapsed = toolPhaseStartedAt > 0 ? formatElapsedDuration(Date.now() - toolPhaseStartedAt) : "";
++		const recent = lastToolLabel ? ` · 最近：${escapeCardHtml(formatToolDisplayName(lastToolLabel))}` : "";
++		return `\u23F3 已执行 ${total} 个工具${recent}${elapsed ? ` · ${elapsed}` : ""}`;
++	};
++	const buildToolDoneLine = (total) => `\u2705 已执行 ${total} 个工具 · 生成回复中…`;
++	const buildFinalStatusLine = () => {
++		const parts = ["\u2705 完成"];
++		if (aggregatedToolTotal > 0) parts.push(`已执行 ${aggregatedToolTotal} 个工具`);
++		if (cardStartedAt > 0) parts.push(formatElapsedDuration(Date.now() - cardStartedAt));
++		return parts.join(" · ");
++	};
++	const buildDetailsContent = () => {
++		if (toolEvents.length === 0) return "";
++		return toolEvents.slice(-20).map((entry) => {
++			const count = entry.count > 1 ? ` \u00D7${entry.count}` : "";
++			return `- ${entry.icon} ${escapeCardMarkdown(formatToolDisplayName(entry.label))}${count}`;
++		}).join("\n");
++	};
++	const buildHeldStatusLine = () => `\u23F3 \u5DF2\u6267\u884C ${aggregatedToolTotal} \u4E2A\u5DE5\u5177 \u00B7 \u5904\u7406\u4E2D\u2026`;
++	const clearIdleHold = (resetRenewals = true) => {
++		if (idleHoldTimer) {
++			clearTimeout(idleHoldTimer);
++			idleHoldTimer = null;
++		}
++		if (resetRenewals) idleHoldRenewals = 0;
++	};
++	const scheduleIdleHold = (resetRenewals = true) => {
++		clearIdleHold(resetRenewals);
++		idleHoldTimer = setTimeout(() => {
++			idleHoldTimer = null;
++			const stillHolding = aggregatedToolTotal > 0 && !streamText.trim() && streaming?.isActive();
++			if (stillHolding && idleHoldRenewals < CARD_IDLE_HOLD_MAX_RENEWALS) {
++				idleHoldRenewals += 1;
++				scheduleIdleHold(false);
++				return;
++			}
++			if (stillHolding) idleHeldClose = true;
++			queueIdleSideEffects().catch((error) => params.runtime.error?.(`feishu[${account.accountId}] held idle close failed: ${String(error)}`));
++		}, CARD_IDLE_HOLD_MS);
++		idleHoldTimer.unref?.();
++	};
++	const refreshIdleHold = () => {
++		if (!idleHoldTimer) return;
++		scheduleIdleHold(true);
++	};
++	const aggregateToolSummary = async (entry) => {
++		if (!previewStreamingEnabled || renderMode === "raw") return false;
++		refreshIdleHold();
++		startStreaming();
++		if (streamingStartPromise) await streamingStartPromise;
++		if (!streaming?.isActive()) return false;
++		aggregatedToolTotal += 1;
++		lastToolLabel = entry.label;
++		const event = toolEvents.find((item) => item.key === entry.key);
++		if (event) event.count += 1;
++		else toolEvents.push({
++			key: entry.key,
++			icon: entry.icon || "\u{1F527}",
++			label: entry.label,
++			count: 1
++		});
++		if (toolEvents.length > 50) toolEvents = toolEvents.slice(-50);
++		if (aggregatedToolTotal === 1) toolPhaseStartedAt = Date.now();
++		if (!cardStartedAt) cardStartedAt = Date.now();
++		toolPhaseCompleted = false;
++		statusLine = buildWaitingLine(aggregatedToolTotal);
++		flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
++		const details = buildDetailsContent();
++		if (details) await streaming.updateDetails(details).catch(() => false);
++		return true;
+ 	};
+ 	const flushStreamingCardUpdate = (combined) => {
+ 		partialUpdateQueue = queueFeishuStreamingUpdate({
+@@ -1571,6 +1871,7 @@
+ 					note: cardNote
+ 				});
+ 				streamingStartBackoffUntilByAccount.delete(account.accountId);
++				cardStartedAt = Date.now();
+ 			} catch (error) {
+ 				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
+ 				params.runtime.error?.(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
+@@ -1582,6 +1883,7 @@
+ 		})();
+ 	};
+ 	const resetStreamingState = () => {
++		const heldClose = idleHeldClose;
+ 		streaming = null;
+ 		streamingStartPromise = null;
+ 		partialUpdateQueue = Promise.resolve();
+@@ -1589,6 +1891,16 @@
+ 		lastPartial = "";
+ 		reasoningText = "";
+ 		statusLine = "";
++		if (!heldClose) {
++			aggregatedToolTotal = 0;
++			lastToolLabel = "";
++			toolPhaseStartedAt = 0;
++			toolPhaseCompleted = false;
++			toolEvents = [];
++			cardStartedAt = 0;
++		}
++		clearIdleHold();
++		idleHeldClose = false;
+ 		snapshotBaseText = "";
+ 		lastSnapshotTextLength = 0;
+ 		hasStreamingFinalText = false;
+@@ -1603,6 +1915,8 @@
+ 		const updateQueueToClose = partialUpdateQueue;
+ 		const finalizedAnswerText = streamText;
+ 		const finalizedReasoningText = reasoningText;
++		const heldClose = idleHeldClose;
++		const finalStatusLine = disposition === "closed" ? heldClose ? buildHeldStatusLine() : buildFinalStatusLine() : "";
+ 		const outcome = {
+ 			disposition,
+ 			content: finalizedAnswerText
+@@ -1614,7 +1928,7 @@
+ 			let result = noVisibleFeishuReplyDelivery;
+ 			let finalizationError;
+ 			if (streamingToClose?.isActive()) {
+-				statusLine = "";
++				statusLine = finalStatusLine;
+ 				const text = buildCombinedStreamText(finalizedReasoningText, finalizedAnswerText);
+ 				let closed;
+ 				try {
+@@ -1959,8 +2273,16 @@
+ 			if (previewStreamingEnabled && renderMode === "card") startStreaming();
+ 			await typingCallbacks?.onReplyStart?.();
+ 		},
+-		onIdle: queueIdleSideEffects,
++		onIdle: () => {
++			if (aggregatedToolTotal > 0 && !streamText.trim() && streaming?.isActive()) {
++				if (!idleHoldTimer) scheduleIdleHold();
++				return idleSideEffectsPromise;
++			}
++			clearIdleHold();
++			return queueIdleSideEffects();
++		},
+ 		onCleanup: () => {
++			clearIdleHold();
+ 			typingCallbacks?.onCleanup?.();
+ 		}
+ 	};
+@@ -1987,6 +2309,9 @@
+ 				};
+ 			},
+ 			deliver: async (inputPayload, info) => {
++				const parsedToolSummary = parseCollapsibleToolSummary(inputPayload, info) ?? parseBareToolLabel(inputPayload, info);
++				if (parsedToolSummary && await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;
++				if (info?.kind === "final") clearIdleHold();
+ 				const prepared = await renderFeishuReplyPayload(inputPayload, {
+ 					to: sendTarget,
+ 					identity,
+@@ -2124,6 +2449,8 @@
+ 					trim: "both"
+ 				});
+ 				if (!cleaned) return false;
++				clearIdleHold();
++				toolPhaseCompleted = true;
+ 				startStreaming();
+ 				queueStreamingUpdate(cleaned, {
+ 					dedupeWithLastPartial: true,
+@@ -2133,6 +2460,7 @@
+ 			} : void 0,
+ 			onReasoningStream: reasoningPreviewEnabled ? (payload) => {
+ 				if (!payload.text) return false;
++				refreshIdleHold();
+ 				startStreaming();
+ 				const nextThinking = formatReasoningMessage(payload.text);
+ 				if (nextThinking) {
+@@ -2144,7 +2472,9 @@
+ 			onReasoningEnd: reasoningPreviewEnabled ? () => false : void 0,
+ 			onItemEvent: previewStreamingEnabled ? (payload) => {
+ 				if (payload.kind === "preamble" || payload.hideFromChannelProgress || payload.suppressChannelProgress) return false;
++				refreshIdleHold();
+ 				const { kind: itemKind, ...item } = payload;
++				if (aggregatedToolTotal > 0 && ["tool", "command", "patch", "search", "api"].includes(itemKind)) return false;
+ 				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
+ 					event: "item",
+ 					itemKind,
+@@ -2153,9 +2483,31 @@
+ 				if (statusLineLocal) return updateStreamingStatusLine(statusLineLocal);
+ 				return false;
+ 			} : void 0,
+-			onAssistantMessageStart: previewStreamingEnabled ? () => updateStreamingStatusLine("", false) : void 0,
+-			onCompactionStart: previewStreamingEnabled ? () => updateStreamingStatusLine("📦 **Compacting context...**") : void 0,
+-			onCompactionEnd: previewStreamingEnabled ? () => updateStreamingStatusLine("") : void 0
++			onAssistantMessageStart: previewStreamingEnabled ? () => {
++				refreshIdleHold();
++				if (aggregatedToolTotal > 0 && !streamText.trim()) {
++					toolPhaseCompleted = true;
++					statusLine = buildToolDoneLine(aggregatedToolTotal);
++					flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
++					return false;
++				}
++				return updateStreamingStatusLine("", false);
++			} : void 0,
++			onCompactionStart: previewStreamingEnabled ? () => {
++				refreshIdleHold();
++				if (aggregatedToolTotal > 0 && !toolPhaseCompleted) return false;
++				return updateStreamingStatusLine("\u{1F4E6} **Compacting context...**");
++			} : void 0,
++			onCompactionEnd: previewStreamingEnabled ? () => {
++				refreshIdleHold();
++				if (aggregatedToolTotal > 0 && !toolPhaseCompleted) {
++					statusLine = buildWaitingLine(aggregatedToolTotal);
++					flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
++					return false;
++				}
++				clearIdleHold();
++				return updateStreamingStatusLine("", false);
++			} : void 0
+ 		},
+ 		ensureNoVisibleReplyFallback
+ 	};

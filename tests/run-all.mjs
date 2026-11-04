@@ -1,4 +1,4 @@
-// Run all 2026.10.9 suites against one bundle.
+// Run all 2026.10.10 batch5 suites against one bundle.
 // Usage: node run-all.mjs [bundle-path]
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -6,21 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const suites = [
-  "test-wayD-105.mjs",
-  "test-wayB-105.mjs",
-  "test-wayC-105.mjs",
-  "exec-agg-105.mjs",
-  "test-idle-release-105.mjs",
-  "test-narration-ticker-105.mjs",
-  "test-display-backfill-105.mjs",
-  "audit-agg-105.mjs",
-  "test-stream-boundary-108.mjs",
-  "test-regressions-108.mjs",
-  "test-layout-108.mjs",
-  "test-reliability-109.mjs",
-  "test-batch3-status-close.mjs",
+  "test-helpers-1010.mjs",
+  "test-aggregation-1010.mjs",
+  "test-finalization-1010.mjs",
+  "test-streaming-session-1010.mjs",
+  "test-idle-hold-1010.mjs",
 ];
-const bundle = process.argv[2] || "../patches/2026.10.9/patched.mjs";
+const bundle = process.argv[2] || path.join(dir, "../patches/2026.10.10/patched.mjs");
 
 let passed = 0;
 const failed = [];

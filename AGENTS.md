@@ -1,12 +1,12 @@
 # Agent instructions — openclaw-feishu-patch
 
 This repository installs a build-pinned patch for the OpenClaw Feishu channel
-plugin. Use these steps when a user asks you to install/verify/rollback the
+plugin. Use these steps when a user asks you to install, verify or roll back the
 patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.10.9`**.
+- Target plugin build must be **`@openclaw/feishu@2026.10.10`**.
 - The target file is the installed monitor bundle:
 
   ```
@@ -15,28 +15,26 @@ patch.
 
 - Required tools: `bash`, `patch`, `sha256sum` (or `shasum`).
 - No credentials or network access to Feishu are needed for installation.
+- The 2026.10.10 patch is content-only: it does not use the legacy `status`
+  element or `writeStatusContent`/`updateStatus` paths.
 
 ## Install
 
 ```sh
-git clone https://github.com/Leorand-dev/openclaw-feishu-patch.git
-cd openclaw-feishu-patch
-
 TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup/monitor.account-*.mjs | head -1)
+./install.sh --check "$TARGET"
 ./install.sh "$TARGET"
 ```
 
 Expected installer output:
 
 ```
-sha256: 6b183987c2d954c99693ce3b94a7a47e05e8bac87a7fa94a8aaca7a6b9aab1e9
+sha256: 3036ef6917d19b58ca678e15beb76e3d30d4fcd349947154844be39d00e10095
 ```
 
-If the target is the UI-batch-1 bundle (`9cd54d32...`), the batch-2 bundle
-(`c70fc9c5...`) or the batch-3 bundle (`e49cb6da...`), the installer detects it
-as `upgradable` and applies the matching shipped delta instead of refusing.
-Then restart the OpenClaw gateway using the host's normal supervisor
-(for example `systemctl --user restart openclaw-gateway.service`).
+Restart the OpenClaw gateway using the host's normal supervisor (for example
+`systemctl --user restart openclaw-gateway.service`). Unknown builds are
+refused; there is no 10.10 upgrade delta in this release.
 
 ## Verify
 
@@ -52,32 +50,34 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `13/13 suites passed` (578 assertions).
+Expected: `5/5 suites passed` with 68 assertions. On a pristine 10.10 target,
+`--check` reports `status=pristine`; after installation it reports
+`status=patched`.
 
 Optional mechanical check:
 
 ```sh
 python3 tools/verify_patch.py --all=patches
+python3 tools/check_docs.py
 ```
 
 ## Guardrails
 
 - **Do not** apply this patch to a different plugin build. The installer will
   refuse an unknown pristine hash; report the actual target hash and stop.
-- The 2026.10.9 monitor bundle is byte-identical to 2026.10.8 in upstream;
-  only the 2026.10.9 patch directory ships. Do not recreate older version
-  directories.
-- **Do not** set new Feishu config keys such as `cardStatusPosition` or
-  `reasoningMaxLines`: OpenClaw's plugin schema rejects unknown keys and marks
-  the config invalid. Behavior defaults are compiled into the patch.
+- Do not add a 2026.10.9 patch directory to this release. 10.10 is a new
+  content-only baseline; the old status-element patch is not applicable.
+- **Do not** set new Feishu config keys. Behavior is compiled into the patch.
 - **Do not** paste credentials, tokens, hostnames, or chat contents into this
   repository.
-- **Do not** restart the gateway mid-turn. During restart recovery, tool/narration
-  progress may appear as temporary standalone posts because no streaming card
-  exists yet. This is expected recovery behavior, not a patch failure; the next
-  turn after the gateway is healthy returns to the single-card flow.
+- **Do not** restart the gateway mid-turn. Restart recovery may produce temporary
+  standalone progress posts because no streaming card exists yet; the next turn
+  after the gateway is healthy returns to the single-card flow.
 - If installation fails, the installer restores the backup automatically.
   Report the error; do not retry with fuzzy patching.
+- A canary deployment passed one real Feishu tool turn on 2026-11-04. For any
+  new deployment, watch the first live turn (single card, expandable details
+  panel, final `✅ 完成`, no residual loading) before declaring it verified.
 
 ## Rollback
 
@@ -91,12 +91,10 @@ systemctl --user restart openclaw-gateway.service
 
 | item | value |
 | --- | --- |
-| plugin build | 2026.10.9 |
-| pristine SHA-256 | `ec9d77bfcaf19bad9e888e62bc7c3a1dce8b3c1b4cfbcb1eca9a2b26070cfdf4` |
-| patched SHA-256 | `6b183987c2d954c99693ce3b94a7a47e05e8bac87a7fa94a8aaca7a6b9aab1e9` |
-| patch SHA-256 | `c00af363bf35c6384f26eef029e5ff70f54982d94f49e295a401a9bc4fc85686` |
-| batch-1 upgrade source | `9cd54d3261639e2e40a401dcf6480acd555a8c458b29b696836b0f85a3f54496` |
-| batch-2 upgrade source | `c70fc9c5739de593fa91b1aead322bee55d8d0e7ef7c48415e2ae5b1b822b7d1` |
-| batch-3 upgrade source | `e49cb6dab0d7c2b408f86304e7d93ce18b6ad542cc1d44a73fe4aa9f5359c6b0` |
+| plugin build | 2026.10.10 |
+| pristine SHA-256 | `a0ff2719d3470d6327897ea7d6c91bec8354a2ef4de36db53d0185096b3bfbe7` |
+| patched SHA-256 | `3036ef6917d19b58ca678e15beb76e3d30d4fcd349947154844be39d00e10095` |
+| patch SHA-256 | `ccc642a26c8f46ecc3f53b852bcb4510839a838f207f891f87dddca35f0c47da` |
+| patch hunks | 19 |
 
-See `README.md` for behavior, limitations and adapter workflow.
+See `README.md` for behavior and limitations.

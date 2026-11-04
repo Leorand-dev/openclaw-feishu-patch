@@ -1,8 +1,12 @@
-// Shared helpers for the 2026.10.9 test suites.
+// Shared helpers for the 2026.10.10 test suites.
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const testsDir = path.dirname(fileURLToPath(import.meta.url));
 
 export function loadBundle(argv = process.argv) {
-  const file = argv[2] || process.env.BUNDLE || "../patches/2026.10.9/patched.mjs";
+  const file = argv[2] || process.env.BUNDLE || path.join(testsDir, "../patches/2026.10.10/patched.mjs");
   return fs.readFileSync(file, "utf8");
 }
 
