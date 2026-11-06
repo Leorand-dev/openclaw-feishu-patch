@@ -6,7 +6,7 @@ patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.10.10`**.
+- Target plugin build must be **`@openclaw/feishu@2026.11.1`**.
 - The target file is the installed monitor bundle:
 
   ```
@@ -15,8 +15,12 @@ patch.
 
 - Required tools: `bash`, `patch`, `sha256sum` (or `shasum`).
 - No credentials or network access to Feishu are needed for installation.
-- The 2026.10.10 patch is content-only: it does not use the legacy `status`
-  element or `writeStatusContent`/`updateStatus` paths.
+- The 2026.11.1 patch is content-only and uses CardKit 2.0 element APIs
+  (`elements/{id}/content`, `elements/{id}` replace, `elements/{id}` delete); it
+  does not use the legacy `status` element or
+  `writeStatusContent`/`updateStatus` paths.
+- Hosts still on 2026.10.10 must upgrade the plugin first; this release has no
+  10.10 entry.
 
 ## Install
 
@@ -29,12 +33,12 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 Expected installer output:
 
 ```
-sha256: 3036ef6917d19b58ca678e15beb76e3d30d4fcd349947154844be39d00e10095
+sha256: 2ef9423eba4810cf2c7a5e5e8d7d523c8127bbfe33c2190ef6875a979135f867
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
 `systemctl --user restart openclaw-gateway.service`). Unknown builds are
-refused; there is no 10.10 upgrade delta in this release.
+refused; there is no upgrade delta in this release.
 
 ## Verify
 
@@ -50,7 +54,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 68 assertions. On a pristine 10.10 target,
+Expected: `5/5 suites passed` with 99 assertions. On a pristine 11.1 target,
 `--check` reports `status=pristine`; after installation it reports
 `status=patched`.
 
@@ -61,12 +65,32 @@ python3 tools/verify_patch.py --all=patches
 python3 tools/check_docs.py
 ```
 
+## Card layout contract
+
+```
+① markdown #content      reasoning blockquote + answer (no status line)
+② markdown #progress     grey status / completion line
+③ hr #divider            separator
+④ collapsible_panel      「🧾 过程记录」, body #detailspanel_body
+                          live: markdown summary + category groups
+                          close: replaced once with column_set (tools used)
+                          close: panel + divider deleted (no tools)
+⑤ hr + markdown #note    optional grey identity footer
+```
+
+- Prewarm: write the static `⏳ 思考中...` into `#progress` once the card is
+  ready, and clear it (zero-width space) on the first token, reasoning chunk or
+  tool event. No animation, no timer.
+- Live panel updates must stay `PUT .../elements/detailspanel_body/content`;
+  only the final render may replace the element (tag change to `column_set`).
+- Empty tool turns must not leave a visible panel.
+- The completion line belongs to `#progress`; content must stay answer-only. If
+  the progress write fails, fold the line back into the content instead.
+
 ## Guardrails
 
 - **Do not** apply this patch to a different plugin build. The installer will
   refuse an unknown pristine hash; report the actual target hash and stop.
-- Do not add a 2026.10.9 patch directory to this release. 10.10 is a new
-  content-only baseline; the old status-element patch is not applicable.
 - **Do not** set new Feishu config keys. Behavior is compiled into the patch.
 - **Do not** paste credentials, tokens, hostnames, or chat contents into this
   repository.
@@ -75,9 +99,12 @@ python3 tools/check_docs.py
   after the gateway is healthy returns to the single-card flow.
 - If installation fails, the installer restores the backup automatically.
   Report the error; do not retry with fuzzy patching.
-- A canary deployment passed one real Feishu tool turn on 2026-11-04. For any
-  new deployment, watch the first live turn (single card, expandable details
-  panel, final `✅ 完成`, no residual loading) before declaring it verified.
+- A new deployment is only verified after one real Feishu tool turn: single
+  card, `⏳ 思考中...` prewarm line, grey progress line, expandable
+  `🧾 过程记录` with summary + groups, final `✅ 完成`, no residual loading.
+- Plugin upgrades reinstall `dist/` and delete `.monitor.backup-*.mjs`. Re-apply
+  the patch after every upgrade and keep an out-of-tree copy of the pristine
+  bundle if you need a rollback target.
 
 ## Rollback
 
@@ -91,10 +118,11 @@ systemctl --user restart openclaw-gateway.service
 
 | item | value |
 | --- | --- |
-| plugin build | 2026.10.10 |
-| pristine SHA-256 | `a0ff2719d3470d6327897ea7d6c91bec8354a2ef4de36db53d0185096b3bfbe7` |
-| patched SHA-256 | `3036ef6917d19b58ca678e15beb76e3d30d4fcd349947154844be39d00e10095` |
-| patch SHA-256 | `ccc642a26c8f46ecc3f53b852bcb4510839a838f207f891f87dddca35f0c47da` |
-| patch hunks | 19 |
+| plugin build | 2026.11.1 |
+| pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
+| patched SHA-256 | `2ef9423eba4810cf2c7a5e5e8d7d523c8127bbfe33c2190ef6875a979135f867` |
+| patch SHA-256 | `76c2ca26b0635b05afd114c5e404c3251785104fd68d96b1c62b9867f583f7de` |
+| patch hunks | 20 |
+| test assertions | 99 |
 
 See `README.md` for behavior and limitations.

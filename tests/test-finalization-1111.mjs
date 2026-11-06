@@ -1,11 +1,12 @@
-// 2026.10.10 batch5 — final completion status and card-write reliability.
-import { loadBundle, makeCounter, extractArrow } from "./_harness.mjs";
+// 2026.11.1 batch6 — final status line, progress element, details finalization, retries.
+import { loadBundle, makeCounter, extractArrow, extractConstLine } from "./_harness.mjs";
 
 const src = loadBundle();
 const { ok, finish } = makeCounter();
 
 const finalLine = extractArrow(src, "buildFinalStatusLine");
 const combined = extractArrow(src, "buildCombinedStreamText");
+const progress = extractConstLine(src, "formatProgressLine");
 const finalSandbox = new Function(`
   let aggregatedToolTotal = 2;
   let cardStartedAt = Date.now() - 62000;
@@ -14,14 +15,16 @@ const finalSandbox = new Function(`
   const formatElapsedDuration = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? s + "s" : Math.floor(s / 60) + "m" + String(s % 60).padStart(2, "0") + "s"; };
   ${finalLine}
   ${combined}
+  ${progress}
   const line = buildFinalStatusLine();
   statusLine = line;
-  return { line, text: buildCombinedStreamText("", "answer") };
+  return { line, text: buildCombinedStreamText("", "answer"), progressLine: formatProgressLine(line) };
 `)();
 
 ok("final line includes completion and tool count", finalSandbox.line.startsWith("✅ 完成") && finalSandbox.line.includes("已执行 2 个工具"));
 ok("final line includes duration", /1m0[12]s/.test(finalSandbox.line));
-ok("final answer keeps completion line", finalSandbox.text.includes("answer") && finalSandbox.text.includes("✅ 完成"));
+ok("answer text no longer embeds the status line", finalSandbox.text === "answer");
+ok("final status line is rendered as grey progress text", finalSandbox.progressLine.startsWith("<font color='grey'>✅ 完成") && finalSandbox.progressLine.endsWith("</font>"));
 
 const methodStart = src.indexOf("\tasync writeCardContent(text, replace, onError) {");
 const methodEnd = src.indexOf("\n\tasync writeElementContent", methodStart);
@@ -69,10 +72,15 @@ ok("held close keeps tool counts and uses neutral line", src.includes("if (!held
 ok("cleanup cancels a pending hold", src.includes("clearIdleHold();\n\t\t\ttypingCallbacks?.onCleanup?.();"));
 ok("tool phase completes when answer starts", (src.match(/toolPhaseCompleted = true;/g) || []).length >= 2);
 ok("close settings writes retry", src.includes("Close failed after retries"));
-
 ok("close writes completion line via finalStatusLine", src.includes("heldClose ? buildHeldStatusLine() : buildFinalStatusLine()") && src.includes("statusLine = finalStatusLine;"));
-ok("final card close uses accepted result", src.includes("closeWithResult(text, { note: finalNote })"));
+ok("final details are computed before state reset", src.indexOf("const finalDetails = disposition") > 0 && src.indexOf("const finalDetails = disposition") < src.indexOf("resetStreamingState();"));
+ok("final card close passes status line and details", src.includes("closeWithResult(text, {") && src.includes("statusLine: formatProgressLine(finalStatusLine)") && src.includes("details: finalDetails"));
+ok("empty tool turn removes the details panel", src.includes('deleteElementForced("detailspanel")') && src.includes('deleteElementForced("divider")'));
+ok("non-empty tool turn replaces details with column_set", src.includes('putElementPayload("detailspanel_body", options.details, "replace")'));
 ok("discard path preserved", src.includes("if (disposition === \"discarded\") closed = await streamingToClose.discard();"));
-ok("no status element in finalizer", !src.includes("deleteStatusElement") && !src.includes("keepStatus"));
+ok("no legacy status element in finalizer", !src.includes("deleteStatusElement") && !src.includes("keepStatus"));
+ok("prewarm status line is wired", src.includes("const PREWARM_STATUS_LINE") && src.includes("applyPrewarmStatus();"));
+ok("prewarm is cleared when output starts", src.includes('updateProgress(statusLine ? formatProgressLine(statusLine) : "\\u200B")'));
+ok("prewarm marker resets with streaming state", (src.match(/prewarmStatusLine = "";/g) || []).length >= 2);
 
-finish("2026.10.10 finalization/reliability");
+finish("2026.11.1 finalization/reliability");

@@ -1,5 +1,5 @@
-// 2026.10.10 batch5 — parser, display helpers and content-only status checks.
-import { loadBundle, makeCounter, extractArrow } from "./_harness.mjs";
+// 2026.11.1 batch6 — parser, display helpers, status text and content-only card checks.
+import { loadBundle, makeCounter, extractArrow, extractConstLine } from "./_harness.mjs";
 
 const src = loadBundle();
 const { ok, finish } = makeCounter();
@@ -31,7 +31,12 @@ ok("closed fences do not leak", h.detectOpenCodeFence("```js\nx\n```") === "");
 
 const waiting = extractArrow(src, "buildWaitingLine");
 const final = extractArrow(src, "buildFinalStatusLine");
-const details = extractArrow(src, "buildDetailsContent");
+const progressLine = extractConstLine(src, "formatProgressLine");
+const detailsStart = src.indexOf("const TOOL_GROUP_ORDER");
+const detailsEnd = src.indexOf("const buildDetailsColumns");
+if (detailsStart < 0 || detailsEnd < 0) throw new Error("details helper block missing");
+const detailsHelpers = src.slice(detailsStart, detailsEnd);
+
 const sandbox = new Function(`
   let aggregatedToolTotal = 3;
   let lastToolLabel = "exec";
@@ -45,24 +50,30 @@ const sandbox = new Function(`
   const escapeCardHtml = (t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const escapeCardMarkdown = (t) => String(t ?? "").replace(/[*_\\[\\]<>]/g, "\\\\$&");
   const formatToolDisplayName = (label) => label === "exec" ? "终端" : label === "read" ? "读取" : label;
-  const buildToolDoneLine = (total) => ["\u2705 已执行 ", total, " 个工具 · 生成回复中…"].join("");
+  const normalizeToolLabel = (label) => String(label ?? "").trim().toLowerCase().replace(/[\\s-]+/g, "_");
+  const buildToolDoneLine = (total) => ["\\u2705 ", total, " 个工具 · 生成回复中…"].join("");
   ${waiting}
   ${final}
-  ${details}
-  return { waiting: buildWaitingLine(3), done: buildToolDoneLine(3), final: buildFinalStatusLine(), details: buildDetailsContent() };
+  ${progressLine}
+  ${detailsHelpers}
+  return { waiting: buildWaitingLine(3), done: buildToolDoneLine(3), final: buildFinalStatusLine(), progress: formatProgressLine(buildFinalStatusLine()), details: buildDetailsContent() };
 `)();
 
-ok("waiting line shows count and latest tool", sandbox.waiting.includes("已执行 3 个工具") && sandbox.waiting.includes("终端"));
-ok("tool done line shows count", sandbox.done.includes("已执行 3 个工具") && sandbox.done.includes("生成回复中"));
+ok("waiting line is short and shows the count", /^⏳ 3 个工具/.test(sandbox.waiting) && !sandbox.waiting.includes("最近"));
+ok("tool done line shows count", sandbox.done.includes("3 个工具") && sandbox.done.includes("生成回复中"));
 ok("final line shows completion, tools and duration", sandbox.final.startsWith("✅ 完成") && sandbox.final.includes("已执行 3 个工具") && sandbox.final.includes("1m05s"));
+ok("final line is wrapped as grey progress text", sandbox.progress.startsWith("<font color='grey'>") && sandbox.progress.endsWith("</font>"));
+ok("details panel starts with a summary line", sandbox.details.startsWith("**共 3 个工具"));
+ok("details panel groups tools by category", sandbox.details.includes("**命令**") && sandbox.details.includes("**文件**"));
 ok("details panel lists grouped tools", sandbox.details.includes("终端") && sandbox.details.includes("读取") && sandbox.details.includes("×2"));
 
-// Structural checks: the new implementation must be content-only.
+// Structural checks: the implementation must stay content-only and use the new layout.
 ok("no legacy status element", !src.includes('element_id: "status"'));
 ok("no legacy status API", !src.includes("writeStatusContent") && !src.includes("deleteStatusElement") && !src.includes("statusElementEnabled"));
-ok("content card plus collapsible details", src.includes('element_id: "detailspanel"') && src.includes('element_id: "detailspanel_body"'));
+ok("card has content, progress, divider and details panel", src.includes('element_id: "content"') && src.includes('element_id: "progress"') && src.includes('element_id: "divider"') && src.includes('element_id: "detailspanel"') && src.includes('element_id: "detailspanel_body"'));
 ok("final completion line wired into close", src.includes("statusLine = finalStatusLine;"));
 ok("card content writes retried", src.includes("CARD_WRITE_RETRY_MAX_ATTEMPTS") && src.includes("isRetryableCardKitError"));
 ok("details element writes serialized", src.includes("async writeElementContent(elementId, text)"));
+ok("final details use column_set replace", src.includes("buildDetailsColumns") && src.includes('"column_set"'));
 
-finish("2026.10.10 helpers/content-only");
+finish("2026.11.1 helpers/content-only");

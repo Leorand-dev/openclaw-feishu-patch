@@ -36,14 +36,15 @@
  async function getToken(creds) {
  	const key = `${creds.domain ?? "feishu"}|${creds.appId}`;
  	const cached = tokenCache.get(key);
-@@ -1011,6 +1032,144 @@
- 	for (let overlap = maxOverlap; overlap > 0; overlap -= 1) if (previous.slice(-overlap) === next.slice(0, overlap)) return `${previous}${next.slice(overlap)}`;
- 	return `${previous}${next}`;
+@@ -999,6 +1020,145 @@
+ function shouldPushStreamingUpdate(previousText, nextText) {
+ 	return !previousText || /[\n。！？!?；;：:]$/.test(nextText) || nextText.length - previousText.length >= STREAMING_SIGNIFICANT_DELTA_CHARS;
  }
 +const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;
 +const CARD_WRITE_RETRY_BASE_DELAY_MS = 400;
 +const CARD_IDLE_HOLD_MS = 8e3;
 +const CARD_IDLE_HOLD_MAX_RENEWALS = 2;
++const PREWARM_STATUS_LINE = "\u23F3 思考中...";
 +const TOOL_SUMMARY_MAX_CHARS = 400;
 +const TOOL_NARRATION_TEXT_PREFIX = "\u{1F4AC} ";
 +const TOOL_LABEL_ALIASES = /* @__PURE__ */ new Map([["session_settings", "sessions"]]);
@@ -181,18 +182,26 @@
  var FeishuStreamingSession = class {
  	constructor(client, creds, log) {
  		this.state = null;
-@@ -1020,6 +1179,7 @@
+@@ -1008,6 +1168,8 @@
  		this.pendingText = null;
  		this.flushTimer = null;
  		this.updateThrottleMs = STREAMING_UPDATE_THROTTLE_MS;
 +		this.detailsSentText = "";
++		this.progressSentText = "";
  		this.client = client;
  		this.creds = creds;
  		this.log = log;
-@@ -1053,6 +1213,12 @@
+@@ -1041,6 +1203,19 @@
  			tag: "markdown",
  			content: "",
  			element_id: "content"
++		}, {
++			tag: "markdown",
++			content: "\u200B",
++			element_id: "progress"
++		}, {
++			tag: "hr",
++			element_id: "divider"
 +		}, {
 +			tag: "collapsible_panel",
 +			element_id: "detailspanel",
@@ -202,24 +211,11 @@
  		}];
  		if (options?.note) {
  			elements.push({ tag: "hr" });
-@@ -1128,22 +1294,68 @@
+@@ -1116,20 +1291,93 @@
  	}
  	async writeCardContent(text, replace, onError) {
  		if (!this.state) return false;
 -		this.state.sequence += 1;
--		try {
--			await this.requestCardKit(`/${this.state.cardId}/elements/content${replace ? "" : "/content"}`, replace ? "replace" : "update", "PUT", () => ({
--				...replace ? { element: JSON.stringify({
--					tag: "markdown",
--					content: text,
--					element_id: "content"
--				}) } : { content: text },
--				sequence: this.state.sequence,
--				uuid: `${replace ? "r" : "s"}_${this.state.cardId}_${this.state.sequence}`
--			}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, replace ? "Replace card content" : "Update card content"));
--			return true;
--		} catch (error) {
--			onError?.(error);
 +		const sequence = this.state.sequence += 1;
 +		const uuid = `${replace ? "r" : "s"}_${this.state.cardId}_${sequence}`;
 +		let lastError;
@@ -253,26 +249,7 @@
 +		if (!this.state || this.closed || typeof text !== "string" || !text.trim()) return false;
 +		const run = this.queue.then(async () => {
 +			if (!this.state || this.closed) return false;
-+			const sequence = this.state.sequence += 1;
-+			const uuid = `el_${this.state.cardId}_${sequence}`;
-+			let lastError;
-+			for (let attempt = 1; attempt <= CARD_WRITE_RETRY_MAX_ATTEMPTS; attempt += 1) {
-+				try {
-+					await this.requestCardKit(`/${this.state.cardId}/elements/${elementId}/content`, "element-update", "PUT", () => ({
-+						content: text,
-+						sequence,
-+						uuid
-+					}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, `Update card element ${elementId}`));
-+					return true;
-+				} catch (error) {
-+					lastError = error;
-+					if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
-+					await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
-+				}
-+			}
-+			this.log?.(`Element ${elementId} update failed after retries: ${String(lastError)}`);
- 			return false;
--		}
++			return this.putElementPayload(elementId, text, "update");
 +		});
 +		this.queue = run.then(() => void 0, () => void 0);
 +		return run;
@@ -283,10 +260,63 @@
 +		const sent = await this.writeElementContent("detailspanel_body", text);
 +		if (sent) this.detailsSentText = text;
 +		return sent;
++	}
++	async updateProgress(text) {
++		if (!this.state || this.closed || typeof text !== "string" || !text.trim()) return false;
++		if (text === this.progressSentText) return true;
++		const sent = await this.writeElementContent("progress", text);
++		if (sent) this.progressSentText = text;
++		return sent;
++	}
++	async putElementPayload(elementId, payload, mode) {
++		if (!this.state) return false;
++		const sequence = this.state.sequence += 1;
++		const uuid = `el_${this.state.cardId}_${sequence}`;
++		const replace = mode === "replace";
++		let lastError;
++		for (let attempt = 1; attempt <= CARD_WRITE_RETRY_MAX_ATTEMPTS; attempt += 1) {
++			if (!this.state) {
++				lastError = new Error("Streaming state cleared before element write");
++				break;
++			}
++			try {
++				await this.requestCardKit(`/${this.state.cardId}/elements/${elementId}${replace ? "" : "/content"}`, replace ? "element-replace" : "element-update", "PUT", () => ({
++					...(replace ? { element: JSON.stringify(payload) } : { content: payload }),
++					sequence,
++					uuid
++				}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, `${replace ? "Replace" : "Update"} card element ${elementId}`));
++				return true;
++			} catch (error) {
++				lastError = error;
++				if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
++				await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
++			}
++		}
++		this.log?.(`Element ${elementId} ${mode} failed after retries: ${String(lastError)}`);
++		return false;
++	}
++	async deleteElementForced(elementId) {
++		if (!this.state) return false;
++		const sequence = this.state.sequence += 1;
+ 		try {
+-			await this.requestCardKit(`/${this.state.cardId}/elements/content${replace ? "" : "/content"}`, replace ? "replace" : "update", "PUT", () => ({
+-				...replace ? { element: JSON.stringify({
+-					tag: "markdown",
+-					content: text,
+-					element_id: "content"
+-				}) } : { content: text },
+-				sequence: this.state.sequence,
+-				uuid: `${replace ? "r" : "s"}_${this.state.cardId}_${this.state.sequence}`
+-			}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, replace ? "Replace card content" : "Update card content"));
++			await this.requestCardKit(`/${this.state.cardId}/elements/${elementId}`, "element-delete", "DELETE", () => ({ sequence, uuid: `del_${this.state.cardId}_${sequence}` }), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, `Delete card element ${elementId}`));
+ 			return true;
+ 		} catch (error) {
+-			onError?.(error);
++			this.log?.(`Delete card element ${elementId} failed: ${String(error)}`);
+ 			return false;
+ 		}
  	}
- 	clearFlushTimer() {
- 		if (this.flushTimer) {
-@@ -1211,29 +1423,36 @@
+@@ -1199,29 +1447,55 @@
  				finalWriteError = e;
  				this.log?.(`Final ${replace ? "replace" : "update"} failed: ${String(e)}`);
  			});
@@ -298,6 +328,25 @@
  				visibleContentSent = Boolean(text.trim());
  			}
  		}
++		if (options?.statusLine) {
++			const hasAnswerText = Boolean(this.state.sentText.trim());
++			const progressSent = hasAnswerText ? await this.putElementPayload("progress", options.statusLine, "update") : false;
++			if (!progressSent) {
++				const merged = [this.state.sentText, options.statusLine].filter(Boolean).join("\n\n");
++				const sent = await this.writeCardContent(merged, !merged.startsWith(this.state.sentText), () => {});
++				if (sent && this.state) {
++					this.state.sentText = merged;
++					visibleContentSent = Boolean(merged.trim());
++				}
++			}
++		}
++		if (options?.details === "empty") {
++			await this.deleteElementForced("detailspanel");
++			await this.deleteElementForced("divider");
++		} else if (options?.details) {
++			const replaced = await this.putElementPayload("detailspanel_body", options.details, "replace");
++			if (!replaced && options.detailsFallback) await this.putElementPayload("detailspanel_body", options.detailsFallback, "update");
++		}
  		if (options?.note) await this.updateNoteContent(options.note);
  		const acceptedText = this.state.sentText;
 -		this.state.sequence += 1;
@@ -339,7 +388,7 @@
  		const finalState = this.state;
  		this.state = null;
  		this.pendingText = null;
-@@ -1498,6 +1717,15 @@
+@@ -1486,6 +1760,16 @@
  	let lastPartial = "";
  	let reasoningText = "";
  	let statusLine = "";
@@ -352,34 +401,92 @@
 +	let idleHoldTimer = null;
 +	let idleHoldRenewals = 0;
 +	let idleHeldClose = false;
++	let prewarmStatusLine = "";
  	let snapshotBaseText = "";
- 	let lastSnapshotTextLength = 0;
  	let hasStreamingFinalText = false;
-@@ -1521,6 +1749,78 @@
+ 	const deliveredFinalTexts = /* @__PURE__ */ new Set();
+@@ -1507,9 +1791,142 @@
+ 		return `> 💭 **Thinking**\n${thinking.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").replace(/^_(.*)_$/gm, "$1").split("\n").map((line) => `> ${line}`).join("\n")}`;
  	};
  	const buildCombinedStreamText = (thinking, answer) => {
- 		return [[thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n"), statusLine].filter(Boolean).join("\n\n");
+-		return [[thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n"), statusLine].filter(Boolean).join("\n\n");
++		return [thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n");
 +	};
 +	const buildWaitingLine = (total) => {
 +		const elapsed = toolPhaseStartedAt > 0 ? formatElapsedDuration(Date.now() - toolPhaseStartedAt) : "";
-+		const recent = lastToolLabel ? ` · 最近：${escapeCardHtml(formatToolDisplayName(lastToolLabel))}` : "";
-+		return `\u23F3 已执行 ${total} 个工具${recent}${elapsed ? ` · ${elapsed}` : ""}`;
++		return `\u23F3 ${total} 个工具${elapsed ? ` · ${elapsed}` : ""}`;
 +	};
-+	const buildToolDoneLine = (total) => `\u2705 已执行 ${total} 个工具 · 生成回复中…`;
++	const buildToolDoneLine = (total) => `\u2705 ${total} 个工具 · 生成回复中…`;
++	const formatProgressLine = (line) => line ? `<font color='grey'>${line}</font>` : "";
 +	const buildFinalStatusLine = () => {
 +		const parts = ["\u2705 完成"];
 +		if (aggregatedToolTotal > 0) parts.push(`已执行 ${aggregatedToolTotal} 个工具`);
 +		if (cardStartedAt > 0) parts.push(formatElapsedDuration(Date.now() - cardStartedAt));
 +		return parts.join(" · ");
 +	};
++	const TOOL_GROUP_ORDER = ["命令", "文件", "网络", "会话", "其他"];
++	const TOOL_GROUP_MEMBERS = /* @__PURE__ */ new Map([
++		["命令", ["exec", "bash", "shell", "terminal", "background_shell", "process", "code_execution"]],
++		["文件", ["read", "write", "edit", "apply_patch", "patch", "grep", "search", "glob", "find", "ls", "image", "view_image"]],
++		["网络", ["web_fetch", "web_search", "browser", "open", "click", "screenshot"]],
++		["会话", ["sessions", "session_status", "session_history", "session_search", "message", "conversations", "conversation_send", "conversation_turn", "session_send", "agents", "sub_agent", "wait_for_agents", "task", "todo", "update_plan", "create_goal", "get_goal", "update_goal"]]
++	]);
++	const resolveToolGroup = (label) => {
++		const normalized = normalizeToolLabel(typeof label === "string" ? label : "");
++		for (const [group, members] of TOOL_GROUP_MEMBERS) if (members.includes(normalized)) return group;
++		return "其他";
++	};
++	const groupToolEvents = () => {
++		const groups = /* @__PURE__ */ new Map();
++		for (const entry of toolEvents.slice(-20)) {
++			const group = resolveToolGroup(entry.label);
++			if (!groups.has(group)) groups.set(group, []);
++			groups.get(group).push(entry);
++		}
++		return TOOL_GROUP_ORDER.filter((group) => groups.has(group)).map((group) => [group, groups.get(group)]);
++	};
++	const buildDetailsSummaryLine = () => {
++		const elapsed = cardStartedAt > 0 ? formatElapsedDuration(Date.now() - cardStartedAt) : "";
++		return `**共 ${aggregatedToolTotal} 个工具${elapsed ? ` · ${elapsed}` : ""}**`;
++	};
 +	const buildDetailsContent = () => {
 +		if (toolEvents.length === 0) return "";
-+		return toolEvents.slice(-20).map((entry) => {
-+			const count = entry.count > 1 ? ` \u00D7${entry.count}` : "";
-+			return `- ${entry.icon} ${escapeCardMarkdown(formatToolDisplayName(entry.label))}${count}`;
-+		}).join("\n");
++		const lines = [buildDetailsSummaryLine()];
++		for (const [group, entries] of groupToolEvents()) {
++			lines.push("", `**${group}**`);
++			for (const entry of entries) {
++				const count = entry.count > 1 ? ` \u00D7${entry.count}` : "";
++				lines.push(`- ${entry.icon} ${escapeCardMarkdown(formatToolDisplayName(entry.label))}${count}`);
++			}
++		}
++		return lines.join("\n");
 +	};
-+	const buildHeldStatusLine = () => `\u23F3 \u5DF2\u6267\u884C ${aggregatedToolTotal} \u4E2A\u5DE5\u5177 \u00B7 \u5904\u7406\u4E2D\u2026`;
++	const buildDetailsColumns = () => {
++		const stats = ["**统计**", `${aggregatedToolTotal} 个工具`];
++		const elapsed = cardStartedAt > 0 ? formatElapsedDuration(Date.now() - cardStartedAt) : "";
++		if (elapsed) stats.push(elapsed);
++		for (const [group, entries] of groupToolEvents()) stats.push(`${group} ${entries.reduce((sum, entry) => sum + entry.count, 0)}`);
++		return {
++			tag: "column_set",
++			element_id: "detailspanel_body",
++			flex_mode: "none",
++			horizontal_spacing: "default",
++			columns: [{
++				tag: "column",
++				width: "weighted",
++				weight: 3,
++				vertical_align: "top",
++				elements: [{ tag: "markdown", content: buildDetailsContent() }]
++			}, {
++				tag: "column",
++				width: "weighted",
++				weight: 1,
++				vertical_align: "top",
++				elements: [{ tag: "markdown", content: stats.join("\n") }]
++			}]
++		};
++	};
++	const buildHeldStatusLine = () => `\u23F3 ${aggregatedToolTotal} 个工具 · 处理中…`;
 +	const clearIdleHold = (resetRenewals = true) => {
 +		if (idleHoldTimer) {
 +			clearTimeout(idleHoldTimer);
@@ -433,16 +540,41 @@
 +		return true;
  	};
  	const flushStreamingCardUpdate = (combined) => {
++		if (prewarmStatusLine && statusLine !== prewarmStatusLine) prewarmStatusLine = "";
++		if (prewarmStatusLine && String(combined ?? "").trim()) {
++			statusLine = "";
++			prewarmStatusLine = "";
++		}
++		if (streaming?.isActive()) streaming.updateProgress(statusLine ? formatProgressLine(statusLine) : "\u200B").catch(() => false);
  		partialUpdateQueue = queueFeishuStreamingUpdate({
-@@ -1571,6 +1871,7 @@
+ 			queue: partialUpdateQueue,
+ 			session: streaming,
+@@ -1518,6 +1935,15 @@
+ 			accountId: account.accountId,
+ 			runtime: params.runtime
+ 		});
++	};
++	const applyPrewarmStatus = () => {
++		if (streamText.trim() || reasoningText.trim() || aggregatedToolTotal > 0) return false;
++		if (!streaming?.isActive()) return false;
++		statusLine = PREWARM_STATUS_LINE;
++		prewarmStatusLine = statusLine;
++		flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
++		params.runtime.log?.(`feishu[${account.accountId}] prewarm status ready`);
++		return true;
+ 	};
+ 	const queueStreamingUpdate = (nextText, options) => {
+ 		if (!nextText) return;
+@@ -1551,6 +1977,8 @@
  					note: cardNote
  				});
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
 +				cardStartedAt = Date.now();
++				applyPrewarmStatus();
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
  				params.runtime.error?.(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
-@@ -1582,6 +1883,7 @@
+@@ -1562,6 +1990,7 @@
  		})();
  	};
  	const resetStreamingState = () => {
@@ -450,7 +582,7 @@
  		streaming = null;
  		streamingStartPromise = null;
  		partialUpdateQueue = Promise.resolve();
-@@ -1589,6 +1891,16 @@
+@@ -1569,6 +1998,17 @@
  		lastPartial = "";
  		reasoningText = "";
  		statusLine = "";
@@ -464,19 +596,22 @@
 +		}
 +		clearIdleHold();
 +		idleHeldClose = false;
++		prewarmStatusLine = "";
  		snapshotBaseText = "";
- 		lastSnapshotTextLength = 0;
  		hasStreamingFinalText = false;
-@@ -1603,6 +1915,8 @@
+ 	};
+@@ -1582,6 +2022,10 @@
  		const updateQueueToClose = partialUpdateQueue;
  		const finalizedAnswerText = streamText;
  		const finalizedReasoningText = reasoningText;
 +		const heldClose = idleHeldClose;
 +		const finalStatusLine = disposition === "closed" ? heldClose ? buildHeldStatusLine() : buildFinalStatusLine() : "";
++		const finalDetails = disposition === "closed" ? toolEvents.length === 0 ? "empty" : buildDetailsColumns() : void 0;
++		const finalDetailsFallback = disposition === "closed" ? buildDetailsContent() : "";
  		const outcome = {
  			disposition,
  			content: finalizedAnswerText
-@@ -1614,7 +1928,7 @@
+@@ -1593,14 +2037,19 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -485,7 +620,20 @@
  				const text = buildCombinedStreamText(finalizedReasoningText, finalizedAnswerText);
  				let closed;
  				try {
-@@ -1959,8 +2273,16 @@
+ 					if (disposition === "discarded") closed = await streamingToClose.discard();
+ 					else {
+ 						const finalNote = resolveCardNote(agentId, identity, responsePrefixContextProvider());
+-						closed = await streamingToClose.closeWithResult(text, { note: finalNote });
++						closed = await streamingToClose.closeWithResult(text, {
++							note: finalNote,
++							statusLine: formatProgressLine(finalStatusLine),
++							details: finalDetails,
++							detailsFallback: finalDetailsFallback
++						});
+ 					}
+ 				} catch (error) {
+ 					if (!(error instanceof FeishuStreamingFinalizationError)) throw error;
+@@ -1938,8 +2387,16 @@
  			if (previewStreamingEnabled && renderMode === "card") startStreaming();
  			await typingCallbacks?.onReplyStart?.();
  		},
@@ -503,7 +651,7 @@
  			typingCallbacks?.onCleanup?.();
  		}
  	};
-@@ -1987,6 +2309,9 @@
+@@ -1966,6 +2423,9 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -513,7 +661,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -2124,6 +2449,8 @@
+@@ -2102,6 +2562,8 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -522,7 +670,7 @@
  				startStreaming();
  				queueStreamingUpdate(cleaned, {
  					dedupeWithLastPartial: true,
-@@ -2133,6 +2460,7 @@
+@@ -2111,6 +2573,7 @@
  			} : void 0,
  			onReasoningStream: reasoningPreviewEnabled ? (payload) => {
  				if (!payload.text) return false;
@@ -530,7 +678,7 @@
  				startStreaming();
  				const nextThinking = formatReasoningMessage(payload.text);
  				if (nextThinking) {
-@@ -2144,7 +2472,9 @@
+@@ -2122,7 +2585,9 @@
  			onReasoningEnd: reasoningPreviewEnabled ? () => false : void 0,
  			onItemEvent: previewStreamingEnabled ? (payload) => {
  				if (payload.kind === "preamble" || payload.hideFromChannelProgress || payload.suppressChannelProgress) return false;
@@ -540,14 +688,10 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2153,9 +2483,31 @@
- 				if (statusLineLocal) return updateStreamingStatusLine(statusLineLocal);
- 				return false;
- 			} : void 0,
--			onAssistantMessageStart: previewStreamingEnabled ? () => updateStreamingStatusLine("", false) : void 0,
--			onCompactionStart: previewStreamingEnabled ? () => updateStreamingStatusLine("📦 **Compacting context...**") : void 0,
--			onCompactionEnd: previewStreamingEnabled ? () => updateStreamingStatusLine("") : void 0
-+			onAssistantMessageStart: previewStreamingEnabled ? () => {
+@@ -2134,10 +2599,30 @@
+ 			onAssistantMessageStart: previewStreamingEnabled ? () => {
+ 				snapshotBaseText = streamText ? `${streamText}\n\n` : "";
+ 				lastPartial = "";
 +				refreshIdleHold();
 +				if (aggregatedToolTotal > 0 && !streamText.trim()) {
 +					toolPhaseCompleted = true;
@@ -555,8 +699,10 @@
 +					flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
 +					return false;
 +				}
-+				return updateStreamingStatusLine("", false);
-+			} : void 0,
+ 				return updateStreamingStatusLine("", false);
+ 			} : void 0,
+-			onCompactionStart: previewStreamingEnabled ? () => updateStreamingStatusLine("📦 **Compacting context...**") : void 0,
+-			onCompactionEnd: previewStreamingEnabled ? () => updateStreamingStatusLine("") : void 0
 +			onCompactionStart: previewStreamingEnabled ? () => {
 +				refreshIdleHold();
 +				if (aggregatedToolTotal > 0 && !toolPhaseCompleted) return false;
