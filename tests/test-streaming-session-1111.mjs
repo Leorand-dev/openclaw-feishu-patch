@@ -10,7 +10,7 @@ if (classStart < 0 || classEnd < 0) throw new Error("FeishuStreamingSession not 
 const classSrc = src.slice(classStart, classEnd);
 
 const Session = new Function([
-  "const STREAMING_UPDATE_THROTTLE_MS = 160;",
+  "const STREAMING_UPDATE_THROTTLE_MS = 250;",
   "const STREAMING_SIGNIFICANT_DELTA_CHARS = 18;",
   "const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;",
   "const CARD_WRITE_RETRY_BASE_DELAY_MS = 1;",
@@ -118,4 +118,6 @@ const replaceCall = calls.find((call) => call.path === "/c3/elements/detailspane
 ok("final details use the element replace endpoint", replaceCall !== undefined);
 ok("final details payload is a column_set", String(replaceCall?.payload?.element ?? "").includes('"column_set"'));
 
+ok("streaming throttle is 250ms", src.includes("const STREAMING_UPDATE_THROTTLE_MS = 250;"));
+ok("punctuation no longer forces a flush", !src.includes("/[\\n。！？!?；;：:]$/") && src.includes("nextText.length - previousText.length >= STREAMING_SIGNIFICANT_DELTA_CHARS;"));
 finish("2026.11.1 streaming-session shape");

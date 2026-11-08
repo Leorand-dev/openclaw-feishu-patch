@@ -82,5 +82,11 @@ ok("no legacy status element in finalizer", !src.includes("deleteStatusElement")
 ok("prewarm status line is wired", src.includes("const PREWARM_STATUS_LINE") && src.includes("applyPrewarmStatus();"));
 ok("prewarm is cleared when output starts", src.includes('updateProgress(statusLine ? formatProgressLine(statusLine) : "\\u200B")'));
 ok("prewarm marker resets with streaming state", (src.match(/prewarmStatusLine = "";/g) || []).length >= 2);
+ok("per-turn api call counter exists", src.includes("const feishuApiCallCounts = { card: 0, message: 0, reaction: 0 };") && src.includes("const noteFeishuApiCall = (kind) => {"));
+ok("cardkit requests are counted", src.includes("this.onApiCall?.(\"card\");"));
+ok("message sends and deletes are counted", (src.match(/this\.onApiCall\?\.\("message"\);/g) || []).length >= 2);
+ok("typing reactions are counted", (src.match(/noteFeishuApiCall\("reaction"\);/g) || []).length >= 2);
+ok("streaming session receives the counter callback", src.includes("new FeishuStreamingSession(createFeishuClient(account), creds,") && src.includes(", noteFeishuApiCall);"));
+ok("turn api call total is logged at cleanup", src.includes("turn api calls: total=${apiCalls} card=${feishuApiCallCounts.card} message=${feishuApiCallCounts.message} reaction=${feishuApiCallCounts.reaction}"));
 
 finish("2026.11.1 finalization/reliability");

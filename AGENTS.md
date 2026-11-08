@@ -33,7 +33,7 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 Expected installer output:
 
 ```
-sha256: 2ef9423eba4810cf2c7a5e5e8d7d523c8127bbfe33c2190ef6875a979135f867
+sha256: b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -54,7 +54,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 99 assertions. On a pristine 11.1 target,
+Expected: `5/5 suites passed` with 129 assertions. On a pristine 11.1 target,
 `--check` reports `status=pristine`; after installation it reports
 `status=patched`.
 
@@ -68,21 +68,27 @@ python3 tools/check_docs.py
 ## Card layout contract
 
 ```
-① markdown #content      reasoning blockquote + answer (no status line)
-② markdown #progress     grey status / completion line
+① markdown #content      reasoning blockquote + answer only (no status line)
+② markdown #progress     grey status / commentary / completion line
 ③ hr #divider            separator
 ④ collapsible_panel      「🧾 过程记录」, body #detailspanel_body
-                          live: markdown summary + category groups
-                          close: replaced once with column_set (tools used)
+                          live/final: markdown summary + compact groups
                           close: panel + divider deleted (no tools)
 ⑤ hr + markdown #note    optional grey identity footer
 ```
+
+- Tool rows prefer the structured `onToolStart` name/args pair; single-tool
+  groups carry the tool name in the title, multi-tool groups prefix rows with
+  the tool icon. Commands keep their head, paths keep their tail, credential
+  substrings are redacted.
+- Assistant commentary is written to `#progress` as `💬 …`, never into
+  `#content`.
 
 - Prewarm: write the static `⏳ 思考中...` into `#progress` once the card is
   ready, and clear it (zero-width space) on the first token, reasoning chunk or
   tool event. No animation, no timer.
 - Live panel updates must stay `PUT .../elements/detailspanel_body/content`;
-  only the final render may replace the element (tag change to `column_set`).
+  the final render replaces the same element with the final markdown body.
 - Empty tool turns must not leave a visible panel.
 - The completion line belongs to `#progress`; content must stay answer-only. If
   the progress write fails, fold the line back into the content instead.
@@ -120,9 +126,9 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- |
 | plugin build | 2026.11.1 |
 | pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
-| patched SHA-256 | `2ef9423eba4810cf2c7a5e5e8d7d523c8127bbfe33c2190ef6875a979135f867` |
-| patch SHA-256 | `76c2ca26b0635b05afd114c5e404c3251785104fd68d96b1c62b9867f583f7de` |
-| patch hunks | 20 |
-| test assertions | 99 |
+| patched SHA-256 | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` |
+| patch SHA-256 | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` |
+| patch hunks | 29 |
+| test assertions | 129 |
 
 See `README.md` for behavior and limitations.
