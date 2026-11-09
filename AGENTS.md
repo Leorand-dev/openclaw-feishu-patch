@@ -34,8 +34,8 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 Expected installer output (one of):
 
 ```
-sha256: 73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c   # 2026.11.1
-sha256: 2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2   # 2026.11.2
+sha256: 53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725   # 2026.11.1
+sha256: ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d   # 2026.11.2
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -56,7 +56,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 141 assertions. On a pristine 11.1/11.2
+Expected: `5/5 suites passed` with 146 assertions. On a pristine 11.1/11.2
 target, `--check` reports `status=pristine`; after installation it reports
 `status=patched`.
 
@@ -70,7 +70,8 @@ python3 tools/check_docs.py
 ## Card layout contract
 
 ```
-① markdown #content      reasoning blockquote + answer only (no status line)
+① markdown #content      live: 💭 thinking blockquote + answer
+                          closed: answer only (thinking cleared)
 ② markdown #progress     grey status / commentary / completion line
 ③ hr #divider            separator
 ④ collapsible_panel      「🧾 过程记录」, body #detailspanel_body
@@ -85,6 +86,11 @@ python3 tools/check_docs.py
   substrings are redacted.
 - Assistant commentary is written to `#progress` as `💬 …`, never into
   `#content`.
+- The `💭 **Thinking**` blockquote in `#content` is a live-only preview: while
+  the turn streams it sits above the answer, and at close the content element is
+  replaced with the answer only. If the turn produced no answer at all
+  (aborted / held close) the thinking blockquote is kept so the card is never
+  blank.
 
 - Prewarm: write the static `⏳ 思考中...` into `#progress` once the card is
   ready, and clear it (zero-width space) on the first token, reasoning chunk or
@@ -134,9 +140,9 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- | --- |
 | plugin build | `2026.11.1` | `2026.11.2` |
 | pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched SHA-256 | `73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c` | `2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2` |
-| patch SHA-256 | `76444b806ba7822d7423f4d34189d736bad8f32ac17b62ca6d03235c7f8612fd` | `24c38bd13132a2d1d1009b3feb53465595c3e801a831e2145cb6eb572611dd4a` |
+| patched SHA-256 | `53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725` | `ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d` |
+| patch SHA-256 | `4801517ad9df24be63ca4ba1c8852b2093054961f3b8c1dca9d9313839e24a51` | `118492e63f3b9613cf51d80acd2952964793712019486bdd82bbe37aee97aa80` |
 | patch hunks | 31 | 31 |
-| test assertions | 141 | 141 |
+| test assertions | 146 | 146 |
 
 See `README.md` for behavior and limitations.

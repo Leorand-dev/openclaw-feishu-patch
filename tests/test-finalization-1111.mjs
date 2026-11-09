@@ -26,6 +26,20 @@ ok("final line includes duration", /1m0[12]s/.test(finalSandbox.line));
 ok("answer text no longer embeds the status line", finalSandbox.text === "answer");
 ok("final status line is rendered as grey progress text", finalSandbox.progressLine.startsWith("<font color='grey'>✅ 完成") && finalSandbox.progressLine.endsWith("</font>"));
 
+// Layout v3: thinking is a live preview, the closed card is answer-only.
+const reasoningSandbox = new Function(`
+  ${extractArrow(src, "formatReasoningPrefix")}
+  ${extractArrow(src, "buildCombinedStreamText")}
+  ${extractArrow(src, "buildFinalContentText")}
+  return { buildCombinedStreamText, buildFinalContentText };
+`)();
+const liveText = reasoningSandbox.buildCombinedStreamText("先看一下这个文件", "答案是 42");
+ok("live preview keeps the thinking blockquote", liveText.includes("💭 **Thinking**") && liveText.includes("> 先看一下这个文件") && liveText.includes("答案是 42"));
+ok("final content drops the thinking blockquote", reasoningSandbox.buildFinalContentText("先看一下这个文件", "答案是 42") === "答案是 42");
+ok("final content is the answer even when thinking is long", !reasoningSandbox.buildFinalContentText("很长的思考".repeat(50), "答案").includes("Thinking"));
+ok("final content falls back to thinking when there is no answer", reasoningSandbox.buildFinalContentText("先看一下这个文件", "   ").includes("💭 **Thinking**"));
+ok("close writes the answer-only content", src.includes("const text = buildFinalContentText(finalizedReasoningText, finalizedAnswerText);"));
+
 const methodStart = src.indexOf("\tasync writeCardContent(text, replace, onError) {");
 const methodEnd = src.indexOf("\n\tasync writeElementContent", methodStart);
 if (methodStart < 0 || methodEnd < 0) throw new Error("writeCardContent method missing");

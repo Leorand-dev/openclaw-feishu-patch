@@ -582,12 +582,17 @@
  	let snapshotBaseText = "";
  	let hasStreamingFinalText = false;
  	const deliveredFinalTexts = /* @__PURE__ */ new Set();
-@@ -1507,9 +1893,162 @@
+@@ -1507,9 +1893,167 @@
  		return `> 💭 **Thinking**\n${thinking.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").replace(/^_(.*)_$/gm, "$1").split("\n").map((line) => `> ${line}`).join("\n")}`;
  	};
  	const buildCombinedStreamText = (thinking, answer) => {
 -		return [[thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n"), statusLine].filter(Boolean).join("\n\n");
 +		return [thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n");
++	};
++	/** Layout v3: `#content` is answer-only once a turn closes; thinking is a live-only preview. */
++	const buildFinalContentText = (thinking, answer) => {
++		if (String(answer ?? "").trim()) return answer;
++		return buildCombinedStreamText(thinking, "");
 +	};
 +	const buildWaitingLine = (total) => {
 +		const elapsed = toolPhaseStartedAt > 0 ? formatElapsedDuration(Date.now() - toolPhaseStartedAt) : "";
@@ -746,7 +751,7 @@
  		partialUpdateQueue = queueFeishuStreamingUpdate({
  			queue: partialUpdateQueue,
  			session: streaming,
-@@ -1518,6 +2057,15 @@
+@@ -1518,6 +2062,15 @@
  			accountId: account.accountId,
  			runtime: params.runtime
  		});
@@ -762,7 +767,7 @@
  	};
  	const queueStreamingUpdate = (nextText, options) => {
  		if (!nextText) return;
-@@ -1537,7 +2085,7 @@
+@@ -1537,7 +2090,7 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -771,7 +776,7 @@
  			streaming = session;
  			try {
  				const cardHeader = resolveCardHeader(agentId, identity);
-@@ -1551,6 +2099,8 @@
+@@ -1551,6 +2104,8 @@
  					note: cardNote
  				});
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
@@ -780,7 +785,7 @@
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
  				params.runtime.error?.(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
-@@ -1562,6 +2112,7 @@
+@@ -1562,6 +2117,7 @@
  		})();
  	};
  	const resetStreamingState = () => {
@@ -788,7 +793,7 @@
  		streaming = null;
  		streamingStartPromise = null;
  		partialUpdateQueue = Promise.resolve();
-@@ -1569,6 +2120,21 @@
+@@ -1569,6 +2125,21 @@
  		lastPartial = "";
  		reasoningText = "";
  		statusLine = "";
@@ -810,7 +815,7 @@
  		snapshotBaseText = "";
  		hasStreamingFinalText = false;
  	};
-@@ -1582,6 +2148,10 @@
+@@ -1582,6 +2153,10 @@
  		const updateQueueToClose = partialUpdateQueue;
  		const finalizedAnswerText = streamText;
  		const finalizedReasoningText = reasoningText;
@@ -821,13 +826,14 @@
  		const outcome = {
  			disposition,
  			content: finalizedAnswerText
-@@ -1593,14 +2163,19 @@
+@@ -1593,14 +2168,19 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
 -				statusLine = "";
+-				const text = buildCombinedStreamText(finalizedReasoningText, finalizedAnswerText);
 +				statusLine = finalStatusLine;
- 				const text = buildCombinedStreamText(finalizedReasoningText, finalizedAnswerText);
++				const text = buildFinalContentText(finalizedReasoningText, finalizedAnswerText);
  				let closed;
  				try {
  					if (disposition === "discarded") closed = await streamingToClose.discard();
@@ -843,7 +849,7 @@
  					}
  				} catch (error) {
  					if (!(error instanceof FeishuStreamingFinalizationError)) throw error;
-@@ -1669,6 +2244,15 @@
+@@ -1669,6 +2249,15 @@
  		startStreaming();
  		flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
  		return false;
@@ -859,7 +865,7 @@
  	};
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
-@@ -1698,6 +2282,7 @@
+@@ -1698,6 +2287,7 @@
  					text: chunk,
  					...mentions.length > 0 ? { mentions } : {}
  				};
@@ -867,7 +873,7 @@
  				const result = paramsLocal.useCard ? await sendStructuredCardFeishu({
  					...sendParams,
  					header,
-@@ -1938,9 +2523,19 @@
+@@ -1938,9 +2528,19 @@
  			if (previewStreamingEnabled && renderMode === "card") startStreaming();
  			await typingCallbacks?.onReplyStart?.();
  		},
@@ -888,7 +894,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -1966,6 +2561,9 @@
+@@ -1966,6 +2566,9 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -898,7 +904,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -1985,6 +2583,10 @@
+@@ -1985,6 +2588,10 @@
  				const text = info?.kind === "final" && !hasIndependentPresentation ? mergeStreamingFinalText(streamText, payload.isError ? reply.text : `${snapshotBaseText}${reply.text}`, payload.isError === true && hasStreamingFinalText) : reply.text;
  				const hasText = reply.hasText;
  				const hasMedia = reply.hasMedia;
@@ -909,7 +915,7 @@
  				const ttsSupplement = getReplyPayloadTtsSupplement(payload);
  				const ttsTextAlreadyVisible = ttsSupplement?.visibleTextAlreadyDelivered === true;
  				const hasVoiceMedia = hasMedia && reply.mediaUrls.some((mediaUrl) => shouldSuppressFeishuTextForVoiceMedia({
-@@ -2102,6 +2704,12 @@
+@@ -2102,6 +2709,12 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -922,7 +928,7 @@
  				startStreaming();
  				queueStreamingUpdate(cleaned, {
  					dedupeWithLastPartial: true,
-@@ -2111,6 +2719,7 @@
+@@ -2111,6 +2724,7 @@
  			} : void 0,
  			onReasoningStream: reasoningPreviewEnabled ? (payload) => {
  				if (!payload.text) return false;
@@ -930,7 +936,7 @@
  				startStreaming();
  				const nextThinking = formatReasoningMessage(payload.text);
  				if (nextThinking) {
-@@ -2120,9 +2729,16 @@
+@@ -2120,9 +2734,16 @@
  				return false;
  			} : void 0,
  			onReasoningEnd: reasoningPreviewEnabled ? () => false : void 0,
@@ -947,7 +953,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2134,10 +2750,30 @@
+@@ -2134,10 +2755,30 @@
  			onAssistantMessageStart: previewStreamingEnabled ? () => {
  				snapshotBaseText = streamText ? `${streamText}\n\n` : "";
  				lastPartial = "";

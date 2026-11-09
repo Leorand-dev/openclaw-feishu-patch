@@ -24,10 +24,10 @@ the progress line instead of leaking into the answer.
 | --- | --- | --- |
 | plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2` |
 | pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched bundle | `73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c` | `2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2` |
-| patch | `76444b806ba7822d7423f4d34189d736bad8f32ac17b62ca6d03235c7f8612fd` | `24c38bd13132a2d1d1009b3feb53465595c3e801a831e2145cb6eb572611dd4a` |
+| patched bundle | `53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725` | `ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d` |
+| patch | `4801517ad9df24be63ca4ba1c8852b2093054961f3b8c1dca9d9313839e24a51` | `118492e63f3b9613cf51d80acd2952964793712019486bdd82bbe37aee97aa80` |
 | patch hunks | 31 | 31 |
-| test assertions | 141 | 141 |
+| test assertions | 146 | 146 |
 
 The installer selects the patch by the target's SHA-256. It accepts a pristine
 or already-patched 2026.11.1/2026.11.2 bundle and refuses any other build. There
@@ -46,13 +46,20 @@ re-anchored, not re-designed.
 
 ```
 [header]                          optional title + template
-  ① markdown #content             reasoning blockquote ─── answer only
+  ① markdown #content             live: 💭 thinking blockquote + answer
+                                  closed: answer only (thinking cleared)
   ② markdown #progress            grey status / commentary / completion line
   ③ hr #divider                   separates answer from the process panel
   ④ collapsible_panel             collapsed 「🧾 过程记录」
        markdown #detailspanel_body   summary + compact category groups
   ⑤ hr + markdown #note           optional grey identity footer
 ```
+
+Thinking preview: while the turn streams, the model's reasoning is shown at the
+top of `#content` as a `> 💭 **Thinking**` blockquote followed by the answer. At
+close the content element is replaced with the **answer only**, so a finished
+card never carries the reasoning text. If the turn produced no answer (aborted,
+held close) the blockquote is kept so the card is never blank.
 
 Prewarm: both supported builds already create the card in `onReplyStart`, but
 leave it empty until the first token. The patch writes `⏳ 思考中...` into
@@ -143,7 +150,7 @@ cd tests
 node run-all.mjs ../patches/2026.11.2/patched.mjs   # or 2026.11.1/patched.mjs
 ```
 
-Expected: `5/5 suites passed, 0 failed` with 141 assertions, for either build.
+Expected: `5/5 suites passed, 0 failed` with 146 assertions, for either build.
 
 Mechanical checks:
 

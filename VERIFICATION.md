@@ -14,12 +14,12 @@ still on 10.10 must upgrade the plugin before installing.
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.11.1/feishu-tool-aggregation.patch` | `76444b806ba7822d7423f4d34189d736bad8f32ac17b62ca6d03235c7f8612fd` |
-| `patches/2026.11.2/feishu-tool-aggregation.patch` | `24c38bd13132a2d1d1009b3feb53465595c3e801a831e2145cb6eb572611dd4a` |
+| `patches/2026.11.1/feishu-tool-aggregation.patch` | `4801517ad9df24be63ca4ba1c8852b2093054961f3b8c1dca9d9313839e24a51` |
+| `patches/2026.11.2/feishu-tool-aggregation.patch` | `118492e63f3b9613cf51d80acd2952964793712019486bdd82bbe37aee97aa80` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
-| patched bundle, 2026.11.1 | `73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c` |
+| patched bundle, 2026.11.1 | `53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725` |
 | pristine bundle, 2026.11.2 | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched bundle, 2026.11.2 | `2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2` |
+| patched bundle, 2026.11.2 | `ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -29,8 +29,8 @@ reference values for the exact supported builds.
 | item | 2026.11.1 | 2026.11.2 |
 | --- | --- | --- |
 | hunks | 31 | 31 |
-| forward apply | `6dbfa74b…` -> `73b3f994…`, 31/31 anchors unique | `44f6d50f…` -> `2796212b…`, 31/31 anchors unique |
-| reverse apply | `73b3f994…` -> `6dbfa74b…`, byte-exact | `2796212b…` -> `44f6d50f…`, byte-exact |
+| forward apply | `6dbfa74b…` -> `73b3f994…`, 31/31 anchors unique | `44f6d50f…` -> `ee93e269…`, 31/31 anchors unique |
+| reverse apply | `73b3f994…` -> `6dbfa74b…`, byte-exact | `ee93e269…` -> `44f6d50f…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
   both builds (`ALL_VERSIONS_APPLY_REVERSE_PASS: True`).
@@ -84,6 +84,10 @@ Close behaviour:
   (summary line + compact groups); the live markdown fallback is kept if the
   replace fails.
 - no tools: `detailspanel` and `divider` deleted so no empty panel remains.
+- `content` is replaced with the answer only: the live `> 💭 **Thinking**`
+  blockquote is dropped at close (`buildFinalContentText`), and the delivered
+  reply content is the answer, not the reasoning. A turn with no answer keeps
+  the blockquote so the card is never blank.
 - completion line written to `progress`; if that write fails it is folded back
   into `content` so the marker is never lost.
 
@@ -122,17 +126,17 @@ Behaviour now:
 
 ## Test results
 
-`tests/run-all.mjs` -> **5/5 suites, 0 failed, 141 assertions** against each
+`tests/run-all.mjs` -> **5/5 suites, 0 failed, 146 assertions** against each
 patched bundle (2026.11.1 and 2026.11.2):
 
 | suite | assertions |
 | --- | --- |
 | parser/structured-details/content-only helpers | 43 |
 | aggregation/status/details (incl. prewarm) | 21 |
-| finalization/reliability (incl. api counter) | 32 |
+| finalization/reliability (incl. api counter, answer-only close) | 37 |
 | streaming-session shape (incl. window expiry) | 39 |
 | idle-hold behavior | 6 |
-| **total** | **141** |
+| **total** | **146** |
 
 The streaming-session suite now locates the upstream module boundary by the
 bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
@@ -145,7 +149,7 @@ bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
   all entries OK.
 - `install.sh --check` on pristine 2026.11.2 -> `status=pristine version=2026.11.2`.
 - `install.sh --dry-run` -> `would patch`, target unchanged.
-- `install.sh` on a temporary pristine copy -> patched SHA `2796212b…`;
+- `install.sh` on a temporary pristine copy -> patched SHA `ee93e269…`;
   backup created; second `--check` -> `status=patched`; second install ->
   `already patched`.
 - `patch -R --dry-run` with the 11.2 patch against the patched copy -> OK.
