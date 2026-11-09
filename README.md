@@ -9,7 +9,7 @@ line. Tool names and targets come from the structured `onToolStart` callback
 (the reviewed text shapes remain a fallback), and model commentary is shown on
 the progress line instead of leaking into the answer.
 
-- **Supported plugin build:** `@openclaw/feishu` **2026.11.1**
+- **Supported plugin builds:** `@openclaw/feishu` **2026.11.1** and **2026.11.2**
 - **Patch type:** unified diff against the installed
   `dist/.setup/monitor.account-*.mjs`
 - **Install:** exact SHA-256 check; backup; atomic replace; idempotent
@@ -18,21 +18,29 @@ the progress line instead of leaking into the answer.
 > This repository ships the patch, installer and tests. It does not redistribute
 > the upstream plugin bundle.
 
-## Supported build
+## Supported builds
 
-| item | value |
-| --- | --- |
-| OpenClaw Feishu plugin | `@openclaw/feishu@2026.11.1` |
-| pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
-| patched bundle | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` |
-| patch | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` |
-| patch hunks | 29 |
-| test assertions | 129 |
+| item | 2026.11.1 | 2026.11.2 |
+| --- | --- | --- |
+| plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2` |
+| pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
+| patched bundle | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` | `9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d` |
+| patch | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` | `530ccc57517e1b6902ecaa0ddd4b6b66fff8fe9677cbd12af975176f7012b750` |
+| patch hunks | 29 | 30 |
+| test assertions | 129 | 129 |
 
-The installer accepts only the pristine 2026.11.1 bundle, the already patched
-bundle, or an unknown build which it refuses. There is no upgrade delta; apply
-it to a pristine 11.1 install. Hosts still on 2026.10.10 must upgrade the plugin
+The installer selects the patch by the target's SHA-256. It accepts a pristine
+or already-patched 2026.11.1/2026.11.2 bundle and refuses any other build. There
+is no upgrade delta; a plugin upgrade reinstalls `dist/` as pristine, so re-run
+the installer afterwards. Hosts still on 2026.10.10 must upgrade the plugin
 first.
+
+2026.11.2 is a small upstream delta over 2026.11.1: `//#region` /
+`//#endregion` section markers around every module, chunk-name renames, and a
+card-action hardening (an unresolvable chat type now refuses the action instead
+of defaulting to `p2p`). None of it touches the streaming-card, progress or tool
+paths, so the 2026.11.2 patch carries the same change blocks as 2026.11.1 —
+re-anchored, not re-designed.
 
 ## Card layout (layout v3 + prewarm)
 
@@ -46,11 +54,11 @@ first.
   ⑤ hr + markdown #note           optional grey identity footer
 ```
 
-Prewarm: 2026.11.1 already creates the card in `onReplyStart`, but leaves it
-empty until the first token. The patch writes `⏳ 思考中...` into `#progress` as
-soon as the card is ready, and clears it (zero-width space) when the first
-token, reasoning chunk or tool event arrives. The text is static — no animation,
-no extra API calls beyond that one write.
+Prewarm: both supported builds already create the card in `onReplyStart`, but
+leave it empty until the first token. The patch writes `⏳ 思考中...` into
+`#progress` as soon as the card is ready, and clears it (zero-width space) when
+the first token, reasoning chunk or tool event arrives. The text is static — no
+animation, no extra API calls beyond that one write.
 
 Tool details: the panel prefers the structured `onToolStart` event (tool name +
 args) and derives a one-line target per tool — `exec` → command, `read`/`edit` →
@@ -124,10 +132,10 @@ the backup on failure.
 ```sh
 sha256sum -c SHA256SUMS
 cd tests
-node run-all.mjs ../patches/2026.11.1/patched.mjs
+node run-all.mjs ../patches/2026.11.2/patched.mjs   # or 2026.11.1/patched.mjs
 ```
 
-Expected: `5/5 suites passed, 0 failed` with 129 assertions.
+Expected: `5/5 suites passed, 0 failed` with 129 assertions, for either build.
 
 Mechanical checks:
 
@@ -138,13 +146,12 @@ python3 tools/verify_patch.py --all=patches
 
 ## Patch architecture
 
-- `patches/2026.11.1/original.mjs` — reviewed pristine 11.1 monitor bundle.
-- `patches/2026.11.1/patched.mjs` — reviewed patched bundle.
-- `patches/2026.11.1/feishu-tool-aggregation.patch` — canonical unified diff.
+- `patches/2026.11.1/` and `patches/2026.11.2/` — reviewed pristine/patched
+  bundle pairs and their canonical unified diffs.
 - `patches/MANIFEST.json` / `patches/UPGRADES.json` — build metadata.
 - `patches/SHA256SUMS` — bundle and patch checksums for the internal tree.
-- `tools/finalize.py` — regenerates the patch, manifest, installer block and
-  `patches/SHA256SUMS` from the reviewed bundle pair.
+- `tools/finalize.py` — regenerates each patch, the manifest, the installer
+  block and `patches/SHA256SUMS` from the reviewed bundle pairs.
 - `tools/verify_patch.py` — forward/reverse byte-exact verification.
 - `tools/adapt_patch.py` — anchor adapter for re-deriving the patch against a
   different minor build (review the result manually).
@@ -155,12 +162,17 @@ the patch can be regenerated.
 
 ## Notes and known limits
 
-- The patch is pinned to the exact 11.1 monitor bundle. Do not apply it to a
-  different version; the installer refuses unknown hashes.
+- The patch is pinned to exact monitor bundles (2026.11.1 and 2026.11.2). Do not
+  apply it to a different version; the installer refuses unknown hashes.
 - 2026.11.1 removed `mergeStreamingText()` and `lastSnapshotTextLength`, and
   `onAssistantMessageStart` now resets `snapshotBaseText` / `lastPartial`. The
   patch keeps that upstream behaviour and layers the tool state machine on top;
   the four hunks that touch those areas are re-anchored for 11.1.
+- 2026.11.2 adds `//#region` / `//#endregion` section markers and renames the
+  internal chunk imports. The 11.2 patch is the same reviewed change set
+  re-anchored onto that build (30 hunks); its change blocks are byte-identical to
+  the 11.1 patch's. The core side is unchanged: `openclaw@2026.11.2` still calls
+  `replyOptions.onToolStart` with `{ name, args, phase }`.
 - `✅ 完成` is written to the progress element. If the turn falls back to a
   non-streaming static send, that static card is unchanged.
 - Tool aggregation only applies to structured tool starts and the reviewed

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "current": "2026.11.1",
+  "current": "2026.11.2",
   "versions": [
     {
       "version": "2026.11.1",
@@ -8,6 +8,16 @@
       "patched_sha256": "b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be",
       "patch_sha256": "1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49",
       "patch": "2026.11.1/feishu-tool-aggregation.patch",
+      "tests": "tests/run-all.mjs",
+      "adapter": "anchor-rebase-v1",
+      "status": "supported"
+    },
+    {
+      "version": "2026.11.2",
+      "original_sha256": "44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6",
+      "patched_sha256": "9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d",
+      "patch_sha256": "530ccc57517e1b6902ecaa0ddd4b6b66fff8fe9677cbd12af975176f7012b750",
+      "patch": "2026.11.2/feishu-tool-aggregation.patch",
       "tests": "tests/run-all.mjs",
       "adapter": "anchor-rebase-v1",
       "status": "supported"

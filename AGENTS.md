@@ -6,7 +6,8 @@ patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.11.1`**.
+- Target plugin build must be **`@openclaw/feishu@2026.11.1`** or
+  **`@openclaw/feishu@2026.11.2`**.
 - The target file is the installed monitor bundle:
 
   ```
@@ -15,7 +16,7 @@ patch.
 
 - Required tools: `bash`, `patch`, `sha256sum` (or `shasum`).
 - No credentials or network access to Feishu are needed for installation.
-- The 2026.11.1 patch is content-only and uses CardKit 2.0 element APIs
+- The patch is content-only and uses CardKit 2.0 element APIs
   (`elements/{id}/content`, `elements/{id}` replace, `elements/{id}` delete); it
   does not use the legacy `status` element or
   `writeStatusContent`/`updateStatus` paths.
@@ -30,10 +31,11 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 ./install.sh "$TARGET"
 ```
 
-Expected installer output:
+Expected installer output (one of):
 
 ```
-sha256: b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be
+sha256: b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be   # 2026.11.1
+sha256: 9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d   # 2026.11.2
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -54,8 +56,8 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 129 assertions. On a pristine 11.1 target,
-`--check` reports `status=pristine`; after installation it reports
+Expected: `5/5 suites passed` with 129 assertions. On a pristine 11.1/11.2
+target, `--check` reports `status=pristine`; after installation it reports
 `status=patched`.
 
 Optional mechanical check:
@@ -122,13 +124,13 @@ systemctl --user restart openclaw-gateway.service
 
 ## Current build reference
 
-| item | value |
-| --- | --- |
-| plugin build | 2026.11.1 |
-| pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
-| patched SHA-256 | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` |
-| patch SHA-256 | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` |
-| patch hunks | 29 |
-| test assertions | 129 |
+| item | 2026.11.1 | 2026.11.2 |
+| --- | --- | --- |
+| plugin build | `2026.11.1` | `2026.11.2` |
+| pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
+| patched SHA-256 | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` | `9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d` |
+| patch SHA-256 | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` | `530ccc57517e1b6902ecaa0ddd4b6b66fff8fe9677cbd12af975176f7012b750` |
+| patch hunks | 29 | 30 |
+| test assertions | 129 | 129 |
 
 See `README.md` for behavior and limitations.

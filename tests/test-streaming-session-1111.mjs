@@ -5,7 +5,10 @@ const src = loadBundle();
 const { ok, finish } = makeCounter();
 
 const classStart = src.indexOf("var FeishuStreamingSession = class {");
-const classEnd = src.indexOf("// extensions/feishu/src/streaming-update.ts", classStart);
+// 2026.11.2 wraps upstream section comments in `//#region` / `//#endregion`
+// markers, so anchor on the bare module path and cut back to its line start.
+const markerIdx = src.indexOf("extensions/feishu/src/streaming-update.ts", classStart);
+const classEnd = markerIdx < 0 ? -1 : src.lastIndexOf("\n", markerIdx) + 1;
 if (classStart < 0 || classEnd < 0) throw new Error("FeishuStreamingSession not found");
 const classSrc = src.slice(classStart, classEnd);
 
