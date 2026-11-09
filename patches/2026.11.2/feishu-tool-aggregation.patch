@@ -9,7 +9,7 @@
  const STREAMING_SIGNIFICANT_DELTA_CHARS = 18;
  const FEISHU_STREAMING_TOKEN_DEFAULT_LIFETIME_SECONDS = 7200;
  const tokenCache = /* @__PURE__ */ new Map();
-@@ -959,11 +959,32 @@
+@@ -959,11 +959,41 @@
  async function assertSuccessfulCardKitResponse(response, auditContext, action) {
  	if (!response.ok) {
  		cancelUnreadResponseBody(response);
@@ -29,8 +29,17 @@
 +		throw error;
 +	}
 +}
++/** CardKit codes that mean this card's streaming window is already over. */
++const STREAMING_CLOSED_ERROR_CODES = /* @__PURE__ */ new Set([200850, 300309]);
++/** True once Feishu has ended streaming for the card (its streaming window is 10 minutes). */
++function isStreamingClosedError(error) {
++	const code = Number(error?.feishuCode ?? error?.code);
++	if (STREAMING_CLOSED_ERROR_CODES.has(code)) return true;
++	return /streaming mode is closed|card streaming timeout/i.test(String(error?.message ?? error ?? ""));
++}
 +/** True for transient CardKit failures that are safe to retry. */
 +function isRetryableCardKitError(error) {
++	if (isStreamingClosedError(error)) return false;
 +	if (error?.retryable === true) return true;
 +	if (error?.retryable === false) return false;
 +	const status = Number(error?.httpStatus);
@@ -45,7 +54,7 @@
  async function getToken(creds) {
  	const key = `${creds.domain ?? "feishu"}|${creds.appId}`;
  	const cached = tokenCache.get(key);
-@@ -1011,10 +1032,193 @@
+@@ -1011,22 +1041,210 @@
  	return clean.length <= max ? clean : sliceUtf16Safe(clean, 0, max - 3) + "...";
  }
  function shouldPushStreamingUpdate(previousText, nextText) {
@@ -242,7 +251,8 @@
  		this.state = null;
  		this.queue = Promise.resolve();
  		this.closed = false;
-@@ -1022,11 +1226,15 @@
++		this.expired = false;
+ 		this.lastUpdateTime = 0;
  		this.pendingText = null;
  		this.flushTimer = null;
  		this.updateThrottleMs = STREAMING_UPDATE_THROTTLE_MS;
@@ -258,7 +268,7 @@
  		const auditContext = `feishu.streaming-card.${operation}`;
  		const { response, release } = await fetchWithSsrFGuard({
  			url: `${resolveApiBase(this.creds.domain)}/cardkit/v1/cards${path}`,
-@@ -1055,6 +1263,19 @@
+@@ -1055,6 +1273,19 @@
  			tag: "markdown",
  			content: "",
  			element_id: "content"
@@ -278,7 +288,7 @@
  		}];
  		if (options?.note) {
  			elements.push({ tag: "hr" });
-@@ -1117,6 +1338,7 @@
+@@ -1117,6 +1348,7 @@
  			}
  		}), "Send card failed");
  		if (sendRes.code !== 0) throw new Error(`Send card failed: ${sendRes.msg}`);
@@ -286,11 +296,11 @@
  		const messageId = sendRes.data?.message_id?.trim();
  		this.state = {
  			cardId,
-@@ -1130,20 +1352,93 @@
+@@ -1129,21 +1361,102 @@
+ 		this.log?.(`Started streaming: cardId=${cardId}${messageId ? `, messageId=${messageId}` : ""}`);
  	}
  	async writeCardContent(text, replace, onError) {
- 		if (!this.state) return false;
--		this.state.sequence += 1;
++		if (!this.state || this.expired) return false;
 +		const sequence = this.state.sequence += 1;
 +		const uuid = `${replace ? "r" : "s"}_${this.state.cardId}_${sequence}`;
 +		let lastError;
@@ -312,45 +322,49 @@
 +				return true;
 +			} catch (error) {
 +				lastError = error;
++				if (isStreamingClosedError(error)) {
++					this.markStreamingExpired(error);
++					break;
++				}
 +				if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
 +				await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
 +			}
 +		}
 +		onError?.(lastError);
-+		this.log?.(`Card content write failed after retries: ${String(lastError)}`);
++		if (!this.expired) this.log?.(`Card content write failed after retries: ${String(lastError)}`);
 +		return false;
 +	}
 +	async writeElementContent(elementId, text) {
-+		if (!this.state || this.closed || typeof text !== "string" || !text.trim()) return false;
++		if (!this.state || this.closed || this.expired || typeof text !== "string" || !text.trim()) return false;
 +		const run = this.queue.then(async () => {
-+			if (!this.state || this.closed) return false;
++			if (!this.state || this.closed || this.expired) return false;
 +			return this.putElementPayload(elementId, text, "update");
 +		});
 +		this.queue = run.then(() => void 0, () => void 0);
 +		return run;
 +	}
 +	async updateDetails(text) {
-+		if (!this.state || this.closed || typeof text !== "string" || !text.trim()) return false;
++		if (!this.state || this.closed || this.expired || typeof text !== "string" || !text.trim()) return false;
 +		if (text === this.detailsSentText) return true;
 +		const sent = await this.writeElementContent("detailspanel_body", text);
 +		if (sent) this.detailsSentText = text;
 +		return sent;
 +	}
 +	async updateProgress(text) {
-+		if (!this.state || this.closed || typeof text !== "string" || !text.trim()) return false;
++		if (!this.state || this.closed || this.expired || typeof text !== "string" || !text.trim()) return false;
 +		if (text === this.progressSentText) return true;
 +		const sent = await this.writeElementContent("progress", text);
 +		if (sent) this.progressSentText = text;
 +		return sent;
 +	}
 +	async putElementPayload(elementId, payload, mode) {
-+		if (!this.state) return false;
++		if (!this.state || this.expired) return false;
 +		const sequence = this.state.sequence += 1;
 +		const uuid = `el_${this.state.cardId}_${sequence}`;
 +		const replace = mode === "replace";
 +		let lastError;
 +		for (let attempt = 1; attempt <= CARD_WRITE_RETRY_MAX_ATTEMPTS; attempt += 1) {
-+			if (!this.state) {
++			if (!this.state || this.expired) {
 +				lastError = new Error("Streaming state cleared before element write");
 +				break;
 +			}
@@ -363,15 +377,20 @@
 +				return true;
 +			} catch (error) {
 +				lastError = error;
++				if (isStreamingClosedError(error)) {
++					this.markStreamingExpired(error);
++					break;
++				}
 +				if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
 +				await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
 +			}
 +		}
-+		this.log?.(`Element ${elementId} ${mode} failed after retries: ${String(lastError)}`);
++		if (!this.expired) this.log?.(`Element ${elementId} ${mode} failed after retries: ${String(lastError)}`);
 +		return false;
 +	}
 +	async deleteElementForced(elementId) {
-+		if (!this.state) return false;
+ 		if (!this.state) return false;
+-		this.state.sequence += 1;
 +		const sequence = this.state.sequence += 1;
  		try {
 -			await this.requestCardKit(`/${this.state.cardId}/elements/content${replace ? "" : "/content"}`, replace ? "replace" : "update", "PUT", () => ({
@@ -391,7 +410,50 @@
  			return false;
  		}
  	}
-@@ -1213,29 +1508,55 @@
+@@ -1189,7 +1502,7 @@
+ 		await this.flushPendingUpdate();
+ 	}
+ 	async updateNoteContent(note) {
+-		if (!this.state || !this.state.hasNote) return;
++		if (!this.state || this.expired || !this.state.hasNote) return;
+ 		this.state.sequence += 1;
+ 		const path = `/${this.state.cardId}/elements/note/content`;
+ 		const token = await getToken(this.creds);
+@@ -1199,8 +1512,33 @@
+ 			uuid: `n_${this.state.cardId}_${this.state.sequence}`
+ 		}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, "Update card note"), token).catch((e) => this.log?.(`Note update failed: ${String(e)}`));
+ 	}
++	markStreamingExpired(error) {
++		if (this.expired) return;
++		this.expired = true;
++		this.pendingText = null;
++		this.clearFlushTimer();
++		this.log?.(`Streaming card expired (${String(error?.message ?? error)}); card updates stopped`);
++	}
++	async discardExpired() {
++		const expiredState = this.state;
++		this.closed = true;
++		this.pendingText = null;
++		this.clearFlushTimer();
++		await this.queue.catch(() => void 0);
++		this.state = null;
++		if (expiredState?.messageId) try {
++			const response = await this.client.im.message.delete({ path: { message_id: expiredState.messageId } });
++			if (response.code !== void 0 && response.code !== 0) throw new Error(`Delete card message failed: ${response.msg ?? response.code}`);
++			this.onApiCall?.("message");
++		} catch (error) {
++			this.log?.(`Delete expired card failed: ${String(error)}`);
++		}
++		this.log?.(`Dropped expired streaming card: cardId=${expiredState?.cardId ?? "unknown"}`);
++		return { visibleReplySent: false };
++	}
+ 	async closeWithResult(finalText, options) {
+ 		if (!this.state || this.closed) return { visibleReplySent: false };
++		if (this.expired) return this.discardExpired();
+ 		this.closed = true;
+ 		this.clearFlushTimer();
+ 		await this.queue;
+@@ -1213,29 +1551,55 @@
  				finalWriteError = e;
  				this.log?.(`Final ${replace ? "replace" : "update"} failed: ${String(e)}`);
  			});
@@ -463,7 +525,7 @@
  		const finalState = this.state;
  		this.state = null;
  		this.pendingText = null;
-@@ -1259,6 +1580,7 @@
+@@ -1259,6 +1623,7 @@
  		try {
  			const response = await this.client.im.message.delete({ path: { message_id: messageId } });
  			if (response.code !== void 0 && response.code !== 0) throw new Error(`Delete streaming card message failed: ${response.msg ?? response.code}`);
@@ -471,7 +533,7 @@
  			this.state = null;
  			this.pendingText = null;
  			this.log?.(`Discarded streaming card: cardId=${cardId}`);
-@@ -1443,6 +1765,11 @@
+@@ -1443,6 +1808,11 @@
  		accountId
  	});
  	let typingState = null;
@@ -483,7 +545,7 @@
  	const { typingCallbacks, responsePrefix, responsePrefixContextProvider, onModelSelected } = createChannelMessageReplyPipeline({
  		cfg,
  		agentId,
-@@ -1455,6 +1782,7 @@
+@@ -1455,6 +1825,7 @@
  				const messageCreateTimeMs = normalizeEpochMs(params.messageCreateTimeMs);
  				if (messageCreateTimeMs !== void 0 && Date.now() - messageCreateTimeMs > TYPING_INDICATOR_MAX_AGE_MS) return;
  				if (typingState?.reactionId) return;
@@ -491,7 +553,7 @@
  				typingState = await addTypingIndicator({
  					cfg,
  					messageId: typingTargetMessageId,
-@@ -1464,6 +1792,7 @@
+@@ -1464,6 +1835,7 @@
  			},
  			stop: async () => {
  				if (!typingState) return;
@@ -499,7 +561,7 @@
  				await removeTypingIndicator({
  					cfg,
  					state: typingState,
-@@ -1504,6 +1833,20 @@
+@@ -1504,6 +1876,20 @@
  	let lastPartial = "";
  	let reasoningText = "";
  	let statusLine = "";
@@ -520,7 +582,7 @@
  	let snapshotBaseText = "";
  	let hasStreamingFinalText = false;
  	const deliveredFinalTexts = /* @__PURE__ */ new Set();
-@@ -1525,9 +1868,162 @@
+@@ -1525,9 +1911,162 @@
  		return `> 💭 **Thinking**\n${thinking.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").replace(/^_(.*)_$/gm, "$1").split("\n").map((line) => `> ${line}`).join("\n")}`;
  	};
  	const buildCombinedStreamText = (thinking, answer) => {
@@ -684,7 +746,7 @@
  		partialUpdateQueue = queueFeishuStreamingUpdate({
  			queue: partialUpdateQueue,
  			session: streaming,
-@@ -1536,6 +2032,15 @@
+@@ -1536,6 +2075,15 @@
  			accountId: account.accountId,
  			runtime: params.runtime
  		});
@@ -700,7 +762,7 @@
  	};
  	const queueStreamingUpdate = (nextText, options) => {
  		if (!nextText) return;
-@@ -1555,7 +2060,7 @@
+@@ -1555,7 +2103,7 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -709,7 +771,7 @@
  			streaming = session;
  			try {
  				const cardHeader = resolveCardHeader(agentId, identity);
-@@ -1569,6 +2074,8 @@
+@@ -1569,6 +2117,8 @@
  					note: cardNote
  				});
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
@@ -718,7 +780,7 @@
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
  				params.runtime.error?.(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
-@@ -1580,6 +2087,7 @@
+@@ -1580,6 +2130,7 @@
  		})();
  	};
  	const resetStreamingState = () => {
@@ -726,7 +788,7 @@
  		streaming = null;
  		streamingStartPromise = null;
  		partialUpdateQueue = Promise.resolve();
-@@ -1587,6 +2095,21 @@
+@@ -1587,6 +2138,21 @@
  		lastPartial = "";
  		reasoningText = "";
  		statusLine = "";
@@ -748,7 +810,7 @@
  		snapshotBaseText = "";
  		hasStreamingFinalText = false;
  	};
-@@ -1600,6 +2123,10 @@
+@@ -1600,6 +2166,10 @@
  		const updateQueueToClose = partialUpdateQueue;
  		const finalizedAnswerText = streamText;
  		const finalizedReasoningText = reasoningText;
@@ -759,7 +821,7 @@
  		const outcome = {
  			disposition,
  			content: finalizedAnswerText
-@@ -1611,14 +2138,19 @@
+@@ -1611,14 +2181,19 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -781,7 +843,7 @@
  					}
  				} catch (error) {
  					if (!(error instanceof FeishuStreamingFinalizationError)) throw error;
-@@ -1687,6 +2219,15 @@
+@@ -1687,6 +2262,15 @@
  		startStreaming();
  		flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
  		return false;
@@ -797,7 +859,7 @@
  	};
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
-@@ -1716,6 +2257,7 @@
+@@ -1716,6 +2300,7 @@
  					text: chunk,
  					...mentions.length > 0 ? { mentions } : {}
  				};
@@ -805,7 +867,7 @@
  				const result = paramsLocal.useCard ? await sendStructuredCardFeishu({
  					...sendParams,
  					header,
-@@ -1956,9 +2498,19 @@
+@@ -1956,9 +2541,19 @@
  			if (previewStreamingEnabled && renderMode === "card") startStreaming();
  			await typingCallbacks?.onReplyStart?.();
  		},
@@ -826,7 +888,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -1984,6 +2536,9 @@
+@@ -1984,6 +2579,9 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -836,7 +898,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -2003,6 +2558,10 @@
+@@ -2003,6 +2601,10 @@
  				const text = info?.kind === "final" && !hasIndependentPresentation ? mergeStreamingFinalText(streamText, payload.isError ? reply.text : `${snapshotBaseText}${reply.text}`, payload.isError === true && hasStreamingFinalText) : reply.text;
  				const hasText = reply.hasText;
  				const hasMedia = reply.hasMedia;
@@ -847,7 +909,7 @@
  				const ttsSupplement = getReplyPayloadTtsSupplement(payload);
  				const ttsTextAlreadyVisible = ttsSupplement?.visibleTextAlreadyDelivered === true;
  				const hasVoiceMedia = hasMedia && reply.mediaUrls.some((mediaUrl) => shouldSuppressFeishuTextForVoiceMedia({
-@@ -2120,6 +2679,12 @@
+@@ -2120,6 +2722,12 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -860,7 +922,7 @@
  				startStreaming();
  				queueStreamingUpdate(cleaned, {
  					dedupeWithLastPartial: true,
-@@ -2129,6 +2694,7 @@
+@@ -2129,6 +2737,7 @@
  			} : void 0,
  			onReasoningStream: reasoningPreviewEnabled ? (payload) => {
  				if (!payload.text) return false;
@@ -868,7 +930,7 @@
  				startStreaming();
  				const nextThinking = formatReasoningMessage(payload.text);
  				if (nextThinking) {
-@@ -2138,9 +2704,16 @@
+@@ -2138,9 +2747,16 @@
  				return false;
  			} : void 0,
  			onReasoningEnd: reasoningPreviewEnabled ? () => false : void 0,
@@ -885,7 +947,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2152,10 +2725,30 @@
+@@ -2152,10 +2768,30 @@
  			onAssistantMessageStart: previewStreamingEnabled ? () => {
  				snapshotBaseText = streamText ? `${streamText}\n\n` : "";
  				lastPartial = "";

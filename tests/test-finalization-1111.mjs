@@ -31,10 +31,15 @@ const methodEnd = src.indexOf("\n\tasync writeElementContent", methodStart);
 if (methodStart < 0 || methodEnd < 0) throw new Error("writeCardContent method missing");
 const methodBody = src.slice(methodStart, methodEnd);
 const innerBody = methodBody.slice(methodBody.indexOf("{") + 1, methodBody.lastIndexOf("}"));
+// Use the real CardKit classifiers so retry/terminal decisions are exercised.
+const helperStart = src.indexOf("/** CardKit codes that mean this card's streaming window is already over. */");
+const helperEnd = src.indexOf("const delayMs = ", helperStart);
+if (helperStart < 0 || helperEnd < 0) throw new Error("cardkit error helpers not found");
+const cardKitHelpers = src.slice(helperStart, helperEnd);
 const buildWrite = new Function(`
   const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;
   const CARD_WRITE_RETRY_BASE_DELAY_MS = 1;
-  const isRetryableCardKitError = (error) => error?.retryable === true || Number(error?.httpStatus) >= 500 || Number(error?.httpStatus) === 429;
+  ${cardKitHelpers}
   const delayMs = async () => {};
   return async function writeCardContent(text, replace, onError) {${innerBody}};
 `);
@@ -43,7 +48,11 @@ async function runWrite(errors) {
   const calls = [];
   const session = {
     state: { cardId: "card", sequence: 0 },
+    expired: false,
     log: () => {},
+    markStreamingExpired() {
+      this.expired = true;
+    },
     requestCardKit: async (path, operation, method, body) => {
       const payload = typeof body === "function" ? body() : body;
       calls.push({ sequence: payload.sequence, uuid: payload.uuid });

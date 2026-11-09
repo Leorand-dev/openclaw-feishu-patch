@@ -12,12 +12,18 @@ const classEnd = markerIdx < 0 ? -1 : src.lastIndexOf("\n", markerIdx) + 1;
 if (classStart < 0 || classEnd < 0) throw new Error("FeishuStreamingSession not found");
 const classSrc = src.slice(classStart, classEnd);
 
+// The CardKit error classifiers are real code under test, not stubs.
+const helperStart = src.indexOf("/** CardKit codes that mean this card's streaming window is already over. */");
+const helperEnd = src.indexOf("const delayMs = ", helperStart);
+if (helperStart < 0 || helperEnd < 0) throw new Error("cardkit error helpers not found");
+const cardKitHelpers = src.slice(helperStart, helperEnd);
+
 const Session = new Function([
   "const STREAMING_UPDATE_THROTTLE_MS = 250;",
   "const STREAMING_SIGNIFICANT_DELTA_CHARS = 18;",
   "const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;",
   "const CARD_WRITE_RETRY_BASE_DELAY_MS = 1;",
-  "const isRetryableCardKitError = () => false;",
+  cardKitHelpers,
   "const delayMs = async () => {};",
   "const assertSuccessfulCardKitResponse = async () => {};",
   "const cancelUnreadResponseBody = () => {};",
@@ -32,9 +38,9 @@ const Session = new Function([
   "const shouldPushStreamingUpdate = () => true;",
   "class FeishuStreamingFinalizationError extends Error { constructor(cause, result) { super(String(cause)); this.cause = cause; this.result = result; } }",
   classSrc,
-  "return FeishuStreamingSession;"
+  "return { FeishuStreamingSession, isRetryableCardKitError, isStreamingClosedError };"
 ].join("\n"));
-const StreamingSession = new Session();
+const { FeishuStreamingSession: StreamingSession, isRetryableCardKitError, isStreamingClosedError } = new Session();
 
 const calls = [];
 const client = {
@@ -123,4 +129,49 @@ ok("final details payload is a column_set", String(replaceCall?.payload?.element
 
 ok("streaming throttle is 250ms", src.includes("const STREAMING_UPDATE_THROTTLE_MS = 250;"));
 ok("punctuation no longer forces a flush", !src.includes("/[\\n。！？!?；;：:]$/") && src.includes("nextText.length - previousText.length >= STREAMING_SIGNIFICANT_DELTA_CHARS;"));
+
+// ---- streaming window expiry (200850 card streaming timeout / 300309) ----
+const timedOutError = new Error("Update card element progress failed: ErrMsg: card streaming timeout;  (code=200850)");
+timedOutError.feishuCode = 200850;
+const closedModeError = new Error("Update card element progress failed: ErrMsg: streaming mode is closed;  (code=300309)");
+closedModeError.feishuCode = 300309;
+
+ok("card streaming timeout is terminal", isStreamingClosedError(timedOutError) && !isRetryableCardKitError(timedOutError));
+ok("closed streaming mode is terminal", isStreamingClosedError(closedModeError) && !isRetryableCardKitError(closedModeError));
+ok("plain network timeouts stay retryable", !isStreamingClosedError({ message: "request timeout" }) && isRetryableCardKitError({ message: "request timeout" }));
+ok("rate limits stay retryable", isRetryableCardKitError({ feishuCode: 429 }));
+
+calls.length = 0;
+let expiredDeletes = 0;
+const expiredLogs = [];
+const expiredClient = {
+  im: {
+    message: {
+      create: async () => ({ code: 0, data: { message_id: "m4" } }),
+      delete: async () => {
+        expiredDeletes += 1;
+        return { code: 0 };
+      }
+    }
+  }
+};
+const expiredSession = new StreamingSession(expiredClient, { domain: "feishu", appId: "a", appSecret: "s" }, (line) => expiredLogs.push(line));
+expiredSession.requestCardKit = async (path, operation, method) => {
+  calls.push({ path, operation, method });
+  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c4" } };
+  throw timedOutError;
+};
+await expiredSession.start("chat1", "chat_id", {});
+ok("write on an expired card fails once", (await expiredSession.updateProgress("<font color='grey'>⏳ 27 个工具</font>")) === false);
+const callsAfterFirstFailure = calls.length;
+ok("expired session stops element writes", (await expiredSession.updateDetails("- 💻 终端 ×2")) === false && (await expiredSession.updateProgress("\u200B")) === false && calls.length === callsAfterFirstFailure);
+await expiredSession.update("later token");
+ok("expired session stops content writes", calls.length === callsAfterFirstFailure);
+ok("expiry is logged once", expiredLogs.filter((line) => line.includes("Streaming card expired")).length === 1);
+const expiredResult = await expiredSession.closeWithResult("answer");
+ok("expired close reports no visible reply", expiredResult.visibleReplySent === false);
+ok("frozen card is deleted at close", expiredDeletes === 1);
+ok("expired close does not patch card settings", !calls.some((call) => call.path.endsWith("/settings")));
+ok("expired close logs the drop", expiredLogs.some((line) => line.includes("Dropped expired streaming card")));
+
 finish("2026.11.1 streaming-session shape");

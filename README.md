@@ -24,10 +24,10 @@ the progress line instead of leaking into the answer.
 | --- | --- | --- |
 | plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2` |
 | pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched bundle | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` | `9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d` |
-| patch | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` | `530ccc57517e1b6902ecaa0ddd4b6b66fff8fe9677cbd12af975176f7012b750` |
-| patch hunks | 29 | 30 |
-| test assertions | 129 | 129 |
+| patched bundle | `73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c` | `2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2` |
+| patch | `76444b806ba7822d7423f4d34189d736bad8f32ac17b62ca6d03235c7f8612fd` | `24c38bd13132a2d1d1009b3feb53465595c3e801a831e2145cb6eb572611dd4a` |
+| patch hunks | 31 | 31 |
+| test assertions | 141 | 141 |
 
 The installer selects the patch by the target's SHA-256. It accepts a pristine
 or already-patched 2026.11.1/2026.11.2 bundle and refuses any other build. There
@@ -105,6 +105,14 @@ panel and the divider are deleted so a plain Q&A card has no empty panel.
 - Retries transient content, element and close-settings writes (HTTP 408/429/5xx
   and Feishu backoff codes) with bounded backoff; permanently rejected writes
   fail without retry.
+- Detects the end of a card's streaming window and stops writing. Feishu ends
+  streaming **10 minutes** after a card starts: the first late write returns
+  code `200850` (`card streaming timeout`) and every later one `300309`
+  (`streaming mode is closed`). Both are treated as terminal — the session is
+  marked expired, all further progress/details/content writes become no-ops
+  (no retries, no API calls), and at close the frozen card is deleted and the
+  turn reports "no visible reply" so the answer is delivered as a normal
+  message instead of being lost.
 - Fails open: if the progress element write fails the completion line is folded
   back into the content; if the final panel replace fails the live grouped
   markdown is kept; if the empty-panel delete fails the panel simply stays.
@@ -135,7 +143,7 @@ cd tests
 node run-all.mjs ../patches/2026.11.2/patched.mjs   # or 2026.11.1/patched.mjs
 ```
 
-Expected: `5/5 suites passed, 0 failed` with 129 assertions, for either build.
+Expected: `5/5 suites passed, 0 failed` with 141 assertions, for either build.
 
 Mechanical checks:
 
@@ -170,9 +178,10 @@ the patch can be regenerated.
   the four hunks that touch those areas are re-anchored for 11.1.
 - 2026.11.2 adds `//#region` / `//#endregion` section markers and renames the
   internal chunk imports. The 11.2 patch is the same reviewed change set
-  re-anchored onto that build (30 hunks); its change blocks are byte-identical to
-  the 11.1 patch's. The core side is unchanged: `openclaw@2026.11.2` still calls
-  `replyOptions.onToolStart` with `{ name, args, phase }`.
+  re-anchored onto that build (31 hunks, same count as 11.1); its change blocks
+  are byte-identical to the 11.1 patch's. The core side is unchanged:
+  `openclaw@2026.11.2` still calls `replyOptions.onToolStart` with
+  `{ name, args, phase }`.
 - `✅ 完成` is written to the progress element. If the turn falls back to a
   non-streaming static send, that static card is unchanged.
 - Tool aggregation only applies to structured tool starts and the reviewed

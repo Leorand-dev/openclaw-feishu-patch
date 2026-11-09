@@ -34,8 +34,8 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 Expected installer output (one of):
 
 ```
-sha256: b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be   # 2026.11.1
-sha256: 9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d   # 2026.11.2
+sha256: 73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c   # 2026.11.1
+sha256: 2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2   # 2026.11.2
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -56,7 +56,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 129 assertions. On a pristine 11.1/11.2
+Expected: `5/5 suites passed` with 141 assertions. On a pristine 11.1/11.2
 target, `--check` reports `status=pristine`; after installation it reports
 `status=patched`.
 
@@ -113,6 +113,12 @@ python3 tools/check_docs.py
 - Plugin upgrades reinstall `dist/` and delete `.monitor.backup-*.mjs`. Re-apply
   the patch after every upgrade and keep an out-of-tree copy of the pristine
   bundle if you need a rollback target.
+- A card's streaming window ends 10 minutes after the card is created: the first
+  late write returns `200850` (`card streaming timeout`) and later ones `300309`
+  (`streaming mode is closed`). Both are terminal by design — the session stops
+  writing, the frozen card is deleted at close and the answer is delivered as a
+  normal message. Do not add retry logic for these two codes; doing so burns the
+  app's API quota for no visible result.
 
 ## Rollback
 
@@ -128,9 +134,9 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- | --- |
 | plugin build | `2026.11.1` | `2026.11.2` |
 | pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched SHA-256 | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` | `9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d` |
-| patch SHA-256 | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` | `530ccc57517e1b6902ecaa0ddd4b6b66fff8fe9677cbd12af975176f7012b750` |
-| patch hunks | 29 | 30 |
-| test assertions | 129 | 129 |
+| patched SHA-256 | `73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c` | `2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2` |
+| patch SHA-256 | `76444b806ba7822d7423f4d34189d736bad8f32ac17b62ca6d03235c7f8612fd` | `24c38bd13132a2d1d1009b3feb53465595c3e801a831e2145cb6eb572611dd4a` |
+| patch hunks | 31 | 31 |
+| test assertions | 141 | 141 |
 
 See `README.md` for behavior and limitations.

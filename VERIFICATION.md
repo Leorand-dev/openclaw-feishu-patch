@@ -14,12 +14,12 @@ still on 10.10 must upgrade the plugin before installing.
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.11.1/feishu-tool-aggregation.patch` | `1f67ad1ed00bd7d8a004cf8186928881035886d608f9dc0c3d86eaa3fef4ef49` |
-| `patches/2026.11.2/feishu-tool-aggregation.patch` | `530ccc57517e1b6902ecaa0ddd4b6b66fff8fe9677cbd12af975176f7012b750` |
+| `patches/2026.11.1/feishu-tool-aggregation.patch` | `76444b806ba7822d7423f4d34189d736bad8f32ac17b62ca6d03235c7f8612fd` |
+| `patches/2026.11.2/feishu-tool-aggregation.patch` | `24c38bd13132a2d1d1009b3feb53465595c3e801a831e2145cb6eb572611dd4a` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
-| patched bundle, 2026.11.1 | `b7ae62a883a10d15ce5e67fdf10ec30bcee277ad6e7b38a97ca7292112bb03be` |
+| patched bundle, 2026.11.1 | `73b3f9942e7be46e6d9e0cc92f2b45cc34248b8163502e7bd2a3b8e5769b8a6c` |
 | pristine bundle, 2026.11.2 | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched bundle, 2026.11.2 | `9ea34a8dbb30de75a3b3c1a39d12785c583be68010d56edba27dbf258952a63d` |
+| patched bundle, 2026.11.2 | `2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -28,9 +28,9 @@ reference values for the exact supported builds.
 
 | item | 2026.11.1 | 2026.11.2 |
 | --- | --- | --- |
-| hunks | 29 | 30 |
-| forward apply | `6dbfa74b…` -> `b7ae62a8…`, 29/29 anchors unique | `44f6d50f…` -> `9ea34a8d…`, 30/30 anchors unique |
-| reverse apply | `b7ae62a8…` -> `6dbfa74b…`, byte-exact | `9ea34a8d…` -> `44f6d50f…`, byte-exact |
+| hunks | 31 | 31 |
+| forward apply | `6dbfa74b…` -> `73b3f994…`, 31/31 anchors unique | `44f6d50f…` -> `2796212b…`, 31/31 anchors unique |
+| reverse apply | `73b3f994…` -> `6dbfa74b…`, byte-exact | `2796212b…` -> `44f6d50f…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
   both builds (`ALL_VERSIONS_APPLY_REVERSE_PASS: True`).
@@ -51,8 +51,8 @@ The 11.1 -> 11.2 upstream delta of `monitor.account-*.mjs` is:
 
 None of it touches the streaming-card, progress, details-panel or tool paths.
 Re-anchoring the reviewed 11.1 patch onto the 11.2 pristine bundle reproduces
-**the same 49 change blocks byte-for-byte**; only the hunk framing differs
-(30 hunks instead of 29). The core side is unchanged as well:
+**the same change blocks byte-for-byte**; only the file offsets differ. The core
+side is unchanged as well:
 `openclaw@2026.11.2` still forwards `replyOptions.onToolStart` in
 `dist/dispatch-from-config-*.mjs` and the payload contract is still
 `{ itemId, toolCallId, name, phase, args, detailMode }`.
@@ -87,9 +87,42 @@ Close behaviour:
 - completion line written to `progress`; if that write fails it is folded back
   into `content` so the marker is never lost.
 
+## Streaming window expiry (long turns)
+
+Feishu ends a card's streaming window **10 minutes** after the card is created.
+The first write after that returns code `200850` (`ErrMsg: card streaming
+timeout`) and every later one `300309` (`ErrMsg: streaming mode is closed`).
+
+Observed before the fix, on a 15-minute turn (host 79, 2026-11-09):
+
+| time | event |
+| --- | --- |
+| 16:46:29 | `Started streaming` (card created) |
+| 16:56:29 | first `200850` — exactly 600 s after the card start |
+| 16:56:29–17:05:02 | 222 failed writes, 130 progress + 46 panel + 46 content |
+| 17:05:02 | `turn api calls: total=399 card=396 message=1 reaction=2` |
+| 17:05:03 | `Discarded streaming card` |
+
+So roughly half of that turn's 396 card calls were wasted on a card that could
+no longer accept writes.
+
+Behaviour now:
+
+- `isStreamingClosedError()` classifies `200850` / `300309` (and their messages)
+  as terminal, and `isRetryableCardKitError()` never retries them.
+- The first terminal failure marks the session `expired`, logs one line
+  (`Streaming card expired (...); card updates stopped`) and clears the pending
+  flush timer. Every later progress / details / content / note write returns
+  `false` before touching the network, so a dead card costs one API call.
+- `closeWithResult()` on an expired session deletes the frozen card message,
+  logs `Dropped expired streaming card`, returns `visibleReplySent: false` and
+  does **not** PATCH `card.settings`. The normal text delivery path then posts
+  the answer, so a 15-minute turn still answers — just as a message instead of a
+  finished card.
+
 ## Test results
 
-`tests/run-all.mjs` -> **5/5 suites, 0 failed, 129 assertions** against each
+`tests/run-all.mjs` -> **5/5 suites, 0 failed, 141 assertions** against each
 patched bundle (2026.11.1 and 2026.11.2):
 
 | suite | assertions |
@@ -97,9 +130,9 @@ patched bundle (2026.11.1 and 2026.11.2):
 | parser/structured-details/content-only helpers | 43 |
 | aggregation/status/details (incl. prewarm) | 21 |
 | finalization/reliability (incl. api counter) | 32 |
-| streaming-session shape | 27 |
+| streaming-session shape (incl. window expiry) | 39 |
 | idle-hold behavior | 6 |
-| **total** | **129** |
+| **total** | **141** |
 
 The streaming-session suite now locates the upstream module boundary by the
 bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
@@ -112,7 +145,7 @@ bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
   all entries OK.
 - `install.sh --check` on pristine 2026.11.2 -> `status=pristine version=2026.11.2`.
 - `install.sh --dry-run` -> `would patch`, target unchanged.
-- `install.sh` on a temporary pristine copy -> patched SHA `9ea34a8d…`;
+- `install.sh` on a temporary pristine copy -> patched SHA `2796212b…`;
   backup created; second `--check` -> `status=patched`; second install ->
   `already patched`.
 - `patch -R --dry-run` with the 11.2 patch against the patched copy -> OK.
@@ -144,3 +177,8 @@ bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
 - The prewarm text is intentionally static (`⏳ 思考中...`); no dot animation and
   no timer.
 - The 24-second bounded idle hold is unchanged from the previous release.
+- A turn longer than 10 minutes cannot keep a live card: Feishu ends streaming
+  at the 10-minute mark. From then on the card freezes, and at close it is
+  deleted and the answer arrives as a normal message. The card is not rebuilt or
+  continued (a continuation card would need a second `im.message.create` and a
+  second streaming window).
