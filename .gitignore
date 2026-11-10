@@ -8,3 +8,4 @@ patches/*/original.mjs
 patches/*/patched.mjs
 __pycache__/
 *.pyc
+*.log

@@ -22,7 +22,7 @@ function loadHelpers() {
     return {
       parseBareToolLabel, parseCollapsibleToolSummary, formatToolDisplayName,
       formatElapsedDuration, detectOpenCodeFence, truncateDisplayText,
-      truncateDetailTail, sanitizeToolDetail, toolDetailFromArgs, formatToolDetailForLine
+      truncateDetailTail, sanitizeToolDetail, toolDetailFromArgs, formatToolDetailForLine, redactSecrets
     };`)();
 }
 
@@ -52,6 +52,18 @@ ok("tools without a detail key stay empty", h.toolDetailFromArgs("apply_patch", 
 ok("missing args are tolerated", h.toolDetailFromArgs("exec", undefined) === "" && h.toolDetailFromArgs("exec", null) === "");
 ok("secrets are redacted", h.toolDetailFromArgs("exec", { command: "curl -H 'Authorization: Bearer abc123' x" }).includes("***")
   && !h.toolDetailFromArgs("exec", { command: "curl -H 'Authorization: Bearer abc123' x" }).includes("abc123"));
+ok("space-separated secret flags are redacted", (() => {
+  const detail = h.sanitizeToolDetail("mysql --password hunter2 appdb");
+  return detail.includes("--password ***") && !detail.includes("hunter2");
+})());
+ok("provider token shapes are redacted", (() => {
+  const detail = h.sanitizeToolDetail("export sk-abcdefghijklmnopqrstu");
+  return !detail.includes("abcdefghijklmnopqrstu");
+})());
+ok("commentary text is redacted too", (() => {
+  const text = h.redactSecrets("config token=abc123 applied");
+  return text.includes("***") && !text.includes("abc123");
+})());
 ok("detail length is capped", Array.from(h.toolDetailFromArgs("exec", { command: "x".repeat(300) })).length <= 80);
 ok("command detail truncates the head", h.formatToolDetailForLine("exec", "a".repeat(100)).endsWith("…"));
 ok("path detail truncates the tail", h.formatToolDetailForLine("read", "/a/b/c/" + "d".repeat(80)).startsWith("…"));
@@ -139,7 +151,7 @@ ok("dropped tool events are disclosed", droppedSandbox.includes("另有 5 个较
 ok("no legacy status element", !src.includes('element_id: "status"'));
 ok("no legacy status API", !src.includes("writeStatusContent") && !src.includes("deleteStatusElement") && !src.includes("statusElementEnabled"));
 ok("card has content, progress, divider and details panel", src.includes('element_id: "content"') && src.includes('element_id: "progress"') && src.includes('element_id: "divider"') && src.includes('element_id: "detailspanel"') && src.includes('element_id: "detailspanel_body"'));
-ok("final completion line wired into close", src.includes("statusLine = finalStatusLine;"));
+ok("final completion line wired into close", src.includes("statusLine: formatProgressLine(finalStatusLine)"));
 ok("card content writes retried", src.includes("CARD_WRITE_RETRY_MAX_ATTEMPTS") && src.includes("isRetryableCardKitError"));
 ok("details element writes serialized", src.includes("async writeElementContent(elementId, text)"));
 ok("final details use an element replace", src.includes("buildDetailsElement") && src.includes('putElementPayload("detailspanel_body", options.details, "replace")'));

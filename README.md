@@ -24,16 +24,21 @@ the progress line instead of leaking into the answer.
 | --- | --- | --- |
 | plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2` |
 | pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched bundle | `53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725` | `ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d` |
-| patch | `4801517ad9df24be63ca4ba1c8852b2093054961f3b8c1dca9d9313839e24a51` | `118492e63f3b9613cf51d80acd2952964793712019486bdd82bbe37aee97aa80` |
-| patch hunks | 31 | 31 |
-| test assertions | 146 | 146 |
+| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` |
+| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
+| patch hunks | 32 | 32 |
+| test assertions | 164 | 164 |
 
 The installer selects the patch by the target's SHA-256. It accepts a pristine
-or already-patched 2026.11.1/2026.11.2 bundle and refuses any other build. There
-is no upgrade delta; a plugin upgrade reinstalls `dist/` as pristine, so re-run
-the installer afterwards. Hosts still on 2026.10.10 must upgrade the plugin
-first.
+2026.11.1/2026.11.2 bundle, the **current** patched bundle, and any earlier
+patched bundle listed in `patches/HISTORY.json` (the `KNOWN_PATCHED` block).
+Because the patch is generated against pristine bytes, upgrading an older
+patched host means: take the newest `.monitor.backup-*.mjs` next to the target
+whose hash equals the pristine build, patch that copy, then replace the target
+atomically. The installer does this by itself and refuses (with instructions) if
+no pristine backup is left — in that case reinstall the plugin, which restores
+`dist/` as pristine, and re-run. Hosts still on 2026.10.10 must upgrade the
+plugin first.
 
 2026.11.2 is a small upstream delta over 2026.11.1: `//#region` /
 `//#endregion` section markers around every module, chunk-name renames, and a
@@ -46,8 +51,8 @@ re-anchored, not re-designed.
 
 ```
 [header]                          optional title + template
-  ① markdown #content             live: 💭 thinking blockquote + answer
-                                  closed: answer only (thinking cleared)
+  ① markdown #content             reasoning phase: 💭 thinking blockquote
+                                  answer phase: answer only (blockquote cleared)
   ② markdown #progress            grey status / commentary / completion line
   ③ hr #divider                   separates answer from the process panel
   ④ collapsible_panel             collapsed 「🧾 过程记录」
@@ -55,11 +60,13 @@ re-anchored, not re-designed.
   ⑤ hr + markdown #note           optional grey identity footer
 ```
 
-Thinking preview: while the turn streams, the model's reasoning is shown at the
-top of `#content` as a `> 💭 **Thinking**` blockquote followed by the answer. At
-close the content element is replaced with the **answer only**, so a finished
-card never carries the reasoning text. If the turn produced no answer (aborted,
-held close) the blockquote is kept so the card is never blank.
+Thinking preview: while the model is still reasoning, `#content` shows it as a
+`> 💭 **Thinking**` blockquote. The first answer characters replace that
+blockquote — a shrink is written through the element replace endpoint and
+bypasses the 250 ms throttle — so the live card turns answer-only at the same
+moment the answer starts, and the closed card carries the same text. If the turn
+produced no answer (aborted, held close) the blockquote is kept so the card is
+never blank.
 
 Prewarm: both supported builds already create the card in `onReplyStart`, but
 leave it empty until the first token. The patch writes `⏳ 思考中...` into
@@ -150,7 +157,7 @@ cd tests
 node run-all.mjs ../patches/2026.11.2/patched.mjs   # or 2026.11.1/patched.mjs
 ```
 
-Expected: `5/5 suites passed, 0 failed` with 146 assertions, for either build.
+Expected: `5/5 suites passed, 0 failed` with 164 assertions, for either build.
 
 Mechanical checks:
 
@@ -164,6 +171,8 @@ python3 tools/verify_patch.py --all=patches
 - `patches/2026.11.1/` and `patches/2026.11.2/` — reviewed pristine/patched
   bundle pairs and their canonical unified diffs.
 - `patches/MANIFEST.json` / `patches/UPGRADES.json` — build metadata.
+- `patches/HISTORY.json` — previous patched bundle hashes; feeds the installer's
+  `KNOWN_PATCHED` block so an older patched host upgrades in place.
 - `patches/SHA256SUMS` — bundle and patch checksums for the internal tree.
 - `tools/finalize.py` — regenerates each patch, the manifest, the installer
   block and `patches/SHA256SUMS` from the reviewed bundle pairs.
@@ -175,6 +184,58 @@ The public release may omit `original.mjs` and `patched.mjs`; the patch and
 installer remain usable without them. The internal tree keeps both bundles so
 the patch can be regenerated.
 
+### Upgrading a host that already carries an older patch
+
+```sh
+TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup/monitor.account-*.mjs | head -1)
+./install.sh --check "$TARGET"     # status=patched version=2026.11.2 outdated=true ...
+./install.sh "$TARGET"             # restores pristine from .monitor.backup-*.mjs, then patches
+systemctl --user restart openclaw-gateway.service
+```
+
+`--check` reports `status=patched version=<ver> outdated=true pristine_backup=<path|missing>`.
+`--dry-run` prints `would upgrade (rebase) ...` without touching the target.
+`patches/HISTORY.json` is append-only release history (last 20 patched builds);
+`tools/finalize.py` keeps it and the installer's `KNOWN_PATCHED` block in sync,
+and CI fails when they drift.
+
+### Installer safety rails
+
+- A lock directory `<target dir>/.monitor-install.lock` holds the owner pid and
+  timestamp; a lock left by a killed process is removed automatically once its
+  pid is gone or it is older than 15 minutes (`LOCK_STALE_SECONDS`).
+- Backup copies are rotated: the newest 3 are kept, and the newest pristine copy
+  is never pruned (it is the rollback and in-place-upgrade source).
+- A failed `patch` leaves no `.rej`/`.orig` files behind.
+- `--check` never modifies the target; the patch file's own SHA-256 is verified
+  before anything is written.
+
+Secret redaction covers `token=…` / `authorization: Bearer …`
+forms, provider token shapes (`sk-…`, `ghp_…`, `xox*-…`) and `--password value`
+style flags; the same redaction runs on the assistant commentary that goes into
+`#progress`.
+
+
+### Reasoning / commentary payload lanes (batch 13)
+
+`openclaw` can hand a channel reply payloads flagged `isReasoning: true` or
+`isCommentary: true`. The Feishu plugin does not enable those lanes
+(`replyOptions.reasoningPayloadsEnabled` / `commentaryPayloadsEnabled` are unset),
+so they are normally never delivered — but the delivery hook now refuses them
+anyway: a reasoning payload only feeds the `💭` preview, a commentary payload only
+writes the grey `💬` progress line, and neither can become answer text in
+`#content`.
+
+### Card write breaker (batch 12)
+
+If Feishu rejects an element replace twice, the session stops replacing and
+falls back to streaming content updates instead of burning one failed request
+per snapshot. If content writes fail three times in a row, the content element
+is frozen, the remaining progress/details writes stop, and the close reports
+`finalTextAccepted:false` so the reply is delivered as a normal message instead
+of showing a half-written card. Both doors log once
+(`Card content replace disabled…` / `Card content writes disabled…`).
+
 ## Notes and known limits
 
 - The patch is pinned to exact monitor bundles (2026.11.1 and 2026.11.2). Do not
@@ -185,7 +246,7 @@ the patch can be regenerated.
   the four hunks that touch those areas are re-anchored for 11.1.
 - 2026.11.2 adds `//#region` / `//#endregion` section markers and renames the
   internal chunk imports. The 11.2 patch is the same reviewed change set
-  re-anchored onto that build (31 hunks, same count as 11.1); its change blocks
+  re-anchored onto that build (32 hunks, same count as 11.1); its change blocks
   are byte-identical to the 11.1 patch's. The core side is unchanged:
   `openclaw@2026.11.2` still calls `replyOptions.onToolStart` with
   `{ name, args, phase }`.

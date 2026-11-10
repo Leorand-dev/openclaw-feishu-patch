@@ -14,12 +14,13 @@ still on 10.10 must upgrade the plugin before installing.
 
 | file | SHA-256 |
 | --- | --- |
-| `patches/2026.11.1/feishu-tool-aggregation.patch` | `4801517ad9df24be63ca4ba1c8852b2093054961f3b8c1dca9d9313839e24a51` |
-| `patches/2026.11.2/feishu-tool-aggregation.patch` | `118492e63f3b9613cf51d80acd2952964793712019486bdd82bbe37aee97aa80` |
+| `patches/2026.11.1/feishu-tool-aggregation.patch` | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` |
+| `patches/2026.11.2/feishu-tool-aggregation.patch` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
-| patched bundle, 2026.11.1 | `53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725` |
+| patched bundle, 2026.11.1 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` |
+| `patches/HISTORY.json` (previous patched builds) | up to 20 entries; installer `KNOWN_PATCHED` block |
 | pristine bundle, 2026.11.2 | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched bundle, 2026.11.2 | `ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d` |
+| patched bundle, 2026.11.2 | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -28,9 +29,9 @@ reference values for the exact supported builds.
 
 | item | 2026.11.1 | 2026.11.2 |
 | --- | --- | --- |
-| hunks | 31 | 31 |
-| forward apply | `6dbfa74b…` -> `73b3f994…`, 31/31 anchors unique | `44f6d50f…` -> `ee93e269…`, 31/31 anchors unique |
-| reverse apply | `73b3f994…` -> `6dbfa74b…`, byte-exact | `ee93e269…` -> `44f6d50f…`, byte-exact |
+| hunks | 32 | 32 |
+| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `ee93e269…`, 31/31 anchors unique |
+| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `ee93e269…` -> `44f6d50f…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
   both builds (`ALL_VERSIONS_APPLY_REVERSE_PASS: True`).
@@ -61,7 +62,7 @@ side is unchanged as well:
 
 | element | tag | purpose |
 | --- | --- | --- |
-| `content` | markdown | reasoning blockquote + answer only (no status line) |
+| `content` | markdown | reasoning blockquote until the answer starts, then answer only (no status line) |
 | `progress` | markdown | grey status, `💬` commentary, completion line and `⏳ 思考中...` prewarm |
 | `divider` | hr | separates answer from the process panel |
 | `detailspanel` | collapsible_panel | collapsed `🧾 过程记录`; body `detailspanel_body` |
@@ -84,10 +85,11 @@ Close behaviour:
   (summary line + compact groups); the live markdown fallback is kept if the
   replace fails.
 - no tools: `detailspanel` and `divider` deleted so no empty panel remains.
-- `content` is replaced with the answer only: the live `> 💭 **Thinking**`
-  blockquote is dropped at close (`buildFinalContentText`), and the delivered
-  reply content is the answer, not the reasoning. A turn with no answer keeps
-  the blockquote so the card is never blank.
+- `content` is answer-only in the live card too: `> 💭 **Thinking**` is dropped
+  as soon as the first answer text arrives (`buildContentText`), written through
+  the element replace endpoint because the text shrinks. The closed card and the
+  delivered reply content are the answer, not the reasoning. A turn with no
+  answer keeps the blockquote so the card is never blank.
 - completion line written to `progress`; if that write fails it is folded back
   into `content` so the marker is never lost.
 
@@ -126,17 +128,17 @@ Behaviour now:
 
 ## Test results
 
-`tests/run-all.mjs` -> **5/5 suites, 0 failed, 146 assertions** against each
+`tests/run-all.mjs` -> **5/5 suites, 0 failed, 164 assertions** against each
 patched bundle (2026.11.1 and 2026.11.2):
 
 | suite | assertions |
 | --- | --- |
-| parser/structured-details/content-only helpers | 43 |
+| parser/structured-details/content-only helpers | 46 |
 | aggregation/status/details (incl. prewarm) | 21 |
-| finalization/reliability (incl. api counter, answer-only close) | 37 |
-| streaming-session shape (incl. window expiry) | 39 |
+| finalization/reliability (incl. api counter, answer-only content, payload lanes) | 43 |
+| streaming-session shape (incl. window expiry, live shrink, write breaker) | 48 |
 | idle-hold behavior | 6 |
-| **total** | **146** |
+| **total** | **164** |
 
 The streaming-session suite now locates the upstream module boundary by the
 bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the

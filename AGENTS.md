@@ -34,13 +34,17 @@ TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup
 Expected installer output (one of):
 
 ```
-sha256: 53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725   # 2026.11.1
-sha256: ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d   # 2026.11.2
+sha256: a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84   # 2026.11.1
+sha256: 2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864   # 2026.11.2
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
 `systemctl --user restart openclaw-gateway.service`). Unknown builds are
-refused; there is no upgrade delta in this release.
+refused. A host that still carries an older patched bundle is upgraded in place:
+the installer finds the pristine copy in `.monitor.backup-*.mjs` (matched by
+hash), patches that copy and replaces the target atomically. `patches/HISTORY.json`
+lists the recognised previous patched builds; `tools/finalize.py` keeps it and
+the installer's `KNOWN_PATCHED` block in sync.
 
 ## Verify
 
@@ -56,7 +60,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 146 assertions. On a pristine 11.1/11.2
+Expected: `5/5 suites passed` with 164 assertions. On a pristine 11.1/11.2
 target, `--check` reports `status=pristine`; after installation it reports
 `status=patched`.
 
@@ -70,8 +74,8 @@ python3 tools/check_docs.py
 ## Card layout contract
 
 ```
-① markdown #content      live: 💭 thinking blockquote + answer
-                          closed: answer only (thinking cleared)
+① markdown #content      reasoning phase: 💭 thinking blockquote
+                          answer phase: answer only (blockquote cleared)
 ② markdown #progress     grey status / commentary / completion line
 ③ hr #divider            separator
 ④ collapsible_panel      「🧾 过程记录」, body #detailspanel_body
@@ -86,11 +90,17 @@ python3 tools/check_docs.py
   substrings are redacted.
 - Assistant commentary is written to `#progress` as `💬 …`, never into
   `#content`.
-- The `💭 **Thinking**` blockquote in `#content` is a live-only preview: while
-  the turn streams it sits above the answer, and at close the content element is
-  replaced with the answer only. If the turn produced no answer at all
-  (aborted / held close) the thinking blockquote is kept so the card is never
-  blank.
+- Reasoning (`isReasoning`) and commentary (`isCommentary`) reply payloads are
+  refused by the delivery hook even if a channel enables those core lanes: a
+  reasoning payload only feeds the `💭` preview, a commentary payload only
+  writes the grey `💬` line. Neither may reach `#content`.
+- The `💭 **Thinking**` blockquote in `#content` only covers the reasoning phase:
+  it is rendered while the model reasons and is replaced by the answer as soon
+  as real answer text arrives (`buildContentText`), so a live card never shows
+  reasoning above the answer. A non-extending snapshot is written through the
+  element replace endpoint and skips the throttle. If the turn produced no
+  answer at all (aborted / held close) the thinking blockquote is kept so the
+  card is never blank.
 
 - Prewarm: write the static `⏳ 思考中...` into `#progress` once the card is
   ready, and clear it (zero-width space) on the first token, reasoning chunk or
@@ -111,14 +121,20 @@ python3 tools/check_docs.py
 - **Do not** restart the gateway mid-turn. Restart recovery may produce temporary
   standalone progress posts because no streaming card exists yet; the next turn
   after the gateway is healthy returns to the single-card flow.
-- If installation fails, the installer restores the backup automatically.
-  Report the error; do not retry with fuzzy patching.
+- If installation fails the target is left untouched (the patch is applied to a
+  temp copy and only `mv`-ed into place after the post-patch hash matches); a
+  backup of the previous file stays next to the target. Report the error; do not
+  retry with fuzzy patching.
 - A new deployment is only verified after one real Feishu tool turn: single
   card, `⏳ 思考中...` prewarm line, grey progress line, expandable
   `🧾 过程记录` with summary + groups, final `✅ 完成`, no residual loading.
 - Plugin upgrades reinstall `dist/` and delete `.monitor.backup-*.mjs`. Re-apply
-  the patch after every upgrade and keep an out-of-tree copy of the pristine
-  bundle if you need a rollback target.
+  the patch after every upgrade. Backups rotate automatically (newest 3, and the
+  newest pristine copy is never pruned), so keep an out-of-tree copy of the
+  pristine bundle if you need a permanent rollback target.
+- A stale `.monitor-install.lock` is reclaimed automatically when its pid is gone
+  or it is older than 15 minutes; do not delete a lock that belongs to a running
+  install.
 - A card's streaming window ends 10 minutes after the card is created: the first
   late write returns `200850` (`card streaming timeout`) and later ones `300309`
   (`streaming mode is closed`). Both are terminal by design — the session stops
@@ -140,9 +156,9 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- | --- |
 | plugin build | `2026.11.1` | `2026.11.2` |
 | pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched SHA-256 | `53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725` | `ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d` |
-| patch SHA-256 | `4801517ad9df24be63ca4ba1c8852b2093054961f3b8c1dca9d9313839e24a51` | `118492e63f3b9613cf51d80acd2952964793712019486bdd82bbe37aee97aa80` |
-| patch hunks | 31 | 31 |
-| test assertions | 146 | 146 |
+| patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` |
+| patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
+| patch hunks | 32 | 32 |
+| test assertions | 164 | 164 |
 
 See `README.md` for behavior and limitations.

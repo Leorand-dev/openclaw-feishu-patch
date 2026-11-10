@@ -5,8 +5,8 @@
     {
       "version": "2026.11.1",
       "original_sha256": "6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7",
-      "patched_sha256": "53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725",
-      "patch_sha256": "4801517ad9df24be63ca4ba1c8852b2093054961f3b8c1dca9d9313839e24a51",
+      "patched_sha256": "a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84",
+      "patch_sha256": "485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd",
       "patch": "2026.11.1/feishu-tool-aggregation.patch",
       "tests": "tests/run-all.mjs",
       "adapter": "anchor-rebase-v1",
@@ -15,8 +15,8 @@
     {
       "version": "2026.11.2",
       "original_sha256": "44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6",
-      "patched_sha256": "ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d",
-      "patch_sha256": "118492e63f3b9613cf51d80acd2952964793712019486bdd82bbe37aee97aa80",
+      "patched_sha256": "2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864",
+      "patch_sha256": "de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348",
       "patch": "2026.11.2/feishu-tool-aggregation.patch",
       "tests": "tests/run-all.mjs",
       "adapter": "anchor-rebase-v1",

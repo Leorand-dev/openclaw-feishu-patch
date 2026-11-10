@@ -42,7 +42,7 @@ const code = [
   "const startStreaming = () => { if (streaming) return; startCalls += 1; streaming = { isActive: () => true, updateDetails: async (text) => { detailsText = text; return true; }, updateProgress: async (text) => { progressLines.push(text); return true; } }; };",
   "const clearIdleHold = () => {};",
   "const refreshIdleHold = () => {};",
-  "const buildCombinedStreamText = (thinking, answer) => [answer, statusLine].filter(Boolean).join('\\n\\n');",
+  "const buildContentText = (thinking, answer) => [answer, statusLine].filter(Boolean).join('\\n\\n');",
   "const formatProgressLine = (line) => line ? `<font color='grey'>${line}</font>` : '';",
   "const flushStreamingCardUpdate = (text) => { flushes.push(text); if (statusLine && streaming?.isActive()) streaming.updateProgress(formatProgressLine(statusLine)); };",
   "const formatElapsedDuration = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return s < 60 ? s + 's' : Math.floor(s / 60) + 'm' + String(s % 60).padStart(2, '0') + 's'; };",
@@ -105,7 +105,7 @@ const prewarmBox = new Function(`
   const progress = [];
   const PREWARM_STATUS_LINE = "⏳ 思考中...";
   const formatProgressLine = (line) => line ? \`<font color='grey'>\${line}</font>\` : "";
-  const buildCombinedStreamText = (thinking, answer) => [thinking, answer].filter(Boolean).join("\\n\\n---\\n\\n");
+  const buildContentText = (thinking, answer) => [thinking, answer].filter(Boolean).join("\\n\\n---\\n\\n");
   const flushStreamingCardUpdate = (combined) => {
     if (prewarmStatusLine && statusLine !== prewarmStatusLine) prewarmStatusLine = "";
     if (prewarmStatusLine && String(combined ?? "").trim()) { statusLine = ""; prewarmStatusLine = ""; }

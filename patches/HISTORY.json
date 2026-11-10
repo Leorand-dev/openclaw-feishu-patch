@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "patched": [
+    {
+      "version": "2026.11.2",
+      "sha256": "2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2"
+    },
+    {
+      "version": "2026.11.2",
+      "sha256": "ee93e269edf1717c2ae541bf1d343813c69055f5cd31f0c0d370e849f9e2194d"
+    },
+    {
+      "version": "2026.11.1",
+      "sha256": "53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725"
+    },
+    {
+      "version": "2026.11.1",
+      "sha256": "dea21efcc5f405f94265ed369a620a9006ec1b503cc2e00d6dc6f70aced32576"
+    },
+    {
+      "version": "2026.11.2",
+      "sha256": "2a1fcb97ae5a62daa401ff4a5c0992edece3eda585eef16399b0879ab84b8eb6"
+    },
+    {
+      "version": "2026.11.1",
+      "sha256": "10572e74a295c682e1cd678f0e17d1e2632e4707dadbf930faed85e904e99da1"
+    },
+    {
+      "version": "2026.11.2",
+      "sha256": "a63953bb1f886b31358ddbd8b84b9f6dd9a3c3fac2f16fddac521899e45dad62"
+    },
+    {
+      "version": "2026.11.1",
+      "sha256": "a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84"
+    },
+    {
+      "version": "2026.11.2",
+      "sha256": "2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864"
+    }
+  ]
+}

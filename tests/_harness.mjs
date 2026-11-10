@@ -29,6 +29,49 @@ export function extractAsyncArrow(src, name) {
   return src.slice(start, end + 4);
 }
 
+/**
+ * Extract `var Name = class { ... }` by balancing braces from the class body.
+ * Independent of the upstream section-comment style (`// <path>` vs
+ * `//#region <path>`), which broke the older marker-based slice in 2026.11.2.
+ * Skips line/block comments and string/template/regex-free spans conservatively.
+ */
+export function extractClass(src, header) {
+  const start = src.indexOf(header);
+  if (start < 0) throw new Error(`missing class header: ${header}`);
+  const open = src.indexOf("{", start);
+  if (open < 0) throw new Error(`missing class body: ${header}`);
+  let depth = 0;
+  let quote = "";
+  let i = open;
+  while (i < src.length) {
+    const ch = src[i];
+    if (quote) {
+      if (ch === "\\") { i += 2; continue; }
+      if (ch === quote) quote = "";
+      i += 1;
+      continue;
+    }
+    if (ch === "/" && src[i + 1] === "/") {
+      const nl = src.indexOf("\n", i);
+      i = nl < 0 ? src.length : nl;
+      continue;
+    }
+    if (ch === "/" && src[i + 1] === "*") {
+      const end = src.indexOf("*/", i + 2);
+      i = end < 0 ? src.length : end + 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") { quote = ch; i += 1; continue; }
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return src.slice(start, i + 1);
+    }
+    i += 1;
+  }
+  throw new Error(`unbalanced class body: ${header}`);
+}
+
 export function extractOnIdleBody(src) {
   const m = src.match(/onIdle: \(\) => \{([\s\S]*?)\n\t\t\},/);
   if (!m) throw new Error("onIdle not found");

@@ -1,16 +1,12 @@
 // 2026.11.1 batch6 — CardKit session shape: content + progress + divider + details panel.
-import { loadBundle, makeCounter } from "./_harness.mjs";
+import { loadBundle, makeCounter, extractClass } from "./_harness.mjs";
 
 const src = loadBundle();
 const { ok, finish } = makeCounter();
 
-const classStart = src.indexOf("var FeishuStreamingSession = class {");
-// 2026.11.2 wraps upstream section comments in `//#region` / `//#endregion`
-// markers, so anchor on the bare module path and cut back to its line start.
-const markerIdx = src.indexOf("extensions/feishu/src/streaming-update.ts", classStart);
-const classEnd = markerIdx < 0 ? -1 : src.lastIndexOf("\n", markerIdx) + 1;
-if (classStart < 0 || classEnd < 0) throw new Error("FeishuStreamingSession not found");
-const classSrc = src.slice(classStart, classEnd);
+// Brace-balanced slice: independent of the upstream section-comment style that
+// changed from `// <path>` to `//#region <path>` in 2026.11.2.
+const classSrc = extractClass(src, "var FeishuStreamingSession = class {");
 
 // The CardKit error classifiers are real code under test, not stubs.
 const helperStart = src.indexOf("/** CardKit codes that mean this card's streaming window is already over. */");
@@ -23,6 +19,8 @@ const Session = new Function([
   "const STREAMING_SIGNIFICANT_DELTA_CHARS = 18;",
   "const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;",
   "const CARD_WRITE_RETRY_BASE_DELAY_MS = 1;",
+  "const CARD_CONTENT_REPLACE_MAX_FAILURES = 2;",
+  "const CARD_CONTENT_WRITE_MAX_FAILURES = 3;",
   cardKitHelpers,
   "const delayMs = async () => {};",
   "const assertSuccessfulCardKitResponse = async () => {};",
@@ -36,6 +34,7 @@ const Session = new Function([
   "const sliceUtf16Safe = (value, start, end) => value.slice(start, end);",
   "const truncateSummary = (value, max = 50) => String(value ?? '').slice(0, max);",
   "const shouldPushStreamingUpdate = () => true;",
+  "const isStreamingContentExtension = (previousText, nextText) => !previousText || nextText.startsWith(previousText);",
   "class FeishuStreamingFinalizationError extends Error { constructor(cause, result) { super(String(cause)); this.cause = cause; this.result = result; } }",
   classSrc,
   "return { FeishuStreamingSession, isRetryableCardKitError, isStreamingClosedError };"
@@ -80,6 +79,27 @@ ok("progress write targets the progress element", progressCall?.path === "/c1/el
 ok("progress payload carries the grey status line", progressCall?.payload?.content === "<font color='grey'>⏳ 2 个工具</font>");
 ok("progress write dedupes identical text", await session.updateProgress("<font color='grey'>⏳ 2 个工具</font>") === true && calls.filter((call) => call.path.includes("/elements/progress/content")).length === 1);
 ok("progress can be cleared with a zero-width space", await session.updateProgress("\u200B") === true && calls.filter((call) => call.path.includes("/elements/progress/content")).length === 2);
+
+// Layout v3: content is a prefix-extending snapshot until the answer starts; dropping the
+// thinking blockquote is a shrink, so it goes through the element replace endpoint.
+const liveCalls = [];
+const liveSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+liveSession.requestCardKit = async (path, operation, method, body) => {
+  const payload = typeof body === "function" ? body() : body;
+  liveCalls.push({ path, operation, method, payload });
+  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c5" } };
+  return { code: 0 };
+};
+await liveSession.start("chat1", "chat_id", {});
+await liveSession.update("> \ud83d\udcad **Thinking**\n> pondering");
+const thinkCall = liveCalls.filter((call) => call.method === "PUT").pop();
+ok("reasoning snapshot streams through the content endpoint", thinkCall?.path === "/c5/elements/content/content" && String(thinkCall?.payload?.content ?? "").includes("Thinking"));
+await liveSession.update("answer text");
+const clearCall = liveCalls.filter((call) => call.method === "PUT").pop();
+ok("answer start replaces the element instead of appending", clearCall?.path === "/c5/elements/content" && String(clearCall?.payload?.element ?? "").includes("answer text"));
+await liveSession.update("answer text, continued");
+const extendCall = liveCalls.filter((call) => call.method === "PUT").pop();
+ok("later answer snapshots extend through the content endpoint", extendCall?.path === "/c5/elements/content/content" && extendCall?.payload?.content === "answer text, continued");
 
 ok("details write is element-scoped", await session.updateDetails("- 💻 终端 ×2") === true);
 const detailCall = calls.find((call) => call.path.includes("detailspanel_body"));
@@ -129,6 +149,63 @@ ok("final details payload is a column_set", String(replaceCall?.payload?.element
 
 ok("streaming throttle is 250ms", src.includes("const STREAMING_UPDATE_THROTTLE_MS = 250;"));
 ok("punctuation no longer forces a flush", !src.includes("/[\\n。！？!?；;：:]$/") && src.includes("nextText.length - previousText.length >= STREAMING_SIGNIFICANT_DELTA_CHARS;"));
+
+// ---- content write breaker (batch 12, audit F1) ----
+const breakerCalls = [];
+const breakerSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+breakerSession.requestCardKit = async (path, operation, method, body) => {
+  const payload = typeof body === "function" ? body() : body;
+  breakerCalls.push({ path, operation, method, payload });
+  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c9" } };
+  if (path === "/c9/elements/content") throw new Error("replace not supported");
+  return { code: 0 };
+};
+await breakerSession.start("chat1", "chat_id", {});
+await breakerSession.update("> \ud83d\udcad **Thinking**\n> pondering");
+await breakerSession.update("answer");
+await breakerSession.update("answer more");
+await breakerSession.update("answer more still");
+const breakerPuts = breakerCalls.filter((call) => call.method === "PUT");
+ok("two replace failures disable element replaces", breakerSession.contentReplaceBlocked === true);
+ok("content falls back to streaming updates after replace failures", breakerPuts.slice(-1)[0].path === "/c9/elements/content/content");
+
+const freezeCalls = [];
+const freezeSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+freezeSession.requestCardKit = async (path, operation, method, body) => {
+  const payload = typeof body === "function" ? body() : body;
+  freezeCalls.push({ path, operation, method, payload });
+  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c10" } };
+  throw new Error("card write rejected");
+};
+await freezeSession.start("chat1", "chat_id", {});
+await freezeSession.update("a");
+await freezeSession.update("ab");
+await freezeSession.update("abc");
+const frozenCallCount = freezeCalls.filter((call) => call.method === "PUT").length;
+await freezeSession.update("abcd");
+ok("repeated content failures freeze the element", freezeSession.contentWriteBlocked === true && freezeCalls.filter((call) => call.method === "PUT").length === frozenCallCount);
+let frozenError;
+try {
+  await freezeSession.closeWithResult("final answer", {});
+} catch (error) {
+  frozenError = error;
+}
+ok("frozen content reports a failed final write", frozenError?.result?.finalTextAccepted === false);
+
+const raceSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+raceSession.requestCardKit = async (path, operation, method, body) => {
+  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c11" } };
+  return { code: 0 };
+};
+await raceSession.start("chat1", "chat_id", {});
+const raceUpdate = raceSession.update("late token").catch(() => false);
+const raceClosed = await raceSession.closeWithResult("final answer");
+await raceUpdate;
+ok("concurrent update before close keeps the final card", raceClosed.visibleReplySent === true && raceClosed.content === "final answer");
+
+ok("every content writer honours the expired flag",
+  src.includes("if (!this.state || this.closed || this.expired || !text) return;")
+  && src.includes("async deleteElementForced(elementId) {\n\t\tif (!this.state || this.expired) return false;"));
 
 // ---- streaming window expiry (200850 card streaming timeout / 300309) ----
 const timedOutError = new Error("Update card element progress failed: ErrMsg: card streaming timeout;  (code=200850)");
