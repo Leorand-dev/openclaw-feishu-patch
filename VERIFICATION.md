@@ -39,7 +39,7 @@ reference values for the exact supported builds.
 | reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
-  both builds (`ALL_VERSIONS_APPLY_REVERSE_PASS: True`).
+  the 2026.11.1 and 2026.11.2 bundle pairs (`ALL_VERSIONS_APPLY_REVERSE_PASS: True`).
 - `tools/adapt_patch.py` regenerates the exact patched bundle from each patch
   and its pristine bundle (`--expect-sha` passes for both).
 - No CRLF, no `\ No newline` markers, no malformed hunks.
@@ -173,7 +173,8 @@ bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
   `already patched`.
 - `patch -R --dry-run` with the 11.2 patch against the patched copy -> OK.
 - `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact.
-- `tools/adapt_patch.py` regeneration -> exact patched SHAs for both builds.
+- `tools/adapt_patch.py` regeneration -> exact patched SHAs for the reviewed
+  bundle pairs.
 
 ## Release checks
 

@@ -199,7 +199,7 @@ the patch can be regenerated.
 
 ```sh
 TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup/monitor.account-*.mjs | head -1)
-./install.sh --check "$TARGET"     # status=patched version=2026.11.2 outdated=true ...
+./install.sh --check "$TARGET"     # status=patched version=2026.11.3 outdated=true ...
 ./install.sh "$TARGET"             # restores pristine from .monitor.backup-*.mjs, then patches
 systemctl --user restart openclaw-gateway.service
 ```
