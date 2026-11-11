@@ -6,8 +6,9 @@ patch.
 
 ## Preconditions
 
-- Target plugin build must be **`@openclaw/feishu@2026.11.1`** or
-  **`@openclaw/feishu@2026.11.2`**.
+- Target plugin build must be **`@openclaw/feishu@2026.11.1`**,
+  **`@openclaw/feishu@2026.11.2`** or **`@openclaw/feishu@2026.11.3`** (11.3
+  ships the same monitor bundle as 11.2, so it uses the 11.2 patch bytes).
 - The target file is the installed monitor bundle:
 
   ```
@@ -35,7 +36,7 @@ Expected installer output (one of):
 
 ```
 sha256: a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84   # 2026.11.1
-sha256: 2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864   # 2026.11.2
+sha256: 2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864   # 2026.11.2 / 2026.11.3
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -60,9 +61,9 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 164 assertions. On a pristine 11.1/11.2
-target, `--check` reports `status=pristine`; after installation it reports
-`status=patched`.
+Expected: `5/5 suites passed` with 164 assertions. On a pristine
+11.1/11.2/11.3 target, `--check` reports `status=pristine`; after installation
+it reports `status=patched`.
 
 Optional mechanical check:
 
@@ -152,9 +153,9 @@ systemctl --user restart openclaw-gateway.service
 
 ## Current build reference
 
-| item | 2026.11.1 | 2026.11.2 |
+| item | 2026.11.1 | 2026.11.2 / 2026.11.3 |
 | --- | --- | --- |
-| plugin build | `2026.11.1` | `2026.11.2` |
+| plugin build | `2026.11.1` | `2026.11.2`, `2026.11.3` |
 | pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
 | patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` |
 | patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |

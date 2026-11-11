@@ -23,7 +23,11 @@ MANIFEST_PATH = PATCHES / "MANIFEST.json"
 UPGRADES_PATH = PATCHES / "UPGRADES.json"
 
 # version -> version whose reviewed bundle/patch bytes it reuses
-MIRRORED = {}
+# 2026.11.3 ships a byte-identical monitor.account bundle to 2026.11.2 (same
+# pristine/patched SHAs), so that build carries the reviewed 11.2 patch as-is.
+MIRRORED = {
+    "2026.11.3": "2026.11.2",
+}
 
 
 def sha_bytes(data):
@@ -114,10 +118,16 @@ if HISTORY_PATH.is_file():
 current_patched = {entry["patched_sha256"] for entry in versions}
 previous_patched = [e for e in history.get("patched", []) if e.get("sha256") and e.get("version")]
 previous_patched = [e for e in previous_patched if e["sha256"] not in current_patched]
+# One entry per patched build: mirrored versions reuse another build's bundle
+# bytes, so several version labels can map to the same sha256. Keep the newest
+# label for each hash so HISTORY stays a hash -> version map.
+by_sha = {}
+for entry in previous_patched:
+    by_sha[entry["sha256"]] = entry
 for entry in versions:
-    previous_patched.append({"version": entry["version"], "sha256": entry["patched_sha256"]})
+    by_sha[entry["patched_sha256"]] = {"version": entry["version"], "sha256": entry["patched_sha256"]}
 history["schema"] = 1
-history["patched"] = previous_patched[-20:]
+history["patched"] = sorted(by_sha.values(), key=lambda e: e["version"])[-20:]
 HISTORY_PATH.write_text(
     json.dumps(history, ensure_ascii=False, indent=2) + "\n",
     encoding="utf-8", newline="\n",

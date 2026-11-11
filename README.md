@@ -9,7 +9,8 @@ line. Tool names and targets come from the structured `onToolStart` callback
 (the reviewed text shapes remain a fallback), and model commentary is shown on
 the progress line instead of leaking into the answer.
 
-- **Supported plugin builds:** `@openclaw/feishu` **2026.11.1** and **2026.11.2**
+- **Supported plugin builds:** `@openclaw/feishu` **2026.11.1**, **2026.11.2**
+  and **2026.11.3** (11.3 installs the same monitor bundle as 11.2)
 - **Patch type:** unified diff against the installed
   `dist/.setup/monitor.account-*.mjs`
 - **Install:** exact SHA-256 check; backup; atomic replace; idempotent
@@ -20,9 +21,9 @@ the progress line instead of leaking into the answer.
 
 ## Supported builds
 
-| item | 2026.11.1 | 2026.11.2 |
+| item | 2026.11.1 | 2026.11.2 / 2026.11.3 |
 | --- | --- | --- |
-| plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2` |
+| plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2`, `@openclaw/feishu@2026.11.3` |
 | pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
 | patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` |
 | patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
@@ -30,7 +31,7 @@ the progress line instead of leaking into the answer.
 | test assertions | 164 | 164 |
 
 The installer selects the patch by the target's SHA-256. It accepts a pristine
-2026.11.1/2026.11.2 bundle, the **current** patched bundle, and any earlier
+2026.11.1/2026.11.2/2026.11.3 bundle, the **current** patched bundle, and any earlier
 patched bundle listed in `patches/HISTORY.json` (the `KNOWN_PATCHED` block).
 Because the patch is generated against pristine bytes, upgrading an older
 patched host means: take the newest `.monitor.backup-*.mjs` next to the target
@@ -46,6 +47,13 @@ card-action hardening (an unresolvable chat type now refuses the action instead
 of defaulting to `p2p`). None of it touches the streaming-card, progress or tool
 paths, so the 2026.11.2 patch carries the same change blocks as 2026.11.1 —
 re-anchored, not re-designed.
+
+2026.11.3 does not change this bundle at all: `@openclaw/feishu@2026.11.3`
+installs a `monitor.account-*.mjs` byte-identical to the 2026.11.2 pristine
+bundle (SHA-256 `44f6d50f…`). `patches/2026.11.3/` therefore mirrors the
+reviewed 2026.11.2 patch verbatim (patch SHA-256 `de564abe…`); the installer
+reports `version=2026.11.3` and produces the same patched bundle
+(`2472f7a1…`). Hosts on `OpenClaw 2026.11.3` need no re-derivation.
 
 ## Card layout (layout v3 + prewarm)
 
@@ -154,10 +162,11 @@ the backup on failure.
 ```sh
 sha256sum -c SHA256SUMS
 cd tests
-node run-all.mjs ../patches/2026.11.2/patched.mjs   # or 2026.11.1/patched.mjs
+node run-all.mjs ../patches/2026.11.2/patched.mjs   # 11.3 has the same bytes
+node run-all.mjs ../patches/2026.11.1/patched.mjs
 ```
 
-Expected: `5/5 suites passed, 0 failed` with 164 assertions, for either build.
+Expected: `5/5 suites passed, 0 failed` with 164 assertions, for any supported build.
 
 Mechanical checks:
 
@@ -170,6 +179,8 @@ python3 tools/verify_patch.py --all=patches
 
 - `patches/2026.11.1/` and `patches/2026.11.2/` — reviewed pristine/patched
   bundle pairs and their canonical unified diffs.
+- `patches/2026.11.3/` — mirror of the 2026.11.2 patch (its upstream bundle is
+  byte-identical), so only the patch file is stored there.
 - `patches/MANIFEST.json` / `patches/UPGRADES.json` — build metadata.
 - `patches/HISTORY.json` — previous patched bundle hashes; feeds the installer's
   `KNOWN_PATCHED` block so an older patched host upgrades in place.
@@ -238,8 +249,9 @@ of showing a half-written card. Both doors log once
 
 ## Notes and known limits
 
-- The patch is pinned to exact monitor bundles (2026.11.1 and 2026.11.2). Do not
-  apply it to a different version; the installer refuses unknown hashes.
+- The patch is pinned to exact monitor bundles (2026.11.1, 2026.11.2 and
+  2026.11.3 — the last two share one bundle). Do not apply it to a different
+  version; the installer refuses unknown hashes.
 - 2026.11.1 removed `mergeStreamingText()` and `lastSnapshotTextLength`, and
   `onAssistantMessageStart` now resets `snapshotBaseText` / `lastPartial`. The
   patch keeps that upstream behaviour and layers the tool state machine on top;
@@ -250,6 +262,9 @@ of showing a half-written card. Both doors log once
   are byte-identical to the 11.1 patch's. The core side is unchanged:
   `openclaw@2026.11.2` still calls `replyOptions.onToolStart` with
   `{ name, args, phase }`.
+- 2026.11.3 was checked against the same code: the plugin package bumped its
+  version but ships the 2026.11.2 monitor bundle unchanged, so the patch does
+  not need to be re-anchored for `OpenClaw 2026.11.3` (build `847611d`).
 - `✅ 完成` is written to the progress element. If the turn falls back to a
   non-streaming static send, that static card is unchanged.
 - Tool aggregation only applies to structured tool starts and the reviewed
