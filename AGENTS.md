@@ -7,8 +7,9 @@ patch.
 ## Preconditions
 
 - Target plugin build must be **`@openclaw/feishu@2026.11.1`**,
-  **`@openclaw/feishu@2026.11.2`** or **`@openclaw/feishu@2026.11.3`** (11.3
-  ships the same monitor bundle as 11.2, so it uses the 11.2 patch bytes).
+  **`@openclaw/feishu@2026.11.2`**, **`@openclaw/feishu@2026.11.3`** (11.3 ships
+  the same monitor bundle as 11.2, so it uses the 11.2 patch bytes) or
+  **`@openclaw/feishu@2026.11.5`** (own bundle, own re-anchored patch).
 - The target file is the installed monitor bundle:
 
   ```
@@ -37,6 +38,7 @@ Expected installer output (one of):
 ```
 sha256: a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84   # 2026.11.1
 sha256: 2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864   # 2026.11.2 / 2026.11.3
+sha256: 9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032   # 2026.11.5
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -153,13 +155,13 @@ systemctl --user restart openclaw-gateway.service
 
 ## Current build reference
 
-| item | 2026.11.1 | 2026.11.2 / 2026.11.3 |
-| --- | --- | --- |
-| plugin build | `2026.11.1` | `2026.11.2`, `2026.11.3` |
-| pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` |
-| patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` |
-| patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
-| patch hunks | 32 | 32 |
-| test assertions | 164 | 164 |
+| item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 |
+| --- | --- | --- | --- |
+| plugin build | `2026.11.1` | `2026.11.2`, `2026.11.3` | `2026.11.5` |
+| pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` |
+| patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` |
+| patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` |
+| patch hunks | 32 | 32 | 31 |
+| test assertions | 164 | 164 | 164 |
 
 See `README.md` for behavior and limitations.
