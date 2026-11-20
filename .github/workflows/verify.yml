@@ -20,6 +20,8 @@ jobs:
             patch: "patches/2026.11.3/feishu-tool-aggregation.patch"
           - plugin_version: "2026.11.5"
             patch: "patches/2026.11.5/feishu-tool-aggregation.patch"
+          - plugin_version: "2026.11.6"
+            patch: "patches/2026.11.6/feishu-tool-aggregation.patch"
 
     env:
       PLUGIN_VERSION: ${{ matrix.plugin_version }}
