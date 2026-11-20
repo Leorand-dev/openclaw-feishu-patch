@@ -1,8 +1,8 @@
-# Verification — openclaw-feishu-patch 2026.11.1 / 2026.11.2 / 2026.11.3 / 2026.11.5
+# Verification — openclaw-feishu-patch 2026.11.1 / 2026.11.2 / 2026.11.3 / 2026.11.5 / 2026.11.6
 
-Current supported builds: **`@openclaw/feishu@2026.11.5`** (current),
-**`@openclaw/feishu@2026.11.3`**, **`@openclaw/feishu@2026.11.2`** and
-**`@openclaw/feishu@2026.11.1`**.
+Current supported builds: **`@openclaw/feishu@2026.11.6`** (current),
+**`@openclaw/feishu@2026.11.5`**, **`@openclaw/feishu@2026.11.3`**,
+**`@openclaw/feishu@2026.11.2`** and **`@openclaw/feishu@2026.11.1`**.
 
 2026.11.3 is a mirrored build: its `monitor.account-*.mjs` is byte-identical
 to the 2026.11.2 pristine bundle, so the release adds it without new patch
@@ -23,6 +23,7 @@ still on 10.10 must upgrade the plugin before installing.
 | `patches/2026.11.2/feishu-tool-aggregation.patch` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
 | `patches/2026.11.3/feishu-tool-aggregation.patch` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
 | `patches/2026.11.5/feishu-tool-aggregation.patch` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` |
+| `patches/2026.11.6/feishu-tool-aggregation.patch` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
 | patched bundle, 2026.11.1 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` |
 | `patches/HISTORY.json` (previous patched builds) | up to 20 entries; installer `KNOWN_PATCHED` block |
@@ -30,23 +31,25 @@ still on 10.10 must upgrade the plugin before installing.
 | patched bundle, 2026.11.2 | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` |
 | pristine bundle, 2026.11.5 | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` |
 | patched bundle, 2026.11.5 | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` |
+| pristine bundle, 2026.11.6 | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` |
+| patched bundle, 2026.11.6 | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
 
 ## Patch shape
 
-| item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 |
-| --- | --- | --- | --- |
-| hunks | 32 | 32 | 31 |
-| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique |
-| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact |
+| item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 | 2026.11.6 |
+| --- | --- | --- | --- | --- |
+| hunks | 32 | 32 | 31 | 31 |
+| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique |
+| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
-  the 2026.11.1, 2026.11.2 and 2026.11.5 bundle pairs
+  the 2026.11.1, 2026.11.2, 2026.11.5 and 2026.11.6 bundle pairs
   (`ALL_VERSIONS_APPLY_REVERSE_PASS: True`).
 - `tools/adapt_patch.py` regenerates the exact patched bundle from each patch
-  and its pristine bundle (`--expect-sha` passes for all three).
+  and its pristine bundle (`--expect-sha` passes for all four).
 - No CRLF, no `\ No newline` markers, no malformed hunks.
 - No legacy status-element symbols: `writeStatusContent`, `deleteStatusElement`,
   `statusElementEnabled`, `updateStatus` are absent from both patched bundles.
@@ -78,6 +81,26 @@ unchanged and yields `2472f7a1…`. `patches/2026.11.3/` stores only the mirror
 of that patch; `tools/finalize.py` maps it through `MIRRORED`, so the
 manifest, installer and checksums stay generated from one reviewed pair.
 
+
+
+### Why 2026.11.6 is a re-anchored rebuild
+
+`@openclaw/feishu@2026.11.6` ships a new `monitor.account-*.mjs`
+(243155 bytes, SHA-256 `36a2c58e…`, chunk `monitor.account-C08HBgRD.mjs`). The
+11.5 -> 11.6 delta is 11 diff regions (+22/-14 lines):
+
+- internal chunk renames (`channel-DDrdYVwq.mjs`, `monitor-CDBNol9H.mjs`);
+- `normalizeFeishuCommandProbeBody()` keeps line breaks for multiline slash
+  commands;
+- card actions without a resolvable chat type are refused (with a Feishu notice
+  telling the user to retry later) instead of defaulting to `p2p`, and the
+  synthetic message event is built with the resolved chat type.
+
+None of it touches the streaming-card, progress, panel or tool paths, so the
+reviewed 11.5 patch re-anchors onto the 11.6 pristine bundle unchanged: same 31
+hunks and the same change blocks, only offsets and the resulting patched SHA-256
+(`a8d6d9fa…`) differ. The card-action hardening is upstream-only behaviour that
+this patch does not modify.
 
 ### Why 2026.11.5 re-anchors instead of mirroring
 
@@ -173,8 +196,8 @@ Behaviour now:
 ## Test results
 
 `tests/run-all.mjs` -> **5/5 suites, 0 failed, 164 assertions** against each
-patched bundle (2026.11.1, 2026.11.2 and 2026.11.5; the 2026.11.3 build
-carries the same bytes as 11.2, so the 11.2 result covers it):
+patched bundle (2026.11.1, 2026.11.2, 2026.11.5 and 2026.11.6; the 2026.11.3
+build carries the same bytes as 11.2, so the 11.2 result covers it):
 
 | suite | assertions |
 | --- | --- |
@@ -194,22 +217,24 @@ bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
 - `node --check` on both patched bundles -> pass.
 - `sha256sum -c SHA256SUMS` and `(cd patches && sha256sum -c SHA256SUMS)` ->
   all entries OK.
-- `install.sh --check` on pristine 2026.11.2, 2026.11.3 and 2026.11.5 ->
-  `status=pristine version=<build>` (11.3 resolves to `version=2026.11.3`,
-  11.5 to `version=2026.11.5`).
+- `install.sh --check` on pristine 2026.11.2, 2026.11.3, 2026.11.5 and
+  2026.11.6 -> `status=pristine version=<build>` (11.3 resolves to
+  `version=2026.11.3`, 11.5 to `version=2026.11.5`, 11.6 to `version=2026.11.6`).
 - `install.sh --dry-run` -> `would patch`, target unchanged.
 - `install.sh` on a temporary pristine copy -> patched SHA `2472f7a1…`
-  (2026.11.2) and `9c88ab9b…` (2026.11.5); backup created; second `--check` ->
+  (2026.11.2), `9c88ab9b…` (2026.11.5) and `a8d6d9fa…` (2026.11.6); backup
+  created; second `--check` ->
   `status=patched`; second install -> `already patched`.
 - `patch -R --dry-run` with the 11.2 patch against the patched copy -> OK;
-  same for the 11.5 patch (31 hunks, `8d5cfbd6…` <-> `9c88ab9b…`).
+  same for the 11.5 patch (`8d5cfbd6…` <-> `9c88ab9b…`) and the 11.6 patch
+  (`36a2c58e…` <-> `a8d6d9fa…`), both 31 hunks.
 - `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact.
 - `tools/adapt_patch.py` regeneration -> exact patched SHAs for the reviewed
   bundle pairs.
 
 ## Release checks
 
-- `tools/finalize.py` -> 4 builds, current `2026.11.5`; manifest, installer
+- `tools/finalize.py` -> 5 builds, current `2026.11.6`; manifest, installer
   `VERSIONS` block and `patches/SHA256SUMS` agree.
 - Root `SHA256SUMS` covers installer, manifest, upgrades and all patches.
 - Installer no-upgrade path is bash 3.2 compatible (`${UPGRADES[@]-}`).
