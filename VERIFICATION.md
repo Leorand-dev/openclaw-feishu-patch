@@ -232,6 +232,15 @@ bare path `extensions/feishu/src/streaming-update.ts`, so it works with both the
 - `tools/adapt_patch.py` regeneration -> exact patched SHAs for the reviewed
   bundle pairs.
 
+## Fleet deployment (2026-11-21)
+
+The 2026.11.6 patch was installed on the production fleet (five Linux hosts and
+one macOS host, all on `OpenClaw 2026.11.6`, build `06afb10`). Every host reports
+`status=patched version=2026.11.6`, keeps one pristine `.monitor.backup-*.mjs`
+(`36a2c58e…`) for rollback, passes `5/5` suites, and returns `200` from the
+gateway health endpoint after the restart; the plugin log shows
+`starting feishu[default] (mode: websocket)` plus a resolved bot `open_id`.
+
 ## Release checks
 
 - `tools/finalize.py` -> 5 builds, current `2026.11.6`; manifest, installer
