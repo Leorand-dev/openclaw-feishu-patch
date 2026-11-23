@@ -293,6 +293,25 @@ one macOS host, all on `OpenClaw 2026.11.6`, build `06afb10`). Every host report
 gateway health endpoint after the restart; the plugin log shows
 `starting feishu[default] (mode: websocket)` plus a resolved bot `open_id`.
 
+## Fleet deployment (2026-11-23)
+
+The 2026.11.7 patch was deployed to the five Linux hosts (all on
+`OpenClaw 2026.11.7`, build `e31bbf0`, plugin `@openclaw/feishu@2026.11.7`)
+after the plugin upgrade had reset their monitor bundles to pristine. The
+rollout was canaried on one host before the other four. Every host reports
+`status=patched version=2026.11.7` with bundle SHA-256 `d85f3070…` (279615
+bytes), keeps one pristine `.monitor.backup-*.mjs` (`1bee687d…`) for rollback,
+passes `5/5` suites (179 assertions), and returns `200` from the gateway health
+endpoint after the restart; the plugin log shows
+`starting feishu[default] (mode: websocket)` plus a resolved bot `open_id` and
+`WebSocket client started`.
+
+The macOS host still runs `OpenClaw 2026.11.6` with the 2026.11.6 patch
+(`a8d6d9fa…`, pristine backup `36a2c58e…`) and moves to the 11.7 patch after
+its plugin is upgraded. No `200850`/`300309` event was logged on the 11.7 hosts
+during the first hour after deployment, so the reopen path still awaits its
+first real >10-minute turn.
+
 ## Release checks
 
 - `tools/finalize.py` -> 6 builds, current `2026.11.7`; manifest, installer
