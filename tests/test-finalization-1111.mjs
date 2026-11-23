@@ -43,59 +43,88 @@ ok("close writes the answer-only content", src.includes("const text = buildConte
 ok("non-extending snapshots use the element replace endpoint", src.includes("const replace = !isStreamingContentExtension(this.state.sentText, nextText);"));
 ok("a shrinking content snapshot bypasses the throttle", src.includes("!isStreamingContentExtension(this.state.sentText, text) || shouldPushStreamingUpdate(this.state.sentText, text)"));
 
-const methodStart = src.indexOf("\tasync writeCardContent(text, replace, onError) {");
+// Card writes differ by build: 11.7 routes them through `putElement()` (reopen on a
+// closed window), older builds write inline and freeze the card on expiry. Evaluate
+// the real card-write methods of the bundle under test.
+const hasReopen = src.includes("async putElement(element, operation, action, body, token) {");
+const methodStart = hasReopen
+  ? src.indexOf("\tasync putElement(element, operation, action, body, token) {")
+  : src.indexOf("\tasync writeCardContent(text, replace, onError) {");
 const methodEnd = src.indexOf("\n\tasync writeElementContent", methodStart);
-if (methodStart < 0 || methodEnd < 0) throw new Error("writeCardContent method missing");
-const methodBody = src.slice(methodStart, methodEnd);
-const innerBody = methodBody.slice(methodBody.indexOf("{") + 1, methodBody.lastIndexOf("}"));
-// Use the real CardKit classifiers so retry/terminal decisions are exercised.
+if (methodStart < 0 || methodEnd < 0) throw new Error("card write methods missing");
+const methodsSrc = src.slice(methodStart, methodEnd);
+// Use the real CardKit classifiers so reopen/retry/terminal decisions are exercised.
 const helperStart = src.indexOf("/** CardKit codes that mean this card's streaming window is already over. */");
 const helperEnd = src.indexOf("const delayMs = ", helperStart);
 if (helperStart < 0 || helperEnd < 0) throw new Error("cardkit error helpers not found");
 const cardKitHelpers = src.slice(helperStart, helperEnd);
-const buildWrite = new Function(`
+const buildSession = new Function(`
+  const STREAMING_CLOSED_ERROR = /\\(code=(200850|300309)\\)$/;
   const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;
   const CARD_WRITE_RETRY_BASE_DELAY_MS = 1;
   const CARD_CONTENT_REPLACE_MAX_FAILURES = 2;
   const CARD_CONTENT_WRITE_MAX_FAILURES = 3;
   ${cardKitHelpers}
   const delayMs = async () => {};
-  return async function writeCardContent(text, replace, onError) {${innerBody}};
+  const assertSuccessfulCardKitResponse = async () => {};
+  return class {
+    constructor(calls, errors, log) {
+      this.state = { cardId: "card", sequence: 0 };
+      this.expired = false;
+      this.lastWriteError = void 0;
+      this.contentReplaceBlocked = false;
+      this.contentReplaceFailures = 0;
+      this.contentWriteBlocked = false;
+      this.contentWriteFailures = 0;
+      this.calls = calls;
+      this.errors = errors;
+      this.log = log;
+    }
+    markStreamingExpired() { this.expired = true; }
+    async requestCardKit(path, operation, method, body) {
+      const payload = typeof body === "function" ? body() : body;
+      this.calls.push({ path, operation, method, payload });
+      const error = this.errors[this.calls.length - 1];
+      if (error) throw error;
+      return { code: 0 };
+    }
+    ${methodsSrc}
+  };
 `);
+
+const closedWriteError = (code = 200850) => {
+  const error = new Error(`Update card element content failed: ErrMsg: card streaming timeout;  (code=${code})`);
+  error.feishuCode = code;
+  return error;
+};
 
 async function runWrite(errors) {
   const calls = [];
-  const session = {
-    state: { cardId: "card", sequence: 0 },
-    expired: false,
-    contentReplaceBlocked: false,
-    contentReplaceFailures: 0,
-    contentWriteBlocked: false,
-    contentWriteFailures: 0,
-    log: () => {},
-    markStreamingExpired() {
-      this.expired = true;
-    },
-    requestCardKit: async (path, operation, method, body) => {
-      const payload = typeof body === "function" ? body() : body;
-      calls.push({ sequence: payload.sequence, uuid: payload.uuid });
-      const error = errors[calls.length - 1];
-      if (error) throw error;
-    }
-  };
+  const logs = [];
+  const Session = buildSession();
+  const session = new Session(calls, errors, (line) => logs.push(line));
   let reported;
-  const write = buildWrite();
-  const sent = await write.call(session, "hello", false, (error) => { reported = error; });
-  return { sent, calls, reported, session };
+  const sent = await session.writeCardContent("hello", false, (error) => { reported = error; });
+  return { sent, calls, reported, session, logs };
 }
 
 const transient = await runWrite([{ httpStatus: 500 }, null]);
 ok("transient card write retries", transient.sent === true && transient.calls.length === 2);
 ok("recovered retry does not report finalization error", transient.reported === undefined);
-ok("retry replays the same sequence/uuid", transient.calls[0].sequence === transient.calls[1].sequence && transient.calls[0].uuid === transient.calls[1].uuid);
+ok("each card write attempt targets the same element", new Set(transient.calls.map((call) => call.path)).size === 1);
+ok("a retry either replays or refreshes the write sequence", hasReopen ? transient.calls[0].payload.sequence !== transient.calls[1].payload.sequence : transient.calls[0].payload.sequence === transient.calls[1].payload.sequence);
 const permanent = await runWrite([{ httpStatus: 400 }]);
 ok("permanent card write does not retry", permanent.sent === false && permanent.calls.length === 1);
 ok("permanent card write reports error once", permanent.reported?.httpStatus === 400);
+
+const reopened = await runWrite([closedWriteError(200850), null, null, null]);
+ok("a closed window follows the build's reopen policy", hasReopen ? reopened.sent === true && reopened.session.expired === false : reopened.sent === false && reopened.session.expired === true);
+ok("reopen patches streaming_mode only when supported", hasReopen ? reopened.calls.filter((call) => call.operation === "reopen").length === 2 : reopened.calls.every((call) => call.operation !== "reopen"));
+ok("closed-window write handling is bounded", reopened.calls.length <= 4);
+ok("closed-window detector is version-appropriate", src.includes("STREAMING_CLOSED_ERROR_CODES") && (src.includes("const STREAMING_CLOSED_ERROR = ") === hasReopen));
+ok("HTTP 400 card responses are parsed when reopen is supported", src.includes("response.status !== 400") === hasReopen);
+ok("card reopen is logged when supported", src.includes("reopening the card") === hasReopen);
+ok("delta preview dedupe is adopted when supported", src.includes("previewBlockOffset") === hasReopen);
 
 ok("idle hold defers mid-tool idle close", src.includes("const CARD_IDLE_HOLD_MS = 8e3;") && src.includes("onIdle: () => {") && src.includes("scheduleIdleHold();"));
 ok("idle hold is bounded and re-checks tool activity", src.includes("idleHoldRenewals < CARD_IDLE_HOLD_MAX_RENEWALS") && src.includes("const stillHolding = aggregatedToolTotal > 0 && !streamText.trim() && streaming?.isActive();"));

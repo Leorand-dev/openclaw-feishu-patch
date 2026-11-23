@@ -17,6 +17,7 @@ const cardKitHelpers = src.slice(helperStart, helperEnd);
 const Session = new Function([
   "const STREAMING_UPDATE_THROTTLE_MS = 250;",
   "const STREAMING_SIGNIFICANT_DELTA_CHARS = 18;",
+  "const STREAMING_CLOSED_ERROR = /\\(code=(200850|300309)\\)$/;",
   "const CARD_WRITE_RETRY_MAX_ATTEMPTS = 3;",
   "const CARD_WRITE_RETRY_BASE_DELAY_MS = 1;",
   "const CARD_CONTENT_REPLACE_MAX_FAILURES = 2;",
@@ -211,16 +212,58 @@ ok("every content writer honours the expired flag",
   && src.includes("async deleteElementForced(elementId) {\n\t\tif (!this.state || this.expired) return false;"));
 
 // ---- streaming window expiry (200850 card streaming timeout / 300309) ----
+// 2026.11.7 moved every card write onto `putElement()`, which reopens a closed
+// streaming window (streaming_mode false -> true) and retries once. Older builds
+// keep the terminal-expiry behaviour, so the suite asserts the policy of the
+// bundle under test.
+const hasReopen = src.includes("async putElement(element, operation, action, body, token) {");
 const timedOutError = new Error("Update card element progress failed: ErrMsg: card streaming timeout;  (code=200850)");
 timedOutError.feishuCode = 200850;
 const closedModeError = new Error("Update card element progress failed: ErrMsg: streaming mode is closed;  (code=300309)");
 closedModeError.feishuCode = 300309;
 
-ok("card streaming timeout is terminal", isStreamingClosedError(timedOutError) && !isRetryableCardKitError(timedOutError));
-ok("closed streaming mode is terminal", isStreamingClosedError(closedModeError) && !isRetryableCardKitError(closedModeError));
+ok("card streaming timeout is classified as a closed window", isStreamingClosedError(timedOutError) && !isRetryableCardKitError(timedOutError));
+ok("closed streaming mode is classified as a closed window", isStreamingClosedError(closedModeError) && !isRetryableCardKitError(closedModeError));
 ok("plain network timeouts stay retryable", !isStreamingClosedError({ message: "request timeout" }) && isRetryableCardKitError({ message: "request timeout" }));
 ok("rate limits stay retryable", isRetryableCardKitError({ feishuCode: 429 }));
 
+// -- one closed-window error: reopen (11.7) or freeze (legacy) --
+calls.length = 0;
+let reopenDeletes = 0;
+let reopenThrows = 1;
+const reopenLogs = [];
+const reopenClient = {
+  im: {
+    message: {
+      create: async () => ({ code: 0, data: { message_id: "m6" } }),
+      delete: async () => {
+        reopenDeletes += 1;
+        return { code: 0 };
+      }
+    }
+  }
+};
+const reopenSession = new StreamingSession(reopenClient, { domain: "feishu", appId: "a", appSecret: "s" }, (line) => reopenLogs.push(line));
+reopenSession.requestCardKit = async (path, operation, method, body) => {
+  const payload = typeof body === "function" ? body() : body;
+  calls.push({ path, operation, method, payload });
+  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c6" } };
+  if (path.endsWith("/elements/progress/content") && reopenThrows > 0) {
+    reopenThrows -= 1;
+    throw timedOutError;
+  }
+  return { code: 0 };
+};
+await reopenSession.start("chat1", "chat_id", {});
+const reopenedFirst = await reopenSession.updateProgress("<font color='grey'>\u23F3 3 个工具</font>");
+ok("a closed-window write follows the build's reopen policy", hasReopen ? reopenedFirst === true && reopenSession.expired === false : reopenedFirst === false && reopenSession.expired === true);
+ok("a reopened window retries the write once", calls.filter((call) => call.path === "/c6/elements/progress/content").length === (hasReopen ? 2 : 1));
+ok("only reopen-capable builds patch card settings", calls.some((call) => call.path === "/c6/settings") === hasReopen);
+ok("closed-window handling is observable in the log", reopenLogs.some((line) => /reopening the card|Streaming card expired/.test(line)));
+const reopenedClose = await reopenSession.closeWithResult("answer");
+ok("a reopened card keeps the answer and a frozen card falls back", hasReopen ? reopenedClose.visibleReplySent === true && reopenedClose.content === "answer" : reopenedClose.visibleReplySent === false && reopenDeletes === 1);
+
+// -- a window that cannot be recovered still ends in the terminal fallback --
 calls.length = 0;
 let expiredDeletes = 0;
 const expiredLogs = [];
@@ -238,20 +281,24 @@ const expiredClient = {
 const expiredSession = new StreamingSession(expiredClient, { domain: "feishu", appId: "a", appSecret: "s" }, (line) => expiredLogs.push(line));
 expiredSession.requestCardKit = async (path, operation, method) => {
   calls.push({ path, operation, method });
-  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c4" } };
+  if (path === "" && method === "POST") return { code: 0, data: { card_id: "c7" } };
   throw timedOutError;
 };
 await expiredSession.start("chat1", "chat_id", {});
-ok("write on an expired card fails once", (await expiredSession.updateProgress("<font color='grey'>⏳ 27 个工具</font>")) === false);
+ok("an unrecoverable window write fails", (await expiredSession.updateProgress("<font color='grey'>\u23F3 27 个工具</font>")) === false && expiredSession.expired === true);
 const callsAfterFirstFailure = calls.length;
-ok("expired session stops element writes", (await expiredSession.updateDetails("- 💻 终端 ×2")) === false && (await expiredSession.updateProgress("\u200B")) === false && calls.length === callsAfterFirstFailure);
+ok("unrecoverable expiry stops element writes", (await expiredSession.updateDetails("- \u{1F4BB} 终端 \u00D72")) === false && (await expiredSession.updateProgress("\u200B")) === false && calls.length === callsAfterFirstFailure);
 await expiredSession.update("later token");
-ok("expired session stops content writes", calls.length === callsAfterFirstFailure);
+ok("unrecoverable expiry stops content writes", calls.length === callsAfterFirstFailure);
 ok("expiry is logged once", expiredLogs.filter((line) => line.includes("Streaming card expired")).length === 1);
+ok("closed-window handling is bounded to a reopen attempt", callsAfterFirstFailure <= 4);
 const expiredResult = await expiredSession.closeWithResult("answer");
-ok("expired close reports no visible reply", expiredResult.visibleReplySent === false);
-ok("frozen card is deleted at close", expiredDeletes === 1);
-ok("expired close does not patch card settings", !calls.some((call) => call.path.endsWith("/settings")));
+ok("expired close reports no visible reply and deletes the frozen card", expiredResult.visibleReplySent === false && expiredDeletes === 1);
+ok("expired close does not patch card settings off", calls.filter((call) => call.operation === "close").length === 0);
 ok("expired close logs the drop", expiredLogs.some((line) => line.includes("Dropped expired streaming card")));
+
+// -- 2026.11.7 delta-preview dedupe (block streaming) --
+ok("delta preview dedupe matches the build", src.includes("previewBlockOffset") === hasReopen);
+ok("an assistant message start resets the preview cursor", src.includes("previewBlockOffset = 0;") === hasReopen);
 
 finish("2026.11.1 streaming-session shape");
