@@ -306,11 +306,12 @@ endpoint after the restart; the plugin log shows
 `starting feishu[default] (mode: websocket)` plus a resolved bot `open_id` and
 `WebSocket client started`.
 
-The macOS host still runs `OpenClaw 2026.11.6` with the 2026.11.6 patch
-(`a8d6d9fa…`, pristine backup `36a2c58e…`) and moves to the 11.7 patch after
-its plugin is upgraded. No `200850`/`300309` event was logged on the 11.7 hosts
-during the first hour after deployment, so the reopen path still awaits its
-first real >10-minute turn.
+The macOS host followed on 2026-11-24 (`OpenClaw 2026.11.7`, build `393b8ff`,
+bun runtime 1.4.4): it also reports `status=patched version=2026.11.7`, bundle
+`d85f3070…` (279615 bytes), one pristine backup (`1bee687d…`), `5/5` suites
+(179 assertions), health `200` and `launchd state=running`. All six fleet hosts
+now run the 11.7 patch. No `200850`/`300309` event had been logged by then, so
+the reopen path still awaits its first real >10-minute turn.
 
 ## Release checks
 
