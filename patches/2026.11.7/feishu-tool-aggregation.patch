@@ -1000,17 +1000,23 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -1931,6 +2582,9 @@
+@@ -1931,6 +2582,15 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
 +				const parsedToolSummary = parseCollapsibleToolSummary(inputPayload, info) ?? parseBareToolLabel(inputPayload, info);
-+				if (parsedToolSummary && await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;
++				if (parsedToolSummary) {
++					if (await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;
++					// A recognized tool row that cannot join a streaming card (background process,
++					// subagent turn, raw render mode, already-closed card) must not become a
++					// standalone message bubble; the final reply still uses the normal path.
++					return noVisibleFeishuReplyDelivery;
++				}
 +				if (info?.kind === "final") clearIdleHold();
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -1938,6 +2592,19 @@
+@@ -1938,6 +2598,19 @@
  				});
  				const rendered = consumeFeishuPresentationFallbackMarker(prepared.payload);
  				const payload = rendered.payload;
@@ -1030,7 +1036,7 @@
  				const presentationCard = prepared.card;
  				const hasPresentationFallback = rendered.presentationFallback?.hasVisibleContent === true;
  				const hasIndependentPresentation = presentationCard !== void 0 || hasPresentationFallback;
-@@ -1950,6 +2617,10 @@
+@@ -1950,6 +2623,10 @@
  				const text = info?.kind === "final" && !hasIndependentPresentation ? mergeStreamingFinalText(streamText, payload.isError ? reply.text : `${snapshotBaseText}${reply.text}`, payload.isError === true && hasStreamingFinalText) : reply.text;
  				const hasText = reply.hasText;
  				const hasMedia = reply.hasMedia;
@@ -1041,7 +1047,7 @@
  				const ttsSupplement = getReplyPayloadTtsSupplement(payload);
  				const ttsTextAlreadyVisible = ttsSupplement?.visibleTextAlreadyDelivered === true;
  				const hasVoiceMedia = hasMedia && reply.mediaUrls.some((mediaUrl) => shouldSuppressFeishuTextForVoiceMedia({
-@@ -2021,7 +2692,7 @@
+@@ -2021,7 +2698,7 @@
  							if (info?.kind === "final") {
  								streamText = text;
  								hasStreamingFinalText = true;
@@ -1050,7 +1056,7 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2064,30 +2735,54 @@
+@@ -2064,30 +2741,54 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -1108,7 +1114,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2101,11 +2796,31 @@
+@@ -2101,11 +2802,31 @@
  				lastPartial = "";
  				previewText = "";
  				previewBlockOffset = 0;

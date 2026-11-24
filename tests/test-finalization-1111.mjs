@@ -139,6 +139,12 @@ ok("final details are computed before state reset", src.indexOf("const finalDeta
 ok("final card close passes status line and details", src.includes("closeWithResult(text, {") && src.includes("statusLine: formatProgressLine(finalStatusLine)") && src.includes("details: finalDetails"));
 ok("reasoning payloads never become answer text", src.includes("if (payload.isReasoning === true)") && src.includes("reasoningText = formatReasoningMessage(payload.text);"));
 ok("commentary payloads are routed to the progress line", src.includes("if (payload.isCommentary === true)") && src.includes("noteCommentaryLine(payload.text);"));
+ok("recognized tool rows are built for the bundle's card policy", hasReopen
+  ? src.includes("if (parsedToolSummary) {") && src.includes("if (await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;")
+  : src.includes("if (parsedToolSummary && await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;"));
+ok("tool rows that cannot join a card never fall back to a message bubble", hasReopen
+  ? !src.includes("if (parsedToolSummary && await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;")
+  : !src.includes("if (parsedToolSummary) {"));
 ok("empty tool turn removes the details panel", src.includes('deleteElementForced("detailspanel")') && src.includes('deleteElementForced("divider")'));
 ok("non-empty tool turn replaces details with column_set", src.includes('putElementPayload("detailspanel_body", options.details, "replace")'));
 ok("discard path preserved", src.includes("if (disposition === \"discarded\") closed = await streamingToClose.discard();"));

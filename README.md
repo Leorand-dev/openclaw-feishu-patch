@@ -28,10 +28,10 @@ the progress line instead of leaking into the answer.
 | --- | --- | --- | --- | --- | --- |
 | plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2`, `@openclaw/feishu@2026.11.3` | `@openclaw/feishu@2026.11.5` | `@openclaw/feishu@2026.11.6` | `@openclaw/feishu@2026.11.7` |
 | pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` |
-| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `d85f3070a374f1866bbd9f4adcb5e4237009c3dfcaf493b576e38409d64bc771` |
-| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `897ee82076dff7ce876c877d15b34466a3124bec3e8a192a3e535882db12f802` |
+| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` |
+| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
 | patch hunks | 32 | 32 | 31 | 31 | 32 |
-| test assertions | 179 | 179 | 179 | 179 | 179 |
+| test assertions | 181 | 181 | 181 | 181 | 181 |
 
 The installer selects the patch by the target's SHA-256. It accepts a pristine
 2026.11.1/2026.11.2/2026.11.3/2026.11.5/2026.11.6/2026.11.7 bundle, the **current** patched bundle, and any earlier
@@ -150,6 +150,11 @@ panel and the divider are deleted so a plain Q&A card has no empty panel.
 - Writes the collapsed `🧾 过程记录` panel as a summary line plus category
   groups (`命令` / `文件` / `网络` / `会话` / `其他`), e.g.
   `**12 个工具 · 45s**`, `**命令 · 终端**`, `- git status ×2`.
+- Never posts a bare tool row as its own message: a recognized tool/progress payload
+  that cannot join the streaming card (background process, subagent turn, raw render
+  mode, card already closed) is dropped, so a long turn's tail cannot flood the chat
+  with independent `Exec` / `Session Search` bubbles. The final answer still uses the
+  normal delivery path.
 - Uses the CardKit 2.0 element APIs only: `PUT .../elements/{id}/content`
   (streaming text), `PUT .../elements/{id}` (replace the panel body with the
   final markdown), `DELETE .../elements/{id}` (drop the empty panel). The legacy
@@ -214,7 +219,7 @@ node run-all.mjs ../patches/2026.11.2/patched.mjs   # 11.3 has the same bytes
 node run-all.mjs ../patches/2026.11.1/patched.mjs
 ```
 
-Expected: `5/5 suites passed, 0 failed` with 179 assertions, for any supported build.
+Expected: `5/5 suites passed, 0 failed` with 181 assertions, for any supported build.
 
 Mechanical checks:
 
@@ -334,7 +339,7 @@ of showing a half-written card. Both doors log once
   patch was re-derived through a seven-conflict three-way merge: every card
   write (content, progress, panel, note) now goes through `putElement()`, the
   terminal-expiry path stays as the bounded fallback, and the reviewed layout
-  contract is unchanged (32 hunks, patched SHA-256 `d85f3070…`).
+  contract is unchanged (32 hunks, patched SHA-256 `343976b2…`).
 - `✅ 完成` is written to the progress element. If the turn falls back to a
   non-streaming static send, that static card is unchanged.
 - Tool aggregation only applies to structured tool starts and the reviewed

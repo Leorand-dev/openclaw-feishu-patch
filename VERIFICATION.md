@@ -25,7 +25,7 @@ still on 10.10 must upgrade the plugin before installing.
 | `patches/2026.11.3/feishu-tool-aggregation.patch` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` |
 | `patches/2026.11.5/feishu-tool-aggregation.patch` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` |
 | `patches/2026.11.6/feishu-tool-aggregation.patch` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` |
-| `patches/2026.11.7/feishu-tool-aggregation.patch` | `897ee82076dff7ce876c877d15b34466a3124bec3e8a192a3e535882db12f802` |
+| `patches/2026.11.7/feishu-tool-aggregation.patch` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
 | patched bundle, 2026.11.1 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` |
 | `patches/HISTORY.json` (previous patched builds) | up to 20 entries; installer `KNOWN_PATCHED` block |
@@ -36,7 +36,7 @@ still on 10.10 must upgrade the plugin before installing.
 | pristine bundle, 2026.11.6 | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` |
 | patched bundle, 2026.11.6 | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` |
 | pristine bundle, 2026.11.7 | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` |
-| patched bundle, 2026.11.7 | `d85f3070a374f1866bbd9f4adcb5e4237009c3dfcaf493b576e38409d64bc771` |
+| patched bundle, 2026.11.7 | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -46,8 +46,8 @@ reference values for the exact supported builds.
 | item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 | 2026.11.6 | 2026.11.7 |
 | --- | --- | --- | --- | --- | --- |
 | hunks | 32 | 32 | 31 | 31 | 32 |
-| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique | `1bee687d…` -> `d85f3070…`, 32/32 anchors unique |
-| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact | `d85f3070…` -> `1bee687d…`, byte-exact |
+| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique | `1bee687d…` -> `343976b2…`, 32/32 anchors unique |
+| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact | `343976b2…` -> `1bee687d…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
   the 2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6 and 2026.11.7 bundle pairs
@@ -134,8 +134,17 @@ write onto the new `putElement()` primitive: `writeCardContent`,
 `putElementPayload` and `updateNoteContent` become thin payload builders, while
 `putElementWithRetry()` only retries transient 408/429/5xx failures (a closed
 window is retried once by `putElement()` itself). The terminal-expiry path
-remains as the bounded fallback when the reopen fails. Result: 32 hunks,
-patched SHA-256 `d85f3070…`.
+remains as the bounded fallback when the reopen fails. Result: 32 hunks.
+
+The first 11.7 fleet build (`d85f3070…`) still let the chat fill with independent
+bubbles during a long turn whose streaming card had already closed: recognized
+tool/progress payloads (`Exec`, `Session Search: …`, `Process: <subagent>:<run>`,
+`Write: to …`, …) were parsed, failed to join any streaming card (background /
+subagent delivery, closed card), and then fell through to the normal text path as
+one `post` message each. The follow-up fix keeps the parsed-tool branch terminal:
+when a row cannot join a card it is dropped, so the final reply still arrives but no
+bare tool row can become its own bubble. The patch is re-hashed as `343976b2…`
+(same 32 hunks) and all six fleet hosts were re-deployed with it.
 
 ### Why 2026.11.5 re-anchors instead of mirroring
 
@@ -242,7 +251,7 @@ reply.
 
 ## Test results
 
-`tests/run-all.mjs` -> **5/5 suites, 0 failed, 179 assertions** against each
+`tests/run-all.mjs` -> **5/5 suites, 0 failed, 181 assertions** against each
 patched bundle (2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6 and 2026.11.7; the
 2026.11.3 build carries the same bytes as 11.2, so the 11.2 result covers it):
 
@@ -250,10 +259,10 @@ patched bundle (2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6 and 2026.11.7; the
 | --- | --- |
 | parser/structured-details/content-only helpers | 46 |
 | aggregation/status/details (incl. prewarm) | 21 |
-| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy) | 51 |
+| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy, tool-row drop) | 53 |
 | streaming-session shape (incl. window expiry/reopen, live shrink, write breaker) | 55 |
 | idle-hold behavior | 6 |
-| **total** | **179** |
+| **total** | **181** |
 
 The two version-sensitive suites are branch-aware: `hasReopen` detects the 11.7
 `putElement()` layer, so 11.7 asserts the reopen/retry policy while the older
@@ -279,7 +288,7 @@ streaming-session suite locates the upstream module boundary by the bare path
 - `patch -R --dry-run` with the 11.2 patch against the patched copy -> OK;
   same for the 11.5 patch (`8d5cfbd6…` <-> `9c88ab9b…`), the 11.6 patch
   (`36a2c58e…` <-> `a8d6d9fa…`), both 31 hunks, and the 11.7 patch
-  (`1bee687d…` <-> `d85f3070…`), 32 hunks.
+  (`1bee687d…` <-> `343976b2…`), 32 hunks.
 - `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact.
 - `tools/adapt_patch.py` regeneration -> exact patched SHAs for the reviewed
   bundle pairs.
@@ -299,18 +308,19 @@ The 2026.11.7 patch was deployed to the five Linux hosts (all on
 `OpenClaw 2026.11.7`, build `e31bbf0`, plugin `@openclaw/feishu@2026.11.7`)
 after the plugin upgrade had reset their monitor bundles to pristine. The
 rollout was canaried on one host before the other four. Every host reports
-`status=patched version=2026.11.7` with bundle SHA-256 `d85f3070…` (279615
+`status=patched version=2026.11.7` with bundle SHA-256 `343976b2…` (279915
 bytes), keeps one pristine `.monitor.backup-*.mjs` (`1bee687d…`) for rollback,
-passes `5/5` suites (179 assertions), and returns `200` from the gateway health
+passes `5/5` suites (181 assertions), and returns `200` from the gateway health
 endpoint after the restart; the plugin log shows
 `starting feishu[default] (mode: websocket)` plus a resolved bot `open_id` and
 `WebSocket client started`.
 
 The macOS host followed on 2026-11-24 (`OpenClaw 2026.11.7`, build `393b8ff`,
 bun runtime 1.4.4): it also reports `status=patched version=2026.11.7`, bundle
-`d85f3070…` (279615 bytes), one pristine backup (`1bee687d…`), `5/5` suites
-(179 assertions), health `200` and `launchd state=running`. All six fleet hosts
-now run the 11.7 patch. No `200850`/`300309` event had been logged by then, so
+`343976b2…` (279915 bytes), one pristine backup (`1bee687d…`), `5/5` suites
+(181 assertions), health `200` and `launchd state=running`. All six fleet hosts
+run the 11.7 patch; the tool-row suppression follow-up was re-deployed to all of
+them. No `200850`/`300309` event had been logged by then, so
 the reopen path still awaits its first real >10-minute turn.
 
 ## Release checks

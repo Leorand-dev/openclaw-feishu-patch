@@ -42,7 +42,7 @@ sha256: a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84   # 202
 sha256: 2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864   # 2026.11.2 / 2026.11.3
 sha256: 9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032   # 2026.11.5
 sha256: a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781   # 2026.11.6
-sha256: d85f3070a374f1866bbd9f4adcb5e4237009c3dfcaf493b576e38409d64bc771   # 2026.11.7
+sha256: 343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1   # 2026.11.7
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -67,7 +67,7 @@ You can inspect state without changing files:
 ./install.sh --dry-run "$TARGET"
 ```
 
-Expected: `5/5 suites passed` with 179 assertions. On a pristine
+Expected: `5/5 suites passed` with 181 assertions. On a pristine
 11.1/11.2/11.3/11.5/11.6/11.7 target, `--check` reports `status=pristine`; after installation
 it reports `status=patched`.
 
@@ -115,6 +115,9 @@ python3 tools/check_docs.py
 - Live panel updates must stay `PUT .../elements/detailspanel_body/content`;
   the final render replaces the same element with the final markdown body.
 - Empty tool turns must not leave a visible panel.
+- A recognized tool row that cannot join a streaming card (background process, subagent
+  turn, raw render mode, card already closed) is dropped instead of being posted as a
+  standalone message; the final reply still uses the normal path.
 - The completion line belongs to `#progress`; content must stay answer-only. If
   the progress write fails, fold the line back into the content instead.
 
@@ -167,9 +170,9 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- | --- | --- | --- | --- |
 | plugin build | `2026.11.1` | `2026.11.2`, `2026.11.3` | `2026.11.5` | `2026.11.6` | `2026.11.7` |
 | pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` |
-| patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `d85f3070a374f1866bbd9f4adcb5e4237009c3dfcaf493b576e38409d64bc771` |
-| patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `897ee82076dff7ce876c877d15b34466a3124bec3e8a192a3e535882db12f802` |
+| patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` |
+| patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
 | patch hunks | 32 | 32 | 31 | 31 | 32 |
-| test assertions | 179 | 179 | 179 | 179 | 179 |
+| test assertions | 181 | 181 | 181 | 181 | 181 |
 
 See `README.md` for behavior and limitations.
