@@ -320,7 +320,9 @@ bun runtime 1.4.4): it also reports `status=patched version=2026.11.7`, bundle
 `343976b2…` (279915 bytes), one pristine backup (`1bee687d…`), `5/5` suites
 (181 assertions), health `200` and `launchd state=running`. All six fleet hosts
 run the 11.7 patch; the tool-row suppression follow-up was re-deployed to all of
-them. No `200850`/`300309` event had been logged by then, so
+them. In-place upgrades leave two backups on each host (the previous `d85f3070…`
+patch and the pristine `1bee687d…` copy); `install.sh --check` prints the
+`pristine_backup=` path, which is the file to restore for a rollback. No `200850`/`300309` event had been logged by then, so
 the reopen path still awaits its first real >10-minute turn.
 
 ## Release checks

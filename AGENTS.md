@@ -160,7 +160,9 @@ python3 tools/check_docs.py
 
 ```sh
 TARGET=$(ls ~/.openclaw/npm/projects/*/node_modules/@openclaw/feishu/dist/.setup/monitor.account-*.mjs | head -1)
-cp -p "$(ls -t "$(dirname "$TARGET")"/.monitor.backup-*.mjs | head -1)" "$TARGET"
+# Newest backup may be the previous patch; use the pristine copy --check reports.
+PRISTINE_BACKUP=$(./install.sh --check "$TARGET" | sed -n 's/.*pristine_backup=\([^ ]*\).*/\1/p')
+cp -p "$PRISTINE_BACKUP" "$TARGET"
 systemctl --user restart openclaw-gateway.service
 ```
 
