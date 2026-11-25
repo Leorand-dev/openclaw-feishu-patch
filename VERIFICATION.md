@@ -377,11 +377,19 @@ The 2026.11.9 patch was deployed to all six hosts (five Linux, one macOS, all on
 the plugin upgrade had reset their monitor bundles to pristine `359a1e8e…`
 (244682 bytes). The rollout was canaried on one host first. Every host reports
 `status=patched version=2026.11.9` with bundle SHA-256 `829b2491…` (281793
-bytes), keeps one pristine `.monitor.backup-*.mjs` (`359a1e8e…`) for rollback,
+bytes), keeps the pristine `.monitor.backup-*.mjs` (`359a1e8e…`) for rollback
+(and the previous 11.9 build as a second backup after the in-place upgrade),
 passes `5/5` suites (181 assertions), and returns `200` from the gateway health
 endpoint after the restart; the plugin log shows
 `starting feishu[default] (mode: websocket)` plus a resolved bot `open_id` and
 `WebSocket client started`.
+
+The layout-v4 build (`829b2491…`) was rolled out to the same six hosts after the
+v4 card refactor: answer-only `#content`, reasoning in the collapsible panel,
+one stable `🔧 N 个工具 · elapsed` status line, counted panel title, green
+completion and red failure line, code-span tool rows and no extra dividers.
+Every host moved from the v3 11.9 build (`67d9af33…`) in place via the pristine
+backup and reports `status=patched version=2026.11.9` with the v4 bundle.
 
 ## Release checks
 
