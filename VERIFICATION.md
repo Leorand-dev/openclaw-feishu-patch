@@ -359,6 +359,19 @@ patch and the pristine `1bee687d…` copy); `install.sh --check` prints the
 `pristine_backup=` path, which is the file to restore for a rollback. No `200850`/`300309` event had been logged by then, so
 the reopen path still awaits its first real >10-minute turn.
 
+## Fleet deployment (2026-11-25)
+
+The 2026.11.9 patch was deployed to all six hosts (five Linux, one macOS, all on
+`OpenClaw 2026.11.9`, build `0032b1d`, plugin `@openclaw/feishu@2026.11.9`) after
+the plugin upgrade had reset their monitor bundles to pristine `359a1e8e…`
+(244682 bytes). The rollout was canaried on one host first. Every host reports
+`status=patched version=2026.11.9` with bundle SHA-256 `67d9af33…` (280480
+bytes), keeps one pristine `.monitor.backup-*.mjs` (`359a1e8e…`) for rollback,
+passes `5/5` suites (181 assertions), and returns `200` from the gateway health
+endpoint after the restart; the plugin log shows
+`starting feishu[default] (mode: websocket)` plus a resolved bot `open_id` and
+`WebSocket client started`.
+
 ## Release checks
 
 - `tools/finalize.py` -> 7 builds, current `2026.11.9`; manifest, installer
