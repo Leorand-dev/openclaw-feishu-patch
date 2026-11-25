@@ -34,6 +34,11 @@ def sha_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def version_key(version):
+    """Semver-ish ordering: 2026.11.10 must sort after 2026.11.9."""
+    return tuple(int(part) for part in version.split("."))
+
+
 def regen(version):
     directory = PATCHES / version
     orig_path = directory / "original.mjs"
@@ -106,7 +111,7 @@ if UPGRADES_PATH.is_file():
 
 # ---- MANIFEST.json --------------------------------------------------------
 manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-versions = [builds[v] for v in sorted(builds)]
+versions = [builds[v] for v in sorted(builds, key=version_key)]
 
 # ---- previous patched builds (in-place upgrade sources) -------------------
 HISTORY_PATH = PATCHES / "HISTORY.json"
@@ -127,7 +132,7 @@ for entry in previous_patched:
 for entry in versions:
     by_sha[entry["patched_sha256"]] = {"version": entry["version"], "sha256": entry["patched_sha256"]}
 history["schema"] = 1
-history["patched"] = sorted(by_sha.values(), key=lambda e: e["version"])[-20:]
+history["patched"] = sorted(by_sha.values(), key=lambda e: version_key(e["version"]))[-20:]
 HISTORY_PATH.write_text(
     json.dumps(history, ensure_ascii=False, indent=2) + "\n",
     encoding="utf-8", newline="\n",
