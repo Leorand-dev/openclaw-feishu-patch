@@ -436,6 +436,21 @@ tool-row suppression still holds. The visual layout was confirmed by the
 operator on the real client (answer-only content, reasoning inside
 `🧾 过程记录`, stable status line, counted panel title, green completion).
 
+## Fleet deployment (2026-11-25, 11.10)
+
+The 2026.11.10 patch was deployed to the four Linux hosts that had been upgraded
+(`OpenClaw 2026.11.10`, build `6ea542f`, plugin `@openclaw/feishu@2026.11.10`),
+canaried on one host first. Each reports `status=patched version=2026.11.10`
+with bundle SHA-256 `983a3cc5…` (283416 bytes), keeps one pristine
+`.monitor.backup-*.mjs` (`b2920958…`) for rollback, passes `5/5` suites (181
+assertions) and returns `200` from the gateway health endpoint after the
+restart; the plugin log shows `starting feishu[default] (mode: websocket)` plus a
+resolved bot `open_id` and `WebSocket client started`.
+
+The remaining two hosts (2026.11.9) keep the v4 11.9 patch (`829b2491…`) and
+move to the 11.10 patch after their plugin upgrade. Layout v4, the reopen path,
+tool-row suppression and the prewarm line are identical on both builds.
+
 ## Release checks
 
 - `tools/finalize.py` -> 8 builds, current `2026.11.10`; manifest, installer
