@@ -44,7 +44,7 @@ sha256: 2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864   # 202
 sha256: 9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032   # 2026.11.5
 sha256: a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781   # 2026.11.6
 sha256: 343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1   # 2026.11.7
-sha256: 67d9af33e806aed4a944d6687b4dee8e842800f8c5ef8fe090ba6aa39e9889e6   # 2026.11.9
+sha256: 829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527   # 2026.11.9
 ```
 
 Restart the OpenClaw gateway using the host's normal supervisor (for example
@@ -80,43 +80,46 @@ python3 tools/verify_patch.py --all=patches
 python3 tools/check_docs.py
 ```
 
-## Card layout contract
+## Card layout contract (layout v4 on 2026.11.9; older builds keep v3)
 
 ```
-① markdown #content      reasoning phase: 💭 thinking blockquote
-                          answer phase: answer only (blockquote cleared)
-② markdown #progress     grey status / commentary / completion line
-③ hr #divider            separator
-④ collapsible_panel      「🧾 过程记录」, body #detailspanel_body
-                          live/final: markdown summary + compact groups
-                          close: panel + divider deleted (no tools)
-⑤ hr + markdown #note    optional grey identity footer
+① markdown #content      answer only (no status line, no thinking)
+② markdown #progress     one stable status line: ⏳ 思考中... / 🔧 N 个工具 · 12s /
+                          ✍️ 生成回复中… / green ✅ 完成 · N 个工具 · 2m03s
+③ hr #divider            the only horizontal rule
+④ collapsible_panel      「🧾 过程记录 · N」, body #detailspanel_body
+                          reasoning: 💭 思考; live: 🔧 执行中 + groups
+                          close: final groups; no tools & no reasoning: deleted
+⑤ markdown #note         optional grey identity footer (no extra hr)
 ```
 
 - Tool rows prefer the structured `onToolStart` name/args pair; single-tool
   groups carry the tool name in the title, multi-tool groups prefix rows with
-  the tool icon. Commands keep their head, paths keep their tail, credential
-  substrings are redacted.
+  the tool icon. Commands and paths are rendered as code spans, keeping their
+  head/tail and redacting credential substrings.
 - Assistant commentary is written to `#progress` as `💬 …`, never into
   `#content`.
 - Reasoning (`isReasoning`) and commentary (`isCommentary`) reply payloads are
   refused by the delivery hook even if a channel enables those core lanes: a
-  reasoning payload only feeds the `💭` preview, a commentary payload only
+  reasoning payload only feeds the `💭` panel preview, a commentary payload only
   writes the grey `💬` line. Neither may reach `#content`.
-- The `💭 **Thinking**` blockquote in `#content` only covers the reasoning phase:
-  it is rendered while the model reasons and is replaced by the answer as soon
-  as real answer text arrives (`buildContentText`), so a live card never shows
-  reasoning above the answer. A non-extending snapshot is written through the
-  element replace endpoint and skips the throttle. If the turn produced no
-  answer at all (aborted / held close) the thinking blockquote is kept so the
-  card is never blank.
+- On 2026.11.9 the reasoning text lives in the collapsed panel body, not in
+  `#content`: `buildContentText` is answer-only, and a turn with no answer keeps
+  a `💭 思考记录` panel so the card is never blank. A non-extending snapshot is
+  written through the element replace endpoint and skips the throttle.
+- Status-line shape is fixed (`icon · count · elapsed`); the running tool is
+  only shown inside the panel, so the line does not reflow on every tool event.
+  The completion line is green, a failed final reply writes a red
+  `⚠️ 回复失败` line.
 
 - Prewarm: write the static `⏳ 思考中...` into `#progress` once the card is
   ready, and clear it (zero-width space) on the first token, reasoning chunk or
   tool event. No animation, no timer.
-- Live panel updates must stay `PUT .../elements/detailspanel_body/content`;
-  the final render replaces the same element with the final markdown body.
-- Empty tool turns must not leave a visible panel.
+- Live panel updates must stay `PUT .../elements/detailspanel_body/content`; the
+  final render replaces the whole `detailspanel` element (title with the tool
+  count) with the final markdown body.
+- Empty tool turns must not leave a visible panel (a reasoning-only turn keeps
+  the thinking panel).
 - A recognized tool row that cannot join a streaming card (background process, subagent
   turn, raw render mode, card already closed) is dropped instead of being posted as a
   standalone message; the final reply still uses the normal path.
@@ -174,8 +177,8 @@ systemctl --user restart openclaw-gateway.service
 | --- | --- | --- | --- | --- | --- | --- |
 | plugin build | `2026.11.1` | `2026.11.2`, `2026.11.3` | `2026.11.5` | `2026.11.6` | `2026.11.7` | `2026.11.9` |
 | pristine SHA-256 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` |
-| patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` | `67d9af33e806aed4a944d6687b4dee8e842800f8c5ef8fe090ba6aa39e9889e6` |
-| patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` | `4d8bd61fbe6078bd43fee4bc05ef583862267c392f61af006ed7222ff2b4bb3f` |
+| patched SHA-256 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` |
+| patch SHA-256 | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` |
 | patch hunks | 32 | 32 | 31 | 31 | 32 | 32 |
 | test assertions | 181 | 181 | 181 | 181 | 181 | 181 |
 

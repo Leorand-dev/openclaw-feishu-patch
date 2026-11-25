@@ -29,8 +29,8 @@ the progress line instead of leaking into the answer.
 | --- | --- | --- | --- | --- | --- | --- |
 | plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2`, `@openclaw/feishu@2026.11.3` | `@openclaw/feishu@2026.11.5` | `@openclaw/feishu@2026.11.6` | `@openclaw/feishu@2026.11.7` | `@openclaw/feishu@2026.11.9` |
 | pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` |
-| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` | `67d9af33e806aed4a944d6687b4dee8e842800f8c5ef8fe090ba6aa39e9889e6` |
-| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` | `4d8bd61fbe6078bd43fee4bc05ef583862267c392f61af006ed7222ff2b4bb3f` |
+| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` |
+| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` |
 | patch hunks | 32 | 32 | 31 | 31 | 32 | 32 |
 | test assertions | 181 | 181 | 181 | 181 | 181 | 181 |
 
@@ -89,7 +89,9 @@ extracted from `bot.ts`, the card message send moves into a shared
 `command` turn metadata. The streaming-card class (`putElement()` reopen,
 `writeContent`, `closeWithResult`) and the reply-delivery hook are unchanged, so
 the reviewed 11.7 change set survives with one three-way conflict (the
-section-marker block); result: 32 hunks. Visual card behaviour is unchanged.
+section-marker block); result: 32 hunks. The 11.9 patch additionally ships layout v4
+(answer-only content, reasoning in the panel, stable status line, green
+completion, counted panel title); older builds keep layout v3.
 
 2026.11.7 is the streaming-window release (bundle 243155 -> 244117 bytes): a
 card's 10-minute streaming window is no longer terminal. Upstream adds
@@ -106,32 +108,39 @@ keeps updating the same card instead of freezing at 10:00. Seven three-way merge
 conflicts were reviewed (all in the card-write/close/preview paths); result:
 32 hunks.
 
-## Card layout (layout v3 + prewarm)
+## Card layout (layout v4 on 2026.11.9; older builds keep v3)
 
 ```
 [header]                          optional title + template
-  ① markdown #content             reasoning phase: 💭 thinking blockquote
-                                  answer phase: answer only (blockquote cleared)
-  ② markdown #progress            grey status / commentary / completion line
-  ③ hr #divider                   separates answer from the process panel
-  ④ collapsible_panel             collapsed 「🧾 过程记录」
-       markdown #detailspanel_body   summary + compact category groups
-  ⑤ hr + markdown #note           optional grey identity footer
+  ① markdown #content             answer only (no status line, no thinking)
+  ② markdown #progress            one stable status line:
+                                  ⏳ 思考中... / 🔧 N 个工具 · 12s /
+                                  ✍️ 生成回复中… / ✅ 完成 · N 个工具 · 2m03s
+  ③ hr #divider                   the only horizontal rule
+  ④ collapsible_panel             collapsed 「🧾 过程记录 · N」
+       markdown #detailspanel_body   groups + code-span tool rows
+  ⑤ markdown #note                optional grey identity footer (no extra hr)
 ```
 
-Thinking preview: while the model is still reasoning, `#content` shows it as a
-`> 💭 **Thinking**` blockquote. The first answer characters replace that
-blockquote — a shrink is written through the element replace endpoint and
-bypasses the 250 ms throttle — so the live card turns answer-only at the same
-moment the answer starts, and the closed card carries the same text. If the turn
-produced no answer (aborted, held close) the blockquote is kept so the card is
-never blank.
+Layout v4 keeps the card calm while work runs: `#content` is answer-only,
+reasoning is written into the collapsible panel body as `💭 思考`, and the
+status line has a fixed `icon · count · elapsed` shape so it does not reflow on
+every tool — the running tool is shown inside the panel as a `🔧 执行中` line.
+Tool rows use code spans (e.g. `- git status --short ×2`),
+the collapsed panel title carries the tool count (`🧾 过程记录 · 12`), the
+completion line is green and a failed reply writes a red `⚠️ 回复失败` line. The
+identity note sits under the panel without an extra divider.
 
-Prewarm: every supported build already creates the card in `onReplyStart`, but
-leave it empty until the first token. The patch writes `⏳ 思考中...` into
-`#progress` as soon as the card is ready, and clears it (zero-width space) when
-the first token, reasoning chunk or tool event arrives. The text is static — no
-animation, no extra API calls beyond that one write.
+Prewarm: the patch creates the card in `onReplyStart`, writes the static
+`⏳ 思考中...` into `#progress` as soon as the card is ready, and clears it
+(zero-width space) when the first token, reasoning chunk or tool event arrives.
+No animation, no extra API calls beyond that one write.
+
+Thinking: while the model reasons, the reasoning text is written into the
+collapsed panel body (`💭 思考` / blockquote lines); `#content` stays empty. The
+first answer characters go to `#content` and never carry the reasoning, so the
+live card and the closed card read the same. A turn that produced no answer
+(aborted / held close) keeps a `💭 思考记录` panel so the card is never blank.
 
 Tool details: the panel prefers the structured `onToolStart` event (tool name +
 args) and derives a one-line target per tool — `exec` → command, `read`/`edit` →
@@ -145,24 +154,30 @@ Commentary: assistant commentary ("我先看一下这个文件…") is written t
 `#progress` as a grey `💬 …` line instead of the answer, so `#content` stays
 answer-only.
 
-At close, when the turn used tools the panel body is replaced once with the
-final markdown body (summary line + groups). When the turn used no tools, the
-panel and the divider are deleted so a plain Q&A card has no empty panel.
+At close, the panel element is replaced once with `🧾 过程记录 · N` and the
+final groups; a turn with no tools and no reasoning deletes the panel and the
+divider so a plain Q&A card has no empty panel.
+
+Older builds (11.1/11.2/11.5/11.6/11.7) keep layout v3: the `💭 **Thinking**`
+blockquote lives in `#content` while reasoning, the panel keeps a summary line
+and the completion line is grey.
 
 ## What it does
 
 - Records every tool start from the structured `onToolStart` callback (name +
   args) and falls back to recognized tool payloads (`Exec`, `Read: ...`,
   `Web Fetch: ...`, emoji-prefixed tool summaries) when the callback is absent.
-- Writes the live status into the dedicated `#progress` element as grey text:
-  - `⏳ 思考中...` between reply start and the first output
-  - `⏳ N 个工具 · 12s · 终端 git status` while tools run (current tool + target)
-  - `✅ N 个工具 · 生成回复中…` when the answer starts
-  - `⏳ N 个工具 · 处理中…` if the bounded idle hold expires
-  - `✅ 完成 · 已执行 N 个工具 · 2m03s` on final close
-- Writes the collapsed `🧾 过程记录` panel as a summary line plus category
-  groups (`命令` / `文件` / `网络` / `会话` / `其他`), e.g.
-  `**12 个工具 · 45s**`, `**命令 · 终端**`, `- git status ×2`.
+- Writes the live status into the dedicated `#progress` element as one stable
+  grey line (layout v4): `⏳ 思考中...` between reply start and the first output,
+  `🔧 N 个工具 · 12s` while tools run (the running tool lives in the panel),
+  `✍️ 生成回复中…` when the answer starts, `⏳ N 个工具 · 处理中…` if the bounded
+  idle hold expires, and a green `✅ 完成 · N 个工具 · 2m03s` on final close. A
+  failed final reply writes a red `⚠️ 回复失败` line.
+- Writes the collapsed `🧾 过程记录 · N` panel with code-span tool rows grouped as
+  `命令` / `文件` / `网络` / `会话` / `其他`, e.g. `**命令 · 终端**`,
+  `- git status --short ×2`, and a live `🔧 执行中` row while tools run. The old
+  summary line is gone (the title carries the count, the status line carries the
+  elapsed time).
 - Never posts a bare tool row as its own message: a recognized tool/progress payload
   that cannot join the streaming card (background process, subagent turn, raw render
   mode, card already closed) is dropped, so a long turn's tail cannot flood the chat
@@ -356,7 +371,7 @@ of showing a half-written card. Both doors log once
   broadcast-claim modules, extracts `sendFeishuMessage()` for the card message
   send and adds `command` turn metadata / durable-ingress deferred handoff. The
   streaming-card and delivery paths are untouched, so the 11.7 patch re-anchors
-  with a single reviewed conflict (32 hunks, patched SHA-256 `67d9af33…`); the
+  with a single reviewed conflict (32 hunks, patched SHA-256 `829b2491…`); the
   tool-row, reopen and prewarm behaviour is unchanged.
 - 2026.11.7 reopens a closed streaming window (`putElement()`), parses HTTP 400
   card responses for the CardKit code and dedupes replayed delta previews. The

@@ -2,6 +2,7 @@
 import { loadBundle, makeCounter, extractArrow, extractAsyncArrow } from "./_harness.mjs";
 
 const src = loadBundle();
+const hasV4 = src.includes("const LAYOUT_V4 = true;");
 const { ok, finish } = makeCounter();
 
 const waiting = extractArrow(src, "buildWaitingLine");
@@ -24,6 +25,7 @@ const code = [
   "let toolPhaseStartedAt = 0;",
   "let toolPhaseCompleted = false;",
   "let toolEvents = [];",
+  `const hasV4 = ${hasV4};`,
   "let cardStartedAt = 0;",
   "const reasoningText = '';",
   "const streamText = '';",
@@ -69,12 +71,12 @@ const c = await box.run({ key: "b\0read\0src/app.ts", icon: "📖", label: "read
 
 ok("tool summaries aggregate", a === true && b === true && c === true);
 ok("running total counts every tool", box.total() === 3);
-ok("waiting status keeps the count", /^⏳ 3 个工具/.test(box.status()));
-ok("waiting status shows the current tool and detail", box.status().includes("读取 src/app.ts"));
-ok("progress element receives the grey status line", box.progress().length >= 3 && box.progress().every((line) => line.startsWith("<font color='grey'>⏳ ")));
-ok("details start with a compact summary", box.details().startsWith("**3 个工具"));
+ok("waiting status keeps the count", hasV4 ? /^🔧 3 个工具/.test(box.status()) : /^⏳ 3 个工具/.test(box.status()));
+ok("waiting status keeps the current tool out (v4) or shows it (v3)", hasV4 ? !box.status().includes("读取 src/app.ts") : box.status().includes("读取 src/app.ts"));
+ok("progress element receives the grey status line", box.progress().length >= 3 && box.progress().every((line) => line.startsWith(hasV4 ? "<font color='grey'>🔧 " : "<font color='grey'>⏳ ")));
+ok("details start with a live row (v4) or a compact summary (v3)", hasV4 ? box.details().startsWith("**🔧 执行中**") : box.details().startsWith("**3 个工具"));
 ok("single-tool groups carry the tool name", box.details().includes("**命令 · 终端**") && box.details().includes("**文件 · 读取**"));
-ok("details show the call detail", box.details().includes("- git status --short ×2") && box.details().includes("- src/app.ts"));
+ok("details show the call detail", hasV4 ? box.details().includes("- `git status --short` ×2") && box.details().includes("- `src/app.ts`") : box.details().includes("- git status --short ×2") && box.details().includes("- src/app.ts"));
 ok("card updates flushed", box.flushes().length >= 3);
 ok("card started once by first tool", box.startCalls() === 1);
 

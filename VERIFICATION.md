@@ -27,7 +27,7 @@ still on 10.10 must upgrade the plugin before installing.
 | `patches/2026.11.5/feishu-tool-aggregation.patch` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` |
 | `patches/2026.11.6/feishu-tool-aggregation.patch` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` |
 | `patches/2026.11.7/feishu-tool-aggregation.patch` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
-| `patches/2026.11.9/feishu-tool-aggregation.patch` | `4d8bd61fbe6078bd43fee4bc05ef583862267c392f61af006ed7222ff2b4bb3f` |
+| `patches/2026.11.9/feishu-tool-aggregation.patch` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
 | patched bundle, 2026.11.1 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` |
 | `patches/HISTORY.json` (previous patched builds) | up to 20 entries; installer `KNOWN_PATCHED` block |
@@ -40,7 +40,7 @@ still on 10.10 must upgrade the plugin before installing.
 | pristine bundle, 2026.11.7 | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` |
 | patched bundle, 2026.11.7 | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` |
 | pristine bundle, 2026.11.9 | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` |
-| patched bundle, 2026.11.9 | `67d9af33e806aed4a944d6687b4dee8e842800f8c5ef8fe090ba6aa39e9889e6` |
+| patched bundle, 2026.11.9 | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -50,8 +50,8 @@ reference values for the exact supported builds.
 | item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 | 2026.11.6 | 2026.11.7 | 2026.11.9 |
 | --- | --- | --- | --- | --- | --- | --- |
 | hunks | 32 | 32 | 31 | 31 | 32 | 32 |
-| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique | `1bee687d…` -> `343976b2…`, 32/32 anchors unique | `359a1e8e…` -> `67d9af33…`, 32/32 anchors unique |
-| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact | `343976b2…` -> `1bee687d…`, byte-exact | `67d9af33…` -> `359a1e8e…`, byte-exact |
+| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique | `1bee687d…` -> `343976b2…`, 32/32 anchors unique | `359a1e8e…` -> `829b2491…`, 32/32 anchors unique |
+| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact | `343976b2…` -> `1bee687d…`, byte-exact | `829b2491…` -> `359a1e8e…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
   the 2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6, 2026.11.7 and 2026.11.9
@@ -134,7 +134,7 @@ conflict, on the section-marker block around
 `STREAMING_UPDATE_THROTTLE_MS`: the resolution keeps the 11.9 marker style and
 the patch's 250 ms throttle. The 11.7 -> 11.9 diff of the patched bundle equals
 the upstream delta line for line (+217/-213), so all 32 reviewed change blocks
-survive. Result: 32 hunks, patched SHA-256 `67d9af33…`. Card behaviour (reopen,
+survive. Result: 32 hunks, patched SHA-256 `829b2491…`. Card behaviour (reopen,
 tool rows, prewarm, progress line) is unchanged.
 
 ### Why 2026.11.7 is a re-anchored rebuild
@@ -200,40 +200,51 @@ because the upstream refactor removed one anchor region. `model-wait` text is
 routed onto the `#progress` line (never into `#content`); the rest of the layout
 v3 contract is unchanged.
 
-## Layout v3 + prewarm card contract
+## Layout v4 + prewarm card contract (2026.11.9)
 
 | element | tag | purpose |
 | --- | --- | --- |
-| `content` | markdown | reasoning blockquote until the answer starts, then answer only (no status line) |
-| `progress` | markdown | grey status, `💬` commentary, completion line and `⏳ 思考中...` prewarm |
-| `divider` | hr | separates answer from the process panel |
-| `detailspanel` | collapsible_panel | collapsed `🧾 过程记录`; body `detailspanel_body` |
-| `detailspanel_body` | markdown | live and final: compact summary + groups with tool targets |
-| `note` | markdown | optional grey identity footer |
+| `content` | markdown | answer only (no status line, no reasoning) |
+| `progress` | markdown | one stable status line: prewarm, `🔧 N 个工具 · 12s`, `✍️ 生成回复中…`, green `✅ 完成 · N 个工具 · 2m03s`, red failure |
+| `divider` | hr | the only horizontal rule (between status line and panel) |
+| `detailspanel` | collapsible_panel | collapsed `🧾 过程记录 · N`; body `detailspanel_body` |
+| `detailspanel_body` | markdown | `💭 思考` while reasoning; live `🔧 执行中` + groups; final groups with code-span rows |
+| `note` | markdown | optional grey identity footer (no extra divider) |
+
+Layout v4 (11.9 patch only; 11.1/11.2/11.5/11.6/11.7 keep layout v3) changes
+the card rhythm:
+
+- `#content` is answer-only; reasoning is written into the collapsed panel body
+  (`buildThinkingPanelBody`), so the card never shows a blockquote above the
+  answer.
+- the status line has a fixed `icon · count · elapsed` shape and no longer shows
+  the current tool, so it stops reflowing on every tool event; the running tool
+  is the `🔧 执行中 · code` line at the top of the panel body.
+- tool rows use code spans; the panel body has no summary line (the title carries
+  the count, the status line carries elapsed time).
+- the completion line is `<font color='green'>✅ 完成 …</font>`; a failed final
+  reply writes `<font color='red'>⚠️ 回复失败</font>`.
+- the identity note has no `hr` above it.
 
 Prewarm behaviour:
 
-- Both supported builds create the card in `onReplyStart`; the patch writes
-  `⏳ 思考中...` into `#progress` as soon as the card is ready (log line:
-  `prewarm status ready`).
-- The line is cleared (zero-width space write) on the first token, reasoning
-  chunk or tool event; it is not animated and does not add a timer.
+- The patch writes `⏳ 思考中...` into `#progress` as soon as the card is ready
+  (log line: `prewarm status ready`); it is cleared (zero-width space) on the
+  first token, reasoning chunk or tool event and is not animated.
 - `prewarmStatusLine` is reset with the streaming state so a later turn cannot
   inherit it.
 
 Close behaviour:
 
-- tools used: `detailspanel_body` replaced once with the final markdown body
-  (summary line + compact groups); the live markdown fallback is kept if the
-  replace fails.
-- no tools: `detailspanel` and `divider` deleted so no empty panel remains.
-- `content` is answer-only in the live card too: `> 💭 **Thinking**` is dropped
-  as soon as the first answer text arrives (`buildContentText`), written through
-  the element replace endpoint because the text shrinks. The closed card and the
-  delivered reply content are the answer, not the reasoning. A turn with no
-  answer keeps the blockquote so the card is never blank.
-- completion line written to `progress`; if that write fails it is folded back
-  into `content` so the marker is never lost.
+- tools used: the whole `detailspanel` element is replaced once with
+  `🧾 过程记录 · N` plus the final groups; the body fallback keeps the live
+  markdown if the panel replace fails.
+- no tools, no reasoning: `detailspanel` and `divider` are deleted.
+- no tools but reasoning: a `💭 思考记录` panel is kept so the card is not blank.
+- `content` is answer-only; the closed card and the delivered reply content are
+  the answer.
+- the completion line is written to `progress` in green; if that write fails it
+  is folded back into `content` so the marker is never lost.
 
 ## Streaming window expiry (long turns)
 
@@ -322,7 +333,7 @@ streaming-session suite locates the upstream module boundary by the bare path
   same for the 11.5 patch (`8d5cfbd6…` <-> `9c88ab9b…`), the 11.6 patch
   (`36a2c58e…` <-> `a8d6d9fa…`), both 31 hunks, and the 11.7 patch
   (`1bee687d…` <-> `343976b2…`), 32 hunks, and the 11.9 patch
-  (`359a1e8e…` <-> `67d9af33…`), 32 hunks.
+  (`359a1e8e…` <-> `829b2491…`), 32 hunks.
 - `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact.
 - `tools/adapt_patch.py` regeneration -> exact patched SHAs for the reviewed
   bundle pairs.
@@ -365,7 +376,7 @@ The 2026.11.9 patch was deployed to all six hosts (five Linux, one macOS, all on
 `OpenClaw 2026.11.9`, build `0032b1d`, plugin `@openclaw/feishu@2026.11.9`) after
 the plugin upgrade had reset their monitor bundles to pristine `359a1e8e…`
 (244682 bytes). The rollout was canaried on one host first. Every host reports
-`status=patched version=2026.11.9` with bundle SHA-256 `67d9af33…` (280480
+`status=patched version=2026.11.9` with bundle SHA-256 `829b2491…` (281793
 bytes), keeps one pristine `.monitor.backup-*.mjs` (`359a1e8e…`) for rollback,
 passes `5/5` suites (181 assertions), and returns `200` from the gateway health
 endpoint after the restart; the plugin log shows

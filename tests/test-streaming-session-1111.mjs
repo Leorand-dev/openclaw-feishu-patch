@@ -2,6 +2,7 @@
 import { loadBundle, makeCounter, extractClass } from "./_harness.mjs";
 
 const src = loadBundle();
+const hasV4 = src.includes("const LAYOUT_V4 = true;");
 const { ok, finish } = makeCounter();
 
 // Brace-balanced slice: independent of the upstream section-comment style that
@@ -134,7 +135,7 @@ session2.requestCardKit = async (path, operation, method, body) => {
   return { code: 0 };
 };
 await session2.start("chat1", "chat_id", {});
-await session2.closeWithResult("answer", { statusLine: "<font color='grey'>✅ 完成</font>", details: "empty" });
+await session2.closeWithResult("answer", hasV4 ? { statusLine: "<font color='green'>✅ 完成</font>", detailsElement: "empty" } : { statusLine: "<font color='grey'>✅ 完成</font>", details: "empty" });
 ok("empty details panel is deleted at close", calls.some((call) => call.path === "/c2/elements/detailspanel" && call.method === "DELETE"));
 ok("divider is deleted together with the empty panel", calls.some((call) => call.path === "/c2/elements/divider" && call.method === "DELETE"));
 
@@ -149,8 +150,8 @@ session3.requestCardKit = async (path, operation, method, body) => {
 };
 const columns = { tag: "column_set", element_id: "detailspanel_body", columns: [{ tag: "column", elements: [{ tag: "markdown", content: "**共 2 个工具**" }] }] };
 await session3.start("chat1", "chat_id", {});
-await session3.closeWithResult("answer", { details: columns, detailsFallback: "- 💻 终端" });
-const replaceCall = calls.find((call) => call.path === "/c3/elements/detailspanel_body" && call.method === "PUT");
+await session3.closeWithResult("answer", hasV4 ? { detailsElement: columns, detailsFallback: "- 💻 终端" } : { details: columns, detailsFallback: "- 💻 终端" });
+const replaceCall = calls.find((call) => call.path === (hasV4 ? "/c3/elements/detailspanel" : "/c3/elements/detailspanel_body") && call.method === "PUT");
 ok("final details use the element replace endpoint", replaceCall !== undefined);
 ok("final details payload is a column_set", String(replaceCall?.payload?.element ?? "").includes('"column_set"'));
 

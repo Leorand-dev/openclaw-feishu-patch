@@ -2,6 +2,7 @@
 import { loadBundle, makeCounter, extractArrow, extractConstLine } from "./_harness.mjs";
 
 const src = loadBundle();
+const hasV4 = src.includes("const LAYOUT_V4 = true;");
 const { ok, finish } = makeCounter();
 
 const finalLine = extractArrow(src, "buildFinalStatusLine");
@@ -16,29 +17,35 @@ const finalSandbox = new Function(`
   ${finalLine}
   ${combined}
   ${progress}
+  const formatDoneLine = (v) => v ? \`<font color='green'>\${v}</font>\` : "";
   const line = buildFinalStatusLine();
   statusLine = line;
-  return { line, text: buildCombinedStreamText("", "answer"), progressLine: formatProgressLine(line) };
+  return { line, text: buildCombinedStreamText("", "answer"), progressLine: formatProgressLine(line), doneLine: formatDoneLine(line) };
 `)();
 
-ok("final line includes completion and tool count", finalSandbox.line.startsWith("✅ 完成") && finalSandbox.line.includes("已执行 2 个工具"));
+ok("final line includes completion and tool count", finalSandbox.line.startsWith("✅ 完成") && (hasV4 ? finalSandbox.line.includes("2 个工具") && !finalSandbox.line.includes("已执行") : finalSandbox.line.includes("已执行 2 个工具")));
 ok("final line includes duration", /1m0[12]s/.test(finalSandbox.line));
 ok("answer text no longer embeds the status line", finalSandbox.text === "answer");
-ok("final status line is rendered as grey progress text", finalSandbox.progressLine.startsWith("<font color='grey'>✅ 完成") && finalSandbox.progressLine.endsWith("</font>"));
+ok("final status line is rendered as grey progress text", hasV4 ? finalSandbox.doneLine.startsWith("<font color='green'>✅ 完成") && finalSandbox.doneLine.endsWith("</font>") : finalSandbox.progressLine.startsWith("<font color='grey'>✅ 完成") && finalSandbox.progressLine.endsWith("</font>"));
 
 // Layout v3: the 💭 blockquote is only a "still reasoning" placeholder; it disappears as soon
 // as answer text arrives, both in the live card and in the closed card.
 const reasoningSandbox = new Function(`
   ${extractArrow(src, "formatReasoningPrefix")}
   ${extractArrow(src, "buildCombinedStreamText")}
-  ${extractArrow(src, "buildContentText")}
-  return { buildContentText };
+  ${hasV4 ? src.match(/const buildContentText = [^\n]+/)[0] : extractArrow(src, "buildContentText")}
+  ${hasV4 ? extractArrow(src, "buildThinkingPanelBody") : "const buildThinkingPanelBody = () => '';"}
+  return { buildContentText, buildThinkingPanelBody };
 `)();
-ok("reasoning phase renders the thinking blockquote", reasoningSandbox.buildContentText("先看一下这个文件", "").includes("💭 **Thinking**"));
+ok("reasoning phase is answer-empty and lives in the panel on v4", hasV4
+  ? reasoningSandbox.buildContentText("先看一下这个文件", "") === "" && reasoningSandbox.buildThinkingPanelBody("先看一下这个文件").includes("先看一下这个文件")
+  : reasoningSandbox.buildContentText("先看一下这个文件", "").includes("💭 **Thinking**"));
 ok("answer start drops the thinking blockquote", reasoningSandbox.buildContentText("先看一下这个文件", "答案是 42") === "答案是 42");
 ok("long thinking never survives into answer content", !reasoningSandbox.buildContentText("很长的思考".repeat(50), "答案").includes("Thinking"));
-ok("no-answer turns keep the blockquote so the card is never blank", reasoningSandbox.buildContentText("先看一下这个文件", "   ").includes("💭 **Thinking**"));
-ok("every live preview write uses the same builder", (src.match(/flushStreamingCardUpdate\(buildContentText\(reasoningText, streamText\)\);/g) || []).length === 9);
+ok("no-answer turns keep the thinking text visible", hasV4
+  ? reasoningSandbox.buildThinkingPanelBody("先看一下这个文件").includes("先看一下这个文件")
+  : reasoningSandbox.buildContentText("先看一下这个文件", "   ").includes("💭 **Thinking**"));
+ok("every live preview write uses the same builder", (src.match(/flushStreamingCardUpdate\(buildContentText\(reasoningText, streamText\)\);/g) || []).length === (hasV4 ? 10 : 9));
 ok("close writes the answer-only content", src.includes("const text = buildContentText(finalizedReasoningText, finalizedAnswerText);"));
 ok("non-extending snapshots use the element replace endpoint", src.includes("const replace = !isStreamingContentExtension(this.state.sentText, nextText);"));
 ok("a shrinking content snapshot bypasses the throttle", src.includes("!isStreamingContentExtension(this.state.sentText, text) || shouldPushStreamingUpdate(this.state.sentText, text)"));
@@ -133,10 +140,10 @@ ok("held close keeps tool counts and uses neutral line", src.includes("if (!held
 ok("cleanup cancels a pending hold", src.includes("clearIdleHold();\n\t\t\ttypingCallbacks?.onCleanup?.();"));
 ok("tool phase completes when answer starts", (src.match(/toolPhaseCompleted = true;/g) || []).length >= 2);
 ok("close settings writes retry", src.includes("Close failed after retries"));
-ok("close writes completion line via finalStatusLine", src.includes("heldClose ? buildHeldStatusLine() : buildFinalStatusLine()") && src.includes("statusLine: formatProgressLine(finalStatusLine)"));
+ok("close writes completion line via finalStatusLine", src.includes("heldClose ? buildHeldStatusLine() : buildFinalStatusLine()") && (hasV4 ? src.includes("heldClose ? formatProgressLine(finalStatusLine) : formatDoneLine(finalStatusLine)") : src.includes("statusLine: formatProgressLine(finalStatusLine)")));
 ok("no dead status-line assignment after the state reset", !src.includes("statusLine = finalStatusLine;"));
 ok("final details are computed before state reset", src.indexOf("const finalDetails = disposition") > 0 && src.indexOf("const finalDetails = disposition") < src.indexOf("resetStreamingState();"));
-ok("final card close passes status line and details", src.includes("closeWithResult(text, {") && src.includes("statusLine: formatProgressLine(finalStatusLine)") && src.includes("details: finalDetails"));
+ok("final card close passes status line and details", src.includes("closeWithResult(text, {") && (hasV4 ? src.includes("heldClose ? formatProgressLine(finalStatusLine) : formatDoneLine(finalStatusLine)") && src.includes("detailsElement: finalDetails") : src.includes("statusLine: formatProgressLine(finalStatusLine)") && src.includes("details: finalDetails")));
 ok("reasoning payloads never become answer text", src.includes("if (payload.isReasoning === true)") && src.includes("reasoningText = formatReasoningMessage(payload.text);"));
 ok("commentary payloads are routed to the progress line", src.includes("if (payload.isCommentary === true)") && src.includes("noteCommentaryLine(payload.text);"));
 ok("recognized tool rows are built for the bundle's card policy", hasReopen
@@ -146,7 +153,7 @@ ok("tool rows that cannot join a card never fall back to a message bubble", hasR
   ? !src.includes("if (parsedToolSummary && await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;")
   : !src.includes("if (parsedToolSummary) {"));
 ok("empty tool turn removes the details panel", src.includes('deleteElementForced("detailspanel")') && src.includes('deleteElementForced("divider")'));
-ok("non-empty tool turn replaces details with column_set", src.includes('putElementPayload("detailspanel_body", options.details, "replace")'));
+ok("non-empty tool turn replaces details with column_set", hasV4 ? src.includes('putElementPayload("detailspanel", options.detailsElement, "replace")') : src.includes('putElementPayload("detailspanel_body", options.details, "replace")'));
 ok("discard path preserved", src.includes("if (disposition === \"discarded\") closed = await streamingToClose.discard();"));
 ok("no legacy status element in finalizer", !src.includes("deleteStatusElement") && !src.includes("keepStatus"));
 ok("prewarm status line is wired", src.includes("const PREWARM_STATUS_LINE") && src.includes("applyPrewarmStatus();"));

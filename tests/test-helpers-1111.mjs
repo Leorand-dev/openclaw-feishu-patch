@@ -2,6 +2,7 @@
 import { loadBundle, makeCounter, extractArrow, extractConstLine } from "./_harness.mjs";
 
 const src = loadBundle();
+const hasV4 = src.includes("const LAYOUT_V4 = true;");
 const { ok, finish } = makeCounter();
 
 /** Module-level `const name = (...) => { ... };` (zero-indent closing brace). */
@@ -100,25 +101,27 @@ const sandbox = new Function(`
   ${extractTopArrow("truncateDisplayText")}
   ${extractTopArrow("truncateDetailTail")}
   ${extractTopArrow("formatToolDetailForLine")}
-  const buildToolDoneLine = (total) => ["\\u2705 ", total, " 个工具 · 生成回复中…"].join("");
+  const hasV4 = ${hasV4};
+  let toolPhaseCompleted = false;
+  const buildToolDoneLine = (total) => hasV4 ? "\u270D\uFE0F 生成回复中 · " + total + " 个工具" : ["\u2705 ", total, " 个工具 · 生成回复中…"].join("");
   ${waiting}
   ${final}
   ${progressLine}
   ${detailsHelpers}
-  return { waiting: buildWaitingLine(3), done: buildToolDoneLine(3), final: buildFinalStatusLine(), progress: formatProgressLine(buildFinalStatusLine()), details: buildDetailsContent(), element: buildDetailsElement() };
+  return { waiting: buildWaitingLine(3), done: buildToolDoneLine(3), final: buildFinalStatusLine(), progress: formatProgressLine(buildFinalStatusLine()), details: hasV4 ? buildDetailsContent(lastToolDetail) : buildDetailsContent(), element: hasV4 ? buildDetailsElement(lastToolDetail) : buildDetailsElement() };
 `)();
 
-ok("waiting line shows the count", /^⏳ 3 个工具/.test(sandbox.waiting));
+ok("waiting line shows the count", hasV4 ? /^🔧 3 个工具/.test(sandbox.waiting) : /^⏳ 3 个工具/.test(sandbox.waiting));
 ok("waiting line shows elapsed time", sandbox.waiting.includes("1m05s"));
-ok("waiting line shows the current tool and its detail", sandbox.waiting.includes("终端 git status --short"));
-ok("waiting line uses middot separators", sandbox.waiting.split(" · ").length >= 3);
+ok("waiting line keeps the current tool out of the status (v4) or shows it (v3)", hasV4 ? !sandbox.waiting.includes("git status") : sandbox.waiting.includes("终端 git status --short"));
+ok("waiting line uses middot separators", hasV4 ? sandbox.waiting.split(" · ").length === 2 : sandbox.waiting.split(" · ").length >= 3);
 ok("tool done line shows count", sandbox.done.includes("3 个工具") && sandbox.done.includes("生成回复中"));
-ok("final line shows completion, tools and duration", sandbox.final.startsWith("✅ 完成") && sandbox.final.includes("已执行 3 个工具") && sandbox.final.includes("1m05s"));
+ok("final line shows completion, tools and duration", sandbox.final.startsWith("✅ 完成") && (hasV4 ? sandbox.final.includes("3 个工具") && !sandbox.final.includes("已执行") : sandbox.final.includes("已执行 3 个工具")) && sandbox.final.includes("1m05s"));
 ok("final line is wrapped as grey progress text", sandbox.progress.startsWith("<font color='grey'>") && sandbox.progress.endsWith("</font>"));
-ok("details panel starts with a compact summary line", sandbox.details.startsWith("**3 个工具 · 1m05s**"));
+ok("details panel starts with a live row (v4) or a compact summary (v3)", hasV4 ? sandbox.details.startsWith("**🔧 执行中**") && !sandbox.details.includes("3 个工具 · 1m05s") : sandbox.details.startsWith("**3 个工具 · 1m05s**"));
 ok("single-tool group carries the tool name", sandbox.details.includes("**命令 · 终端**") && sandbox.details.includes("**文件 · 读取**"));
-ok("group rows show the detail without repeating the tool name", sandbox.details.includes("- git status --short ×2") && sandbox.details.includes("- src/app.ts"));
-ok("details element is a markdown body", sandbox.element.tag === "markdown" && sandbox.element.element_id === "detailspanel_body" && sandbox.element.content === sandbox.details);
+ok("group rows show the detail without repeating the tool name", hasV4 ? sandbox.details.includes("- `git status --short` ×2") && sandbox.details.includes("- `src/app.ts`") : sandbox.details.includes("- git status --short ×2") && sandbox.details.includes("- src/app.ts"));
+ok("details element matches the build's card contract", hasV4 ? sandbox.element.tag === "collapsible_panel" && sandbox.element.element_id === "detailspanel" && String(sandbox.element.header?.title?.content).includes("过程记录 · 3") && sandbox.element.elements?.[0]?.content === sandbox.details : sandbox.element.tag === "markdown" && sandbox.element.element_id === "detailspanel_body" && sandbox.element.content === sandbox.details);
 
 // dropped-event folding
 const droppedSandbox = new Function(`
@@ -128,6 +131,7 @@ const droppedSandbox = new Function(`
   let toolPhaseStartedAt = Date.now();
   let cardStartedAt = Date.now();
   let toolEventsDropped = 5;
+  let toolPhaseCompleted = false;
   let toolEvents = [{ key: "a", icon: "💻", label: "exec", detail: "", count: 20 }];
   const TOOL_DETAIL_COMMAND_MAX_CHARS = 60;
   const TOOL_DETAIL_PATH_MAX_CHARS = 40;
@@ -151,10 +155,10 @@ ok("dropped tool events are disclosed", droppedSandbox.includes("另有 5 个较
 ok("no legacy status element", !src.includes('element_id: "status"'));
 ok("no legacy status API", !src.includes("writeStatusContent") && !src.includes("deleteStatusElement") && !src.includes("statusElementEnabled"));
 ok("card has content, progress, divider and details panel", src.includes('element_id: "content"') && src.includes('element_id: "progress"') && src.includes('element_id: "divider"') && src.includes('element_id: "detailspanel"') && src.includes('element_id: "detailspanel_body"'));
-ok("final completion line wired into close", src.includes("statusLine: formatProgressLine(finalStatusLine)"));
+ok("final completion line wired into close", hasV4 ? src.includes("heldClose ? formatProgressLine(finalStatusLine) : formatDoneLine(finalStatusLine)") : src.includes("statusLine: formatProgressLine(finalStatusLine)"));
 ok("card content writes retried", src.includes("CARD_WRITE_RETRY_MAX_ATTEMPTS") && src.includes("isRetryableCardKitError"));
 ok("details element writes serialized", src.includes("async writeElementContent(elementId, text)"));
-ok("final details use an element replace", src.includes("buildDetailsElement") && src.includes('putElementPayload("detailspanel_body", options.details, "replace")'));
+ok("final details use an element replace", src.includes("buildDetailsElement") && (hasV4 ? src.includes('putElementPayload("detailspanel", options.detailsElement, "replace")') : src.includes('putElementPayload("detailspanel_body", options.details, "replace")')));
 ok("structured tool start is wired", src.includes("onToolStart: previewStreamingEnabled ?") && src.includes("noteStructuredToolStart(payload)"));
 ok("commentary is routed to the progress line", src.includes('payload.phase === "commentary"') && src.includes("noteCommentaryLine("));
 

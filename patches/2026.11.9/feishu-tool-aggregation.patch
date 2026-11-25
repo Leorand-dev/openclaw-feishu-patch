@@ -294,7 +294,7 @@
  		const auditContext = `feishu.streaming-card.${operation}`;
  		const { response, release } = await fetchWithSsrFGuard({
  			url: `${resolveApiBase(this.creds.domain)}/cardkit/v1/cards${path}`,
-@@ -1016,6 +1260,19 @@
+@@ -1016,9 +1260,21 @@
  			tag: "markdown",
  			content: "",
  			element_id: "content"
@@ -313,8 +313,11 @@
 +			elements: [{ tag: "markdown", content: "\u200B", element_id: "detailspanel_body" }]
  		}];
  		if (options?.note) {
- 			elements.push({ tag: "hr" });
-@@ -1070,6 +1327,7 @@
+-			elements.push({ tag: "hr" });
+ 			elements.push({
+ 				tag: "markdown",
+ 				content: `<font color='grey'>${options.note}</font>`,
+@@ -1070,6 +1326,7 @@
  			msgType: "interactive"
  		}, "Send card failed");
  		if (sendRes.code !== 0) throw new Error(`Send card failed: ${sendRes.msg}`);
@@ -322,7 +325,7 @@
  		const messageId = sendRes.data?.message_id?.trim();
  		this.state = {
  			cardId,
-@@ -1090,35 +1348,132 @@
+@@ -1090,35 +1347,132 @@
  		try {
  			await put();
  		} catch (error) {
@@ -468,7 +471,7 @@
  			return false;
  		}
  	}
-@@ -1145,16 +1500,17 @@
+@@ -1145,16 +1499,17 @@
  			if (!nextText) return;
  			this.pendingText = null;
  			if (nextText === this.state.sentText) return;
@@ -489,7 +492,7 @@
  		const now = Date.now();
  		if (!shouldForceUpdate && now - this.lastUpdateTime < this.updateThrottleMs) {
  			this.schedulePendingFlush();
-@@ -1164,7 +1520,7 @@
+@@ -1164,7 +1519,7 @@
  		await this.flushPendingUpdate();
  	}
  	async updateNoteContent(note) {
@@ -498,7 +501,7 @@
  		const token = await getToken(this.creds);
  		await this.putElement("note/content", "note-update", "Update card note", (sequence) => ({
  			content: `<font color='grey'>${note}</font>`,
-@@ -1172,38 +1528,90 @@
+@@ -1172,38 +1527,90 @@
  			uuid: `n_${this.state.cardId}_${sequence}`
  		}), token).catch((e) => this.log?.(`Note update failed: ${String(e)}`));
  	}
@@ -564,11 +567,11 @@
 +				}
 +			}
 +		}
-+		if (options?.details === "empty") {
++		if (options?.detailsElement === "empty") {
 +			await this.deleteElementForced("detailspanel");
 +			await this.deleteElementForced("divider");
-+		} else if (options?.details) {
-+			const replaced = await this.putElementPayload("detailspanel_body", options.details, "replace");
++		} else if (options?.detailsElement) {
++			const replaced = await this.putElementPayload("detailspanel", options.detailsElement, "replace");
 +			if (!replaced && options.detailsFallback) await this.putElementPayload("detailspanel_body", options.detailsFallback, "update");
  		}
  		if (options?.note) await this.updateNoteContent(options.note);
@@ -601,7 +604,7 @@
  		const finalState = this.state;
  		this.state = null;
  		this.pendingText = null;
-@@ -1233,6 +1641,7 @@
+@@ -1233,6 +1640,7 @@
  		try {
  			const response = await this.client.im.message.delete({ path: { message_id: messageId } });
  			if (response.code !== void 0 && response.code !== 0) throw new Error(`Delete streaming card message failed: ${response.msg ?? response.code}`);
@@ -609,7 +612,7 @@
  			this.state = null;
  			this.pendingText = null;
  			this.log?.(`Discarded streaming card: cardId=${cardId}`);
-@@ -1397,6 +1806,11 @@
+@@ -1397,6 +1805,11 @@
  		accountId
  	});
  	let typingState = null;
@@ -621,7 +624,7 @@
  	const { typingCallbacks, responsePrefix, responsePrefixContextProvider, onModelSelected } = createChannelMessageReplyPipeline({
  		cfg,
  		agentId,
-@@ -1409,6 +1823,7 @@
+@@ -1409,6 +1822,7 @@
  				const messageCreateTimeMs = normalizeEpochMs(params.messageCreateTimeMs);
  				if (messageCreateTimeMs !== void 0 && Date.now() - messageCreateTimeMs > TYPING_INDICATOR_MAX_AGE_MS) return;
  				if (typingState?.reactionId) return;
@@ -629,7 +632,7 @@
  				typingState = await addTypingIndicator({
  					cfg,
  					messageId: typingTargetMessageId,
-@@ -1418,6 +1833,7 @@
+@@ -1418,6 +1832,7 @@
  			},
  			stop: async () => {
  				if (!typingState) return;
@@ -637,7 +640,7 @@
  				await removeTypingIndicator({
  					cfg,
  					state: typingState,
-@@ -1460,6 +1876,20 @@
+@@ -1460,6 +1875,20 @@
  	let previewBlockOffset = 0;
  	let reasoningText = "";
  	let statusLine = "";
@@ -658,40 +661,41 @@
  	let modelWaitLine = "";
  	let snapshotBaseText = "";
  	let hasStreamingFinalText = false;
-@@ -1482,9 +1912,172 @@
+@@ -1482,9 +1911,190 @@
  		return `> 💭 **Thinking**\n${thinking.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").replace(/^_(.*)_$/gm, "$1").split("\n").map((line) => `> ${line}`).join("\n")}`;
  	};
  	const buildCombinedStreamText = (thinking, answer) => {
 -		return [[thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n"), modelWaitLine || statusLine].filter(Boolean).join("\n\n");
 +		return [thinking ? formatReasoningPrefix(thinking) : "", answer].filter(Boolean).join("\n\n---\n\n");
 +	};
++	/** Layout v4 marker (tests branch between the v3 and v4 card contracts). */
++	const LAYOUT_V4 = true;
 +	/**
-+	 * Layout v3: `#content` shows the `💭 **Thinking**` blockquote only while the model is
-+	 * still reasoning. The moment real answer text arrives the blockquote is dropped, so a live
-+	 * card reads exactly like the closed card; a turn that never produces an answer (aborted /
-+	 * held close) keeps the blockquote so the card is never blank.
++	 * Layout v4: `#content` is answer-only. Reasoning moved into the collapsible panel body
++	 * (`💭 思考`), so the card never shows a blockquote above the answer and the divider
++	 * between the status line and the panel is the only horizontal rule.
 +	 */
-+	const buildContentText = (thinking, answer) => {
-+		if (String(answer ?? "").trim()) return answer;
-+		return thinking ? buildCombinedStreamText(thinking, "") : "";
++	const buildContentText = (thinking, answer) => String(answer ?? "");
++	const buildThinkingPanelBody = (thinking) => {
++		const text = String(thinking ?? "").trim();
++		if (!text) return "";
++		const lines = text.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").split("\n").map((line) => `> ${line}`).join("\n");
++		return `**\u{1F4AD} \u601D\u8003**\n\n${lines}`;
 +	};
 +	const buildWaitingLine = (total) => {
 +		const elapsed = toolPhaseStartedAt > 0 ? formatElapsedDuration(Date.now() - toolPhaseStartedAt) : "";
-+		const parts = [`\u23F3 ${total} 个工具`];
++		const parts = [`\u{1F527} ${total} 个工具`];
 +		if (elapsed) parts.push(elapsed);
-+		if (lastToolLabel) {
-+			const currentDetail = lastToolDetail ? ` ${truncateDisplayText(lastToolDetail, TOOL_DETAIL_PROGRESS_MAX_CHARS)}` : "";
-+			parts.push(`${formatToolDisplayName(lastToolLabel)}${currentDetail}`);
-+		}
 +		return parts.join(" \u00B7 ");
 +	};
-+	const buildToolDoneLine = (total) => `\u2705 ${total} 个工具 · 生成回复中…`;
++	const buildToolDoneLine = (total) => `\u270D\uFE0F 生成回复中 \u00B7 ${total} 个工具`;
 +	const formatProgressLine = (line) => line ? `<font color='grey'>${line}</font>` : "";
++	const formatDoneLine = (line) => line ? `<font color='green'>${line}</font>` : "";
 +	const buildFinalStatusLine = () => {
 +		const parts = ["\u2705 完成"];
-+		if (aggregatedToolTotal > 0) parts.push(`已执行 ${aggregatedToolTotal} 个工具`);
++		if (aggregatedToolTotal > 0) parts.push(`${aggregatedToolTotal} 个工具`);
 +		if (cardStartedAt > 0) parts.push(formatElapsedDuration(Date.now() - cardStartedAt));
-+		return parts.join(" · ");
++		return parts.join(" \u00B7 ");
 +	};
 +	const TOOL_GROUP_ORDER = ["命令", "文件", "网络", "会话", "其他"];
 +	const TOOL_GROUP_MEMBERS = /* @__PURE__ */ new Map([
@@ -718,30 +722,47 @@
 +		}
 +		return [...groups.entries()].sort((left, right) => firstSeen.get(left[0]) - firstSeen.get(right[0]));
 +	};
-+	const buildDetailsSummaryLine = () => {
-+		const elapsed = cardStartedAt > 0 ? formatElapsedDuration(Date.now() - cardStartedAt) : "";
-+		return `**${aggregatedToolTotal} 个工具${elapsed ? ` · ${elapsed}` : ""}**`;
++	const escapeCodeSpan = (text) => String(text ?? "").replace(/`/g, "\u02CB");
++	const formatDetailRow = (entry, singleTool) => {
++		const detail = formatToolDetailForLine(entry.label, entry.detail);
++		const prefix = singleTool ? "" : `${entry.icon} `;
++		const count = entry.count > 1 ? ` \u00D7${entry.count}` : "";
++		const body = detail ? `\`${escapeCodeSpan(detail)}\`` : escapeCardMarkdown(formatToolDisplayName(entry.label));
++		return `- ${prefix}${body}${count}`;
 +	};
-+	const buildDetailsContent = () => {
++	const buildDetailsContent = (liveDetail = "") => {
 +		if (toolEvents.length === 0) return "";
-+		const lines = [buildDetailsSummaryLine()];
++		const lines = [];
++		if (!toolPhaseCompleted && liveDetail) lines.push(`**\u{1F527} 执行中** \u00B7 \`${escapeCodeSpan(liveDetail)}\``);
 +		for (const [group, entries] of groupToolEvents()) {
 +			const singleTool = entries.every((entry) => entry.label === entries[0].label);
-+			lines.push(singleTool ? `**${group} · ${formatToolDisplayName(entries[0].label)}**` : `**${group}**`);
-+			for (const entry of entries) {
-+				const detail = formatToolDetailForLine(entry.label, entry.detail);
-+				const prefix = singleTool ? "" : `${entry.icon} `;
-+				const count = entry.count > 1 ? ` \u00D7${entry.count}` : "";
-+				lines.push(`- ${prefix}${escapeCardMarkdown(detail || formatToolDisplayName(entry.label))}${count}`);
-+			}
++			lines.push(singleTool ? `**${group} \u00B7 ${formatToolDisplayName(entries[0].label)}**` : `**${group}**`);
++			for (const entry of entries) lines.push(formatDetailRow(entry, singleTool));
 +		}
 +		if (toolEventsDropped > 0) lines.push(`- \u2026 另有 ${toolEventsDropped} 个较早调用`);
 +		return lines.join("\n");
 +	};
-+	const buildDetailsElement = () => ({
-+		tag: "markdown",
-+		element_id: "detailspanel_body",
-+		content: buildDetailsContent()
++	const buildDetailsElement = (liveDetail = "") => ({
++		tag: "collapsible_panel",
++		element_id: "detailspanel",
++		expanded: false,
++		header: { title: { tag: "plain_text", content: `\u{1F9FE} 过程记录 \u00B7 ${aggregatedToolTotal}` } },
++		elements: [{
++			tag: "markdown",
++			element_id: "detailspanel_body",
++			content: buildDetailsContent(liveDetail)
++		}]
++	});
++	const buildThinkingDetailsElement = () => ({
++		tag: "collapsible_panel",
++		element_id: "detailspanel",
++		expanded: false,
++		header: { title: { tag: "plain_text", content: "\u{1F4AD} 思考记录" } },
++		elements: [{
++			tag: "markdown",
++			element_id: "detailspanel_body",
++			content: buildThinkingPanelBody(reasoningText)
++		}]
 +	});
 +	const buildHeldStatusLine = () => `\u23F3 ${aggregatedToolTotal} 个工具 · 处理中…`;
 +	const clearIdleHold = (resetRenewals = true) => {
@@ -798,7 +819,7 @@
 +		toolPhaseCompleted = false;
 +		statusLine = buildWaitingLine(aggregatedToolTotal);
 +		flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
-+		const details = buildDetailsContent();
++		const details = buildDetailsContent(lastToolDetail);
 +		if (details) await streaming.updateDetails(details).catch(() => false);
 +		return true;
 +	};
@@ -832,7 +853,7 @@
  		partialUpdateQueue = queueFeishuStreamingUpdate({
  			queue: partialUpdateQueue,
  			session: streaming,
-@@ -1494,12 +2087,25 @@
+@@ -1494,12 +2104,25 @@
  			runtime: params.runtime
  		});
  	};
@@ -861,7 +882,7 @@
  			if (previewText.startsWith(nextText, offset)) {
  				previewBlockOffset = offset + nextText.length;
  				return;
-@@ -1509,8 +2115,7 @@
+@@ -1509,8 +2132,7 @@
  			previewText = nextText;
  			streamText = `${snapshotBaseText}${nextText}`;
  		}
@@ -871,7 +892,7 @@
  	};
  	const startStreaming = () => {
  		if (!streamingEnabled || streamingStartPromise || streaming || isStreamingStartBackedOff(account.accountId)) return;
-@@ -1522,7 +2127,7 @@
+@@ -1522,7 +2144,7 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -880,7 +901,7 @@
  			streaming = session;
  			try {
  				const cardHeader = resolveCardHeader(agentId, identity);
-@@ -1536,6 +2141,8 @@
+@@ -1536,6 +2158,8 @@
  					note: cardNote
  				});
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
@@ -889,7 +910,7 @@
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, Date.now() + STREAMING_START_FAILURE_BACKOFF_MS);
  				params.runtime.error(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
-@@ -1547,6 +2154,7 @@
+@@ -1547,6 +2171,7 @@
  		})();
  	};
  	const resetStreamingState = () => {
@@ -897,7 +918,7 @@
  		streaming = null;
  		streamingStartPromise = null;
  		partialUpdateQueue = Promise.resolve();
-@@ -1554,6 +2162,21 @@
+@@ -1554,6 +2179,21 @@
  		lastPartial = "";
  		reasoningText = "";
  		statusLine = "";
@@ -919,18 +940,18 @@
  		modelWaitLine = "";
  		snapshotBaseText = "";
  		hasStreamingFinalText = false;
-@@ -1568,6 +2191,10 @@
+@@ -1568,6 +2208,10 @@
  		const updateQueueToClose = partialUpdateQueue;
  		const finalizedAnswerText = streamText;
  		const finalizedReasoningText = reasoningText;
 +		const heldClose = idleHeldClose;
 +		const finalStatusLine = disposition === "closed" ? heldClose ? buildHeldStatusLine() : buildFinalStatusLine() : "";
-+		const finalDetails = disposition === "closed" ? toolEvents.length === 0 ? "empty" : buildDetailsElement() : void 0;
++		const finalDetails = disposition === "closed" ? toolEvents.length === 0 ? String(reasoningText ?? "").trim() ? buildThinkingDetailsElement() : "empty" : buildDetailsElement() : void 0;
 +		const finalDetailsFallback = disposition === "closed" ? buildDetailsContent() : "";
  		const outcome = {
  			disposition,
  			content: finalizedAnswerText
-@@ -1579,14 +2206,18 @@
+@@ -1579,14 +2223,18 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -945,14 +966,14 @@
 -						closed = await streamingToClose.closeWithResult(text, { note: finalNote });
 +						closed = await streamingToClose.closeWithResult(text, {
 +							note: finalNote,
-+							statusLine: formatProgressLine(finalStatusLine),
-+							details: finalDetails,
++							statusLine: heldClose ? formatProgressLine(finalStatusLine) : formatDoneLine(finalStatusLine),
++							detailsElement: finalDetails,
 +							detailsFallback: finalDetailsFallback
 +						});
  					}
  				} catch (error) {
  					if (!isChannelPartialDeliveryError(error)) throw error;
-@@ -1644,8 +2275,17 @@
+@@ -1644,8 +2292,17 @@
  		statusLine = nextStatusLine;
  		if (!Boolean(streaming?.isActive() || streamingStartPromise) && (!startIfNeeded || renderMode !== "card")) return false;
  		startStreaming();
@@ -971,7 +992,7 @@
  	};
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
-@@ -1675,6 +2315,7 @@
+@@ -1675,6 +2332,7 @@
  					text: chunk,
  					...mentions.length > 0 ? { mentions } : {}
  				};
@@ -979,7 +1000,7 @@
  				const result = paramsLocal.useCard ? await sendStructuredCardFeishu({
  					...sendParams,
  					header,
-@@ -1916,9 +2557,19 @@
+@@ -1916,9 +2574,19 @@
  			if (previewStreamingEnabled && renderMode === "card") startStreaming();
  			await typingCallbacks?.onReplyStart?.();
  		},
@@ -1000,7 +1021,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -1944,6 +2595,15 @@
+@@ -1944,6 +2612,15 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -1016,7 +1037,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -1951,6 +2611,19 @@
+@@ -1951,6 +2628,20 @@
  				});
  				const rendered = consumeFeishuPresentationFallbackMarker(prepared.payload);
  				const payload = rendered.payload;
@@ -1033,10 +1054,11 @@
 +					if (payload.text) noteCommentaryLine(payload.text);
 +					return noVisibleFeishuReplyDelivery;
 +				}
++				if (payload.isError === true && streaming?.isActive()) streaming.updateProgress("<font color='red'>\u26A0\uFE0F 回复失败</font>").catch(() => false);
  				const presentationCard = prepared.card;
  				const hasPresentationFallback = rendered.presentationFallback?.hasVisibleContent === true;
  				const hasIndependentPresentation = presentationCard !== void 0 || hasPresentationFallback;
-@@ -1963,6 +2636,10 @@
+@@ -1963,6 +2654,10 @@
  				const text = info?.kind === "final" && !hasIndependentPresentation ? mergeStreamingFinalText(streamText, payload.isError ? reply.text : `${snapshotBaseText}${reply.text}`, payload.isError === true && hasStreamingFinalText) : reply.text;
  				const hasText = reply.hasText;
  				const hasMedia = reply.hasMedia;
@@ -1047,7 +1069,7 @@
  				const ttsSupplement = getReplyPayloadTtsSupplement(payload);
  				const ttsTextAlreadyVisible = ttsSupplement?.visibleTextAlreadyDelivered === true;
  				const hasVoiceMedia = hasMedia && reply.mediaUrls.some((mediaUrl) => shouldSuppressFeishuTextForVoiceMedia({
-@@ -2034,7 +2711,7 @@
+@@ -2034,7 +2729,7 @@
  							if (info?.kind === "final") {
  								streamText = text;
  								hasStreamingFinalText = true;
@@ -1056,7 +1078,7 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2077,30 +2754,54 @@
+@@ -2077,30 +2772,58 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -1079,6 +1101,10 @@
  					reasoningText = nextThinking;
 -					flushStreamingCardUpdate(buildCombinedStreamText(reasoningText, streamText));
 +					flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
++					if (streaming?.isActive()) {
++						const thinkingBody = buildThinkingPanelBody(reasoningText);
++						if (thinkingBody) streaming.updateDetails(thinkingBody).catch(() => false);
++					}
  				}
  				return false;
  			} : void 0,
@@ -1114,22 +1140,22 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2114,11 +2815,31 @@
+@@ -2114,11 +2837,33 @@
  				lastPartial = "";
  				previewText = "";
  				previewBlockOffset = 0;
 +				refreshIdleHold();
++				toolPhaseCompleted = true;
+ 				modelWaitLine = "";
 +				if (aggregatedToolTotal > 0 && !streamText.trim()) {
-+					toolPhaseCompleted = true;
 +					statusLine = buildToolDoneLine(aggregatedToolTotal);
 +					flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
 +					return false;
 +				}
- 				modelWaitLine = "";
- 				return updateStreamingStatusLine("", false);
- 			} : void 0,
--			onCompactionStart: previewStreamingEnabled ? () => updateStreamingStatusLine("📦 **Compacting context...**") : void 0,
--			onCompactionEnd: previewStreamingEnabled ? () => updateStreamingStatusLine("") : void 0
++				statusLine = "\u270D\uFE0F 生成回复中\u2026";
++				flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
++				return false;
++			} : void 0,
 +			onCompactionStart: previewStreamingEnabled ? () => {
 +				refreshIdleHold();
 +				if (aggregatedToolTotal > 0 && !toolPhaseCompleted) return false;
@@ -1143,7 +1169,10 @@
 +					return false;
 +				}
 +				clearIdleHold();
-+				return updateStreamingStatusLine("", false);
+ 				return updateStreamingStatusLine("", false);
+-			} : void 0,
+-			onCompactionStart: previewStreamingEnabled ? () => updateStreamingStatusLine("📦 **Compacting context...**") : void 0,
+-			onCompactionEnd: previewStreamingEnabled ? () => updateStreamingStatusLine("") : void 0
 +			} : void 0
  		},
  		ensureNoVisibleReplyFallback
