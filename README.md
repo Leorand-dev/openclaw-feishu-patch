@@ -10,10 +10,11 @@ line. Tool names and targets come from the structured `onToolStart` callback
 the progress line instead of leaking into the answer.
 
 - **Supported plugin builds:** `@openclaw/feishu` **2026.11.1**, **2026.11.2**,
-  **2026.11.3**, **2026.11.5**, **2026.11.6** and **2026.11.7** (11.3 installs
-  the same monitor bundle as 11.2; 11.5/11.6/11.7 each ship a new bundle, so
-  their patches are re-anchored). 11.7 reopens a closed streaming window, so a
-  long reply can finish in the same card.
+  **2026.11.3**, **2026.11.5**, **2026.11.6**, **2026.11.7** and **2026.11.9**
+  (11.3 installs the same monitor bundle as 11.2; 11.5/11.6/11.7/11.9 each ship
+  a new bundle, so their patches are re-anchored). 11.7 reopens a closed
+  streaming window, so a long reply can finish in the same card; 11.9 keeps that
+  behaviour and unifies the card send path.
 - **Patch type:** unified diff against the installed
   `dist/.setup/monitor.account-*.mjs`
 - **Install:** exact SHA-256 check; backup; atomic replace; idempotent
@@ -24,14 +25,14 @@ the progress line instead of leaking into the answer.
 
 ## Supported builds
 
-| item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 | 2026.11.6 | 2026.11.7 |
-| --- | --- | --- | --- | --- | --- |
-| plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2`, `@openclaw/feishu@2026.11.3` | `@openclaw/feishu@2026.11.5` | `@openclaw/feishu@2026.11.6` | `@openclaw/feishu@2026.11.7` |
-| pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` |
-| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` |
-| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
-| patch hunks | 32 | 32 | 31 | 31 | 32 |
-| test assertions | 181 | 181 | 181 | 181 | 181 |
+| item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 | 2026.11.6 | 2026.11.7 | 2026.11.9 |
+| --- | --- | --- | --- | --- | --- | --- |
+| plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2`, `@openclaw/feishu@2026.11.3` | `@openclaw/feishu@2026.11.5` | `@openclaw/feishu@2026.11.6` | `@openclaw/feishu@2026.11.7` | `@openclaw/feishu@2026.11.9` |
+| pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` |
+| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` | `67d9af33e806aed4a944d6687b4dee8e842800f8c5ef8fe090ba6aa39e9889e6` |
+| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` | `4d8bd61fbe6078bd43fee4bc05ef583862267c392f61af006ed7222ff2b4bb3f` |
+| patch hunks | 32 | 32 | 31 | 31 | 32 | 32 |
+| test assertions | 181 | 181 | 181 | 181 | 181 | 181 |
 
 The installer selects the patch by the target's SHA-256. It accepts a pristine
 2026.11.1/2026.11.2/2026.11.3/2026.11.5/2026.11.6/2026.11.7 bundle, the **current** patched bundle, and any earlier
@@ -77,6 +78,18 @@ commands, and card actions whose chat type cannot be resolved are now refused
 streaming-card, progress, panel or tool paths, so the 11.6 patch is the reviewed
 11.5 change set re-anchored onto the new bundle: same 31 hunks, new offsets, and
 a new patched bundle SHA-256.
+
+2026.11.9 is a sizeable but mostly mechanical upstream delta on top of
+2026.11.7 (bundle 244117 -> 244682 bytes, +217/-213 lines in 48 regions): the
+section markers revert from `//#region` to `// <path>`, `dedup-state`/`dedup`
+and the broadcast claim helper move earlier, `bot-context-visibility` is
+extracted from `bot.ts`, the card message send moves into a shared
+`sendFeishuMessage()` helper, durable ingress gains `deferredLaneOccupancy:
+"release"` with a deferred/handoff wait, and `handleFeishuMessage` carries
+`command` turn metadata. The streaming-card class (`putElement()` reopen,
+`writeContent`, `closeWithResult`) and the reply-delivery hook are unchanged, so
+the reviewed 11.7 change set survives with one three-way conflict (the
+section-marker block); result: 32 hunks. Visual card behaviour is unchanged.
 
 2026.11.7 is the streaming-window release (bundle 243155 -> 244117 bytes): a
 card's 10-minute streaming window is no longer terminal. Upstream adds
@@ -212,6 +225,7 @@ the backup on failure.
 ```sh
 sha256sum -c SHA256SUMS
 cd tests
+node run-all.mjs ../patches/2026.11.9/patched.mjs
 node run-all.mjs ../patches/2026.11.7/patched.mjs
 node run-all.mjs ../patches/2026.11.6/patched.mjs
 node run-all.mjs ../patches/2026.11.5/patched.mjs
@@ -240,6 +254,9 @@ python3 tools/verify_patch.py --all=patches
   patch for the 2026.11.6 monitor bundle (small upstream delta, 31 hunks).
 - `patches/2026.11.7/` — reviewed pristine/patched bundle pair and canonical
   patch for the 2026.11.7 monitor bundle (streaming-window reopen, 32 hunks).
+- `patches/2026.11.9/` — reviewed pristine/patched bundle pair and canonical
+  patch for the 2026.11.9 monitor bundle (marker revert and send refactor, 32
+  hunks).
 - `patches/MANIFEST.json` / `patches/UPGRADES.json` — build metadata.
 - `patches/HISTORY.json` — previous patched bundle hashes; feeds the installer's
   `KNOWN_PATCHED` block so an older patched host upgrades in place.
@@ -309,7 +326,8 @@ of showing a half-written card. Both doors log once
 ## Notes and known limits
 
 - The patch is pinned to exact monitor bundles (2026.11.1, 2026.11.2,
-  2026.11.3, 2026.11.5, 2026.11.6 and 2026.11.7 — 11.2 and 11.3 share one bundle). Do not apply it to a different
+  2026.11.3, 2026.11.5, 2026.11.6, 2026.11.7 and 2026.11.9 — 11.2 and 11.3
+  share one bundle; 11.8 is not vendored, upgrade it to 11.9). Do not apply it to a different
   version; the installer refuses unknown hashes.
 - 2026.11.1 removed `mergeStreamingText()` and `lastSnapshotTextLength`, and
   `onAssistantMessageStart` now resets `snapshotBaseText` / `lastPartial`. The
@@ -334,6 +352,12 @@ of showing a half-written card. Both doors log once
   commands and refuses unresolvable card actions. The 11.5 patch applies with
   re-anchored offsets (31 hunks, patched SHA-256 `a8d6d9fa…`); the captured
   review from 11.5 still describes the behaviour.
+- 2026.11.9 reverts the section markers to `// <path>`, moves the dedupe and
+  broadcast-claim modules, extracts `sendFeishuMessage()` for the card message
+  send and adds `command` turn metadata / durable-ingress deferred handoff. The
+  streaming-card and delivery paths are untouched, so the 11.7 patch re-anchors
+  with a single reviewed conflict (32 hunks, patched SHA-256 `67d9af33…`); the
+  tool-row, reopen and prewarm behaviour is unchanged.
 - 2026.11.7 reopens a closed streaming window (`putElement()`), parses HTTP 400
   card responses for the CardKit code and dedupes replayed delta previews. The
   patch was re-derived through a seven-conflict three-way merge: every card

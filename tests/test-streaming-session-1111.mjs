@@ -28,6 +28,9 @@ const Session = new Function([
   "const cancelUnreadResponseBody = () => {};",
   "const resolveFeishuCardTemplate = (value) => value;",
   "const requestFeishuApi = async (fn) => await fn();",
+  // 2026.11.9 moved the card message send into a shared helper; the class still
+  // expects the same { code, data: { message_id } } shape.
+  "const sendFeishuMessage = async () => ({ code: 0, data: { message_id: 'm1' } });",
   "const readFeishuJsonResponse = async () => ({ code: 0, data: { card_id: 'c1' } });",
   "const readProviderJsonResponse = async () => ({ code: 0, data: { card_id: 'c1' } });",
   "const createFeishuReplyDeliveryResult = (params) => ({ visibleReplySent: params.visibleReplySent === true, ...(params.content === void 0 ? {} : { content: params.content }) });",
