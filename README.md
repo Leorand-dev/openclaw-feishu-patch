@@ -3,7 +3,7 @@
 An installable, **build-pinned** patch for the OpenClaw Feishu channel plugin.
 
 It folds tool progress into one streaming card: a grey progress line (starting
-with `⏳ 思考中...` as soon as the card exists), a collapsed `🧾 过程记录` panel
+with a `⏳` prewarm line (six reviewed variants, one random pick per turn) as soon as the card exists), a collapsed `🧾 过程记录` panel
 that lists which tools ran and what they touched, and a single final `✅ 完成`
 line. Tool names and targets come from the structured `onToolStart` callback
 (the reviewed text shapes remain a fallback), and model commentary is shown on
@@ -30,10 +30,10 @@ the progress line instead of leaking into the answer.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | plugin | `@openclaw/feishu@2026.11.1` | `@openclaw/feishu@2026.11.2`, `@openclaw/feishu@2026.11.3` | `@openclaw/feishu@2026.11.5` | `@openclaw/feishu@2026.11.6` | `@openclaw/feishu@2026.11.7` | `@openclaw/feishu@2026.11.9` | `@openclaw/feishu@2026.11.10` |
 | pristine bundle | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` | `44f6d50f1fe6dbfa9cfb12aef47e954589391929721d985deb2ecf976de4aab6` | `8d5cfbd6d9baf330da775a20850de522e62802d211d43f8af91f5063266d9e07` | `36a2c58e4e0b8887e372cf881321c4c0c876a35e9039f5b6b72326122d29517c` | `1bee687d4849b1628d536ee8490f66b6ae761d2bfc980fd24ffaa53a4259d74e` | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` | `b29209583f72f4469788834539de9a28c7ecef4f2366c82da95b1a7760a75cdc` |
-| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` | `983a3cc503614fa2da2e44625950d20cf5b35b3dba9c83a8dfe039be31dc589a` |
-| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` | `a11c1fd0a18406f483e920f8674fd0fc21633857db2a051e12b2e874a40aafe7` |
+| patched bundle | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` | `2472f7a1637391eeb07ba133c61d4acd190031ccf4c82a42551534216ded2864` | `9c88ab9bd55e443d38c6c7f6e5bcbe2c47b5847c459f37a768d00a01e1cb2032` | `a8d6d9fab77b8ad8ab9545e14e38e9cc00a8ee5c4cfeb267639ea992c5c16781` | `343976b23d06fd98b08679cc8a9d3b04ecb4e4904312f0452b01cc33c007b0b1` | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` | `90f6b9d8bf3244da903fe13529350e5d07f092424437554110e8099e35b3423b` |
+| patch | `485950c853b37ede8fa02da5a53a8be064f119a212ff4e6294a11b9d1006c1dd` | `de564abef3ba8d746f33b39db41b6b22e1b38931f02a0dc6ca9445395a6a9348` | `8164c44d84f965d318285adaec2f95b68284b24dae33c52e3d2a60b74a24570c` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` | `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d` |
 | patch hunks | 32 | 32 | 31 | 31 | 32 | 32 | 32 |
-| test assertions | 181 | 181 | 181 | 181 | 181 | 181 | 181 |
+| test assertions | 216 | 216 | 216 | 216 | 216 | 216 | 216 |
 
 The installer selects the patch by the target's SHA-256. It accepts a pristine
 2026.11.1/2026.11.2/2026.11.3/2026.11.5/2026.11.6/2026.11.7 bundle, the **current** patched bundle, and any earlier
@@ -104,7 +104,10 @@ command text through `agentControlText()`, and the binding route uses the chat
 id as its conversation id. The streaming-card class (`putElement()` reopen,
 `writeContent`, `closeWithResult`), the reply-delivery hook and the layout-v4
 card builders are untouched, so the reviewed 11.9 change set lands with a
-zero-conflict merge: 32 hunks, patched SHA-256 `983a3cc5…`.
+zero-conflict merge: 32 hunks; the 2026-11-25 v4.1 correctness pass
+(audit 5.1-5.8) keeps the same 32 hunks, patched SHA-256 `5e133638…`
+(v4: `983a3cc5…`); the same-day v4.2 polish pass (batch C) lands on
+`cf45c522…`, and the v4.3 Knowledge-fix pass on `3ba2f9c2…`.
 
 2026.11.7 is the streaming-window release (bundle 243155 -> 244117 bytes): a
 card's 10-minute streaming window is no longer terminal. Upstream adds
@@ -127,7 +130,7 @@ conflicts were reviewed (all in the card-write/close/preview paths); result:
 [header]                          optional title + template
   ① markdown #content             answer only (no status line, no thinking)
   ② markdown #progress            one stable status line:
-                                  ⏳ 思考中... / 🔧 N 个工具 · 12s /
+                                  ⏳ 预热行（六选一随机）/ 🔧 N 个工具 · 12s /
                                   ✍️ 生成回复中… / ✅ 完成 · N 个工具 · 2m03s
   ③ hr #divider                   the only horizontal rule
   ④ collapsible_panel             collapsed 「🧾 过程记录 · N」
@@ -145,7 +148,7 @@ completion line is green and a failed reply writes a red `⚠️ 回复失败` l
 identity note sits under the panel without an extra divider.
 
 Prewarm: the patch creates the card in `onReplyStart`, writes the static
-`⏳ 思考中...` into `#progress` as soon as the card is ready, and clears it
+one `⏳` prewarm line (six variants, random per turn) into `#progress` as soon as the card is ready, and clears it
 (zero-width space) when the first token, reasoning chunk or tool event arrives.
 No animation, no extra API calls beyond that one write.
 
@@ -181,7 +184,7 @@ and the completion line is grey.
   args) and falls back to recognized tool payloads (`Exec`, `Read: ...`,
   `Web Fetch: ...`, emoji-prefixed tool summaries) when the callback is absent.
 - Writes the live status into the dedicated `#progress` element as one stable
-  grey line (layout v4): `⏳ 思考中...` between reply start and the first output,
+  grey line (layout v4): a `⏳` prewarm variant between reply start and the first output,
   `🔧 N 个工具 · 12s` while tools run (the running tool lives in the panel),
   `✍️ 生成回复中…` when the answer starts, `⏳ N 个工具 · 处理中…` if the bounded
   idle hold expires, and a green `✅ 完成 · N 个工具 · 2m03s` on final close. A
@@ -262,7 +265,8 @@ node run-all.mjs ../patches/2026.11.2/patched.mjs   # 11.3 has the same bytes
 node run-all.mjs ../patches/2026.11.1/patched.mjs
 ```
 
-Expected: `5/5 suites passed, 0 failed` with 181 assertions, for any supported build.
+Expected: `5/5 suites passed, 0 failed` with 216 assertions on the 2026.11.10
+bundle; the v4.x-gated cases detect their build, so older builds run 181.
 
 Mechanical checks:
 
@@ -389,7 +393,9 @@ of showing a half-written card. Both doors log once
   caches/backoffs to `performance.now()`, moves card-action replay protection to
   a persistent guard and normalizes quick-action command text. The
   streaming-card, reply-delivery and layout-v4 paths are untouched, so the 11.9
-  card behaviour carries over unchanged (32 hunks, patched SHA-256 `983a3cc5…`).
+  card behaviour carries over unchanged (32 hunks; the v4.1 correctness pass
+  moved the patched SHA-256 to `5e133638…`, the v4.2 polish pass to
+  `cf45c522…`, the v4.3 Knowledge fix to `3ba2f9c2…`).
 - 2026.11.9 reverts the section markers to `// <path>`, moves the dedupe and
   broadcast-claim modules, extracts `sendFeishuMessage()` for the card message
   send and adds `command` turn metadata / durable-ingress deferred handoff. The
@@ -409,7 +415,8 @@ of showing a half-written card. Both doors log once
   follow the normal delivery path.
 - The panel body stays a single markdown element for both the live and the final
   render, so it works on narrow screens and never depends on `column_set`.
-- The prewarm line is static (`⏳ 思考中...`). It is cleared on the first token,
+- The prewarm line is static, picked randomly per turn from six reviewed variants
+  (`⏳ 思考中...` among them). It is cleared on the first token,
   reasoning chunk or tool event; a turn that produces no visible reply closes the
   card with the normal completion line.
 - A canary deployment must be validated with one real Feishu tool turn after

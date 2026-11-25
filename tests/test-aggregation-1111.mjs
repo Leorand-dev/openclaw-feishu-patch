@@ -3,6 +3,7 @@ import { loadBundle, makeCounter, extractArrow, extractAsyncArrow } from "./_har
 
 const src = loadBundle();
 const hasV4 = src.includes("const LAYOUT_V4 = true;");
+const hasV41 = src.includes("lastContentWriteFailureAt");
 const { ok, finish } = makeCounter();
 
 const waiting = extractArrow(src, "buildWaitingLine");
@@ -125,5 +126,36 @@ prewarmBox.setText("answer");
 ok("prewarm is skipped once output exists", prewarmBox.run() === false);
 prewarmBox.flush("answer");
 ok("first output clears the prewarm line", prewarmBox.status() === "" && prewarmBox.progress().slice(-1)[0] === "\u200B");
+
+// ---- v4.4/v4.5: the prewarm line rotates per turn -------------------------
+if (hasV41) {
+  ok("v4.5 prewarm combines a random icon and a random text per turn",
+    src.includes("const PREWARM_STATUS_ICONS = [") && src.includes("const PREWARM_STATUS_TEXTS = [")
+    && src.includes("PREWARM_STATUS_ICONS[Math.floor(Math.random() * PREWARM_STATUS_ICONS.length)]")
+    && src.includes("PREWARM_STATUS_TEXTS[Math.floor(Math.random() * PREWARM_STATUS_TEXTS.length)]"));
+  ok("v4.5 the prewarm sets keep the classic combo and add variants",
+    src.includes('"\\u23F3"') && src.includes('"想一想..."') && src.includes('"组织答案中..."')
+    && src.includes('"\\u{1F914}"') && src.includes('"\\u2615"') && src.includes('"\\u{1F52E}"'));
+}
+
+// ---- v4.1 (2026.11.10 audit 5.1): the guard must see an in-flight structured record ----
+if (hasV41) {
+  const raceBox = new Function("let statusLine = ''; " + code)();
+  const inFlight = raceBox.structured({ phase: "start", name: "exec", args: { command: "ls -la" } });
+  const summaryDuringFlight = await raceBox.run({ key: "\u{1F4BB}\u0000exec\u0000", icon: "\u{1F4BB}", label: "exec", detail: "" });
+  await inFlight;
+  ok("v4.1 a summary arriving while the structured record is in flight is suppressed",
+    summaryDuringFlight === true && raceBox.total() === 1 && raceBox.structuredTotal() === 1);
+  ok("v4.1 the suppressed summary leaves a single row", raceBox.details().includes("ls -la") && !raceBox.details().includes("×2"));
+  ok("v4.2 the live row no longer echoes the running command", raceBox.details().split("\n")[0] === "**🔧 执行中**");
+
+  const rollbackBox = new Function("let statusLine = ''; " + code)();
+  rollbackBox.setActive(false);
+  ok("v4.1 a failed structured start rolls the guard back",
+    (await rollbackBox.structured({ phase: "start", name: "exec", args: { command: "x" } })) === false && rollbackBox.structuredTotal() === 0);
+  rollbackBox.setActive(true);
+  ok("v4.1 the summary lane recovers after a failed structured start",
+    (await rollbackBox.run({ key: "\u{1F4BB}\u0000exec\u0000x", icon: "\u{1F4BB}", label: "exec", detail: "x" })) === true && rollbackBox.total() === 1);
+}
 
 finish("2026.11.1 aggregation/status/details");

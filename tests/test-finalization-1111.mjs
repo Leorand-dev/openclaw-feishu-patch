@@ -3,6 +3,7 @@ import { loadBundle, makeCounter, extractArrow, extractConstLine } from "./_harn
 
 const src = loadBundle();
 const hasV4 = src.includes("const LAYOUT_V4 = true;");
+const hasV41 = src.includes("lastContentWriteFailureAt");
 const { ok, finish } = makeCounter();
 
 const finalLine = extractArrow(src, "buildFinalStatusLine");
@@ -165,5 +166,10 @@ ok("message sends and deletes are counted", (src.match(/this\.onApiCall\?\.\("me
 ok("typing reactions are counted", (src.match(/noteFeishuApiCall\("reaction"\);/g) || []).length >= 2);
 ok("streaming session receives the counter callback", src.includes("new FeishuStreamingSession(createFeishuClient(account), creds,") && src.includes(", noteFeishuApiCall);"));
 ok("turn api call total is logged at cleanup", src.includes("turn api calls: total=${apiCalls} card=${feishuApiCallCounts.card} message=${feishuApiCallCounts.message} reaction=${feishuApiCallCounts.reaction}"));
+
+if (hasV41) {
+  ok("v4.2 raw or non-preview modes keep tool rows on the normal message path",
+    src.includes('previewStreamingEnabled && renderMode !== "raw" ? parseCollapsibleToolSummary'));
+}
 
 finish("2026.11.1 finalization/reliability");

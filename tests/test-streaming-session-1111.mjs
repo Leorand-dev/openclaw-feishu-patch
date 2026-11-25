@@ -3,6 +3,7 @@ import { loadBundle, makeCounter, extractClass } from "./_harness.mjs";
 
 const src = loadBundle();
 const hasV4 = src.includes("const LAYOUT_V4 = true;");
+const hasV41 = src.includes("lastContentWriteFailureAt");
 const { ok, finish } = makeCounter();
 
 // Brace-balanced slice: independent of the upstream section-comment style that
@@ -23,6 +24,7 @@ const Session = new Function([
   "const CARD_WRITE_RETRY_BASE_DELAY_MS = 1;",
   "const CARD_CONTENT_REPLACE_MAX_FAILURES = 2;",
   "const CARD_CONTENT_WRITE_MAX_FAILURES = 3;",
+  "const CARD_CONTENT_WRITE_COOLDOWN_MS = 15e3;",
   cardKitHelpers,
   "const delayMs = async () => {};",
   "const assertSuccessfulCardKitResponse = async () => {};",
@@ -229,7 +231,10 @@ closedModeError.feishuCode = 300309;
 ok("card streaming timeout is classified as a closed window", isStreamingClosedError(timedOutError) && !isRetryableCardKitError(timedOutError));
 ok("closed streaming mode is classified as a closed window", isStreamingClosedError(closedModeError) && !isRetryableCardKitError(closedModeError));
 ok("plain network timeouts stay retryable", !isStreamingClosedError({ message: "request timeout" }) && isRetryableCardKitError({ message: "request timeout" }));
-ok("rate limits stay retryable", isRetryableCardKitError({ feishuCode: 429 }));
+ok("rate limit handling matches the build (v4.1+: single attempt)",
+  hasV41
+    ? !isRetryableCardKitError({ feishuCode: 429 }) && !isRetryableCardKitError({ httpStatus: 429, message: "Update card content failed with HTTP 429" })
+    : isRetryableCardKitError({ feishuCode: 429 }));
 
 // -- one closed-window error: reopen (11.7) or freeze (legacy) --
 calls.length = 0;
@@ -304,5 +309,108 @@ ok("expired close logs the drop", expiredLogs.some((line) => line.includes("Drop
 // -- 2026.11.7 delta-preview dedupe (block streaming) --
 ok("delta preview dedupe matches the build", src.includes("previewBlockOffset") === hasReopen);
 ok("an assistant message start resets the preview cursor", src.includes("previewBlockOffset = 0;") === hasReopen);
+
+// ---- v4.1 (2026.11.10 audit): breaker cooldown probe, judge unification, sequence capture ----
+if (hasV41) {
+  let thawed = false;
+  const thawCalls = [];
+  const thawSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+  thawSession.requestCardKit = async (path, operation, method, body) => {
+    const payload = typeof body === "function" ? body() : body;
+    thawCalls.push({ path, operation, method, payload });
+    if (path === "" && method === "POST") return { code: 0, data: { card_id: "c12" } };
+    if (thawed) return { code: 0 };
+    throw new Error("card write rejected");
+  };
+  await thawSession.start("chat1", "chat_id", {});
+  await thawSession.update("a");
+  await thawSession.update("ab");
+  await thawSession.update("abc");
+  ok("v4.1 three failures still freeze the element", thawSession.contentWriteBlocked === true);
+  const frozenPuts = thawCalls.filter((call) => call.method === "PUT").length;
+  await thawSession.update("abcd");
+  ok("v4.1 inside the cooldown a frozen element writes nothing",
+    thawCalls.filter((call) => call.method === "PUT").length === frozenPuts && thawSession.contentWriteBlocked === true);
+  thawed = true;
+  thawSession.lastContentWriteFailureAt = Date.now() - 16e3;
+  await thawSession.update("abcde");
+  ok("v4.1 after the cooldown exactly one single-attempt probe goes out",
+    thawCalls.filter((call) => call.method === "PUT").length === frozenPuts + 1);
+  ok("v4.1 a successful probe re-enables content writes",
+    thawSession.contentWriteBlocked === false && thawSession.contentWriteFailures === 0);
+  const thawedClose = await thawSession.closeWithResult("final answer");
+  ok("v4.1 a thawed card closes normally", thawedClose.visibleReplySent === true && thawedClose.content === "final answer");
+
+  const judgeCalls = [];
+  const judgeSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+  judgeSession.requestCardKit = async (path, operation, method, body) => {
+    const payload = typeof body === "function" ? body() : body;
+    judgeCalls.push({ path, operation, method, payload });
+    if (path === "" && method === "POST") return { code: 0, data: { card_id: "c13" } };
+    if (path.endsWith("/elements/progress/content") && judgeCalls.filter((call) => call.path.endsWith("/elements/progress/content")).length === 1) {
+      const messageOnlyClosed = new Error("Update card element progress failed: streaming mode is closed (code=230002)");
+      messageOnlyClosed.feishuCode = 230002;
+      throw messageOnlyClosed;
+    }
+    return { code: 0 };
+  };
+  await judgeSession.start("chat1", "chat_id", {});
+  ok("v4.1 message-form closed errors reopen the window",
+    (await judgeSession.updateProgress("<font color='grey'>x</font>")) === true && judgeSession.expired === false);
+  ok("v4.1 the reopen patches settings exactly twice", judgeCalls.filter((call) => call.path === "/c13/settings").length === 2);
+  ok("v4.1 the write is retried after reopening",
+    judgeCalls.filter((call) => call.path.endsWith("/elements/progress/content")).length === 2);
+
+  const seqSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+  const seqCalls = [];
+  seqSession.requestCardKit = async (path, operation, method, body) => {
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    const payload = body();
+    seqCalls.push({ path, operation, method, payload });
+    if (path === "" && method === "POST") return { code: 0, data: { card_id: "c14" } };
+    return { code: 0 };
+  };
+  await seqSession.start("chat1", "chat_id", {});
+  await Promise.all([
+    seqSession.putElement("progress", "element-update", "Update progress", (sequence) => ({ content: "p", sequence, uuid: `el_${sequence}` })),
+    seqSession.putElement("detailspanel_body", "element-update", "Update details", (sequence) => ({ content: "d", sequence, uuid: `el_${sequence}` }))
+  ]);
+  const seqs = seqCalls.map((call) => call.payload.sequence);
+  const seqUuids = seqCalls.map((call) => call.payload.uuid);
+  ok("v4.1 concurrent writes never reuse a sequence number", new Set(seqs).size === seqs.length);
+  ok("v4.1 concurrent writes never reuse a uuid", new Set(seqUuids).size === seqUuids.length);
+
+  // v4.2: identical in-flight panel lines are not re-sent
+  const laneSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+  const laneCalls = [];
+  laneSession.requestCardKit = async (path, operation, method, body) => {
+    const payload = typeof body === "function" ? body() : body;
+    laneCalls.push({ path, operation, method, payload });
+    if (path === "" && method === "POST") return { code: 0, data: { card_id: "c15" } };
+    return { code: 0 };
+  };
+  await laneSession.start("chat1", "chat_id", {});
+  await Promise.all([
+    laneSession.updateProgress("<font color='grey'>x</font>"),
+    laneSession.updateProgress("<font color='grey'>x</font>")
+  ]);
+  ok("v4.2 identical in-flight progress lines are written once",
+    laneCalls.filter((call) => call.path.endsWith("/elements/progress/content")).length === 1);
+
+  // v4.2: live panel rows get one attempt even for retryable errors
+  const panelCalls = [];
+  const panelSession = new StreamingSession(client, { domain: "feishu", appId: "a", appSecret: "s" }, () => {});
+  panelSession.requestCardKit = async (path, operation, method, body) => {
+    const payload = typeof body === "function" ? body() : body;
+    panelCalls.push({ path, operation, method, payload });
+    if (path === "" && method === "POST") return { code: 0, data: { card_id: "c16" } };
+    if (path.endsWith("/elements/progress/content")) throw new Error("request timeout");
+    return { code: 0 };
+  };
+  await panelSession.start("chat1", "chat_id", {});
+  ok("v4.2 a failed live panel write gets exactly one attempt",
+    (await panelSession.updateProgress("<font color='grey'>y</font>")) === false &&
+    panelCalls.filter((call) => call.path.endsWith("/elements/progress/content")).length === 1);
+}
 
 finish("2026.11.1 streaming-session shape");

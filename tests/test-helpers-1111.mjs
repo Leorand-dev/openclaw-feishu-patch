@@ -3,6 +3,7 @@ import { loadBundle, makeCounter, extractArrow, extractConstLine } from "./_harn
 
 const src = loadBundle();
 const hasV4 = src.includes("const LAYOUT_V4 = true;");
+const hasV41 = src.includes("lastContentWriteFailureAt");
 const { ok, finish } = makeCounter();
 
 /** Module-level `const name = (...) => { ... };` (zero-indent closing brace). */
@@ -149,7 +150,7 @@ const droppedSandbox = new Function(`
   ${detailsHelpers}
   return buildDetailsContent();
 `)();
-ok("dropped tool events are disclosed", droppedSandbox.includes("另有 5 个较早调用"));
+ok("dropped tool events are disclosed", droppedSandbox.includes(hasV41 ? "另有 5 次较早调用" : "另有 5 个较早调用"));
 
 // Structural checks: the implementation must stay content-only and use the new layout.
 ok("no legacy status element", !src.includes('element_id: "status"'));
@@ -161,5 +162,111 @@ ok("details element writes serialized", src.includes("async writeElementContent(
 ok("final details use an element replace", src.includes("buildDetailsElement") && (hasV4 ? src.includes('putElementPayload("detailspanel", options.detailsElement, "replace")') : src.includes('putElementPayload("detailspanel_body", options.details, "replace")')));
 ok("structured tool start is wired", src.includes("onToolStart: previewStreamingEnabled ?") && src.includes("noteStructuredToolStart(payload)"));
 ok("commentary is routed to the progress line", src.includes('payload.phase === "commentary"') && src.includes("noteCommentaryLine("));
+
+// ---- v4.1 (2026.11.10 audit 5.8): redaction coverage and unified tool lanes ----
+if (hasV41) {
+  const bashRow = h.parseBareToolLabel({ text: "Bash: npm test", mediaUrls: undefined }, { kind: "tool" });
+  ok("v4.1 bare labels keep their detail", bashRow?.detail === "npm test");
+  ok("v4.1 bare label keys share the structured format",
+    bashRow?.key === `${bashRow.icon}\u0000bash\u0000npm test` && bashRow?.key.startsWith(`${bashRow.icon}\u0000`));
+  const collapsible = h.parseCollapsibleToolSummary({ text: "\u{1F6E0}\uFE0F Bash: npm test", mediaUrls: undefined }, { kind: "tool" });
+  ok("v4.1 collapsible summaries normalize the label and keep detail",
+    collapsible?.label === "bash" && collapsible?.detail === "npm test" && collapsible?.key === `${collapsible.icon}\u0000bash\u0000npm test`);
+  const redactionVectors = [
+    ["AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG", "wJalrXUtnFEMI"],
+    ["AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7EXAMPLE"],
+    ["OPENAI_SECRET_KEY=abcDEF1234567890XYZ", "abcDEF1234567890XYZ"],
+    ["--db-password hunter2", "hunter2"],
+    ["--db-password=hunter2", "hunter2"],
+    ["--client-secret abcdef123456", "abcdef123456"],
+    ["--access-token abcdef123456", "abcdef123456"],
+    ["--access-key=AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7EXAMPLE"],
+    ["--secret-key=abcdef0123456789", "abcdef0123456789"],
+    ['{"api_key":"AKIAIOSFODNN7EXAMPLE"}', "AKIAIOSFODNN7EXAMPLE"],
+    ['{"password": "p@ss word"}', "p@ss word"],
+    ['{"token":"abcdef123456"}', "abcdef123456"],
+    ['{"client_secret":"abcdef123456"}', "abcdef123456"],
+    ['psql "postgres://appuser:s3cr3tpw@db.host:5432/prod"', "s3cr3tpw"],
+    ["git clone https://oauth2:glpat-abc123def456@gitlab.com/x.git", "glpat-abc123def456"],
+    ["Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA"],
+    ["Authorization: Token abc123def456", "abc123def456"],
+    ['mysql --user root --password "my secret"', "my secret"],
+    ['--password="my secret"', "my secret"],
+    ['password: "my secret"', "my secret"],
+    ["echo SK-ABCDEFGHIJKLMNOPQRST", "SK-ABCDEFGHIJKLMNOPQRST"],
+    ["echo sk-abc123", "sk-abc123"],
+    ["echo sk_abc.def/ghi+jkl=", "sk_abc.def/ghi+jkl="],
+    ["echo ghs_abcdefghijklmnopqrstuvwxyz012345", "ghs_abcdefghijklmnopqrstuvwxyz012345"],
+    ["echo github_pat_11ABCDE0abcdefghijklmnopqrstuvwxyz", "github_pat_11ABCDE0abcdefghijklmnopqrstuvwxyz"],
+    ["echo AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7EXAMPLE"],
+    ["echo glpat-AbCdEfGhIjKlMnOpQrSt", "glpat-AbCdEfGhIjKlMnOpQrSt"],
+    ["Cookie: session=abc123def456ghi", "abc123def456ghi"],
+    ["?signature=abcdef0123456789abcdef&x=1", "abcdef0123456789abcdef"],
+    ["export DB_PASS=superSecret123", "superSecret123"],
+    ["密码：hunter2", "hunter2"],
+    ["X-AWS-Secret-Access-Key: abc123", "abc123"]
+  ];
+  const redactionFailures = redactionVectors.filter(([vector, leak]) => h.redactSecrets(vector).includes(leak));
+  for (const [vector, leak] of redactionFailures) console.log(`   [leak] ${JSON.stringify(vector)} still contains ${JSON.stringify(leak)}`);
+  ok("v4.1 redaction vector table (31 cases) has no leaks", redactionFailures.length === 0);
+  ok("v4.1 redacts url userinfo", h.redactSecrets("curl https://admin:hunter2@x/y").includes("[redacted]@"));
+  ok("v4.1 over-redaction of url token params stays accepted", h.redactSecrets("https://x/?token=abc&z=1").includes("***"));
+  ok("v4.2 upstream session tools carry args detail",
+    h.toolDetailFromArgs("sessions_spawn", { label: "fix login" }) === "fix login"
+    && h.toolDetailFromArgs("memory_get", { path: "notes/goals" }) === "notes/goals"
+    && h.toolDetailFromArgs("code_execution", { task: "run tests" }) === "run tests"
+    && h.toolDetailFromArgs("conversations_send", { conversationRef: "c9" }) === "c9");
+  const commandRow = h.parseBareToolLabel({ text: "Command: ls -la", mediaUrls: undefined }, { kind: "tool" });
+  ok("v4.2 command aliases to exec", commandRow?.label === "exec" && commandRow?.detail === "ls -la");
+  const orderSandbox = new Function(`
+    let aggregatedToolTotal = 3;
+    let lastToolLabel = "web_search";
+    let lastToolDetail = "";
+    let toolPhaseStartedAt = Date.now();
+    let cardStartedAt = Date.now();
+    let toolEventsDropped = 0;
+    let toolPhaseCompleted = false;
+    let toolEvents = [
+      { key: "w", icon: "\u{1F50D}", label: "web_search", detail: "", count: 1 },
+      { key: "e", icon: "\u{1F4BB}", label: "exec", detail: "ls", count: 1 },
+      { key: "s", icon: "\u{1F916}", label: "sessions_spawn", detail: "fix", count: 1 }
+    ];
+    const TOOL_DETAIL_PROGRESS_MAX_CHARS = 32;
+    const TOOL_DETAIL_COMMAND_MAX_CHARS = 60;
+    const TOOL_DETAIL_PATH_MAX_CHARS = 40;
+    const PATH_LIKE_TOOL_LABELS = new Set(["read"]);
+    const formatElapsedDuration = () => "1s";
+    const escapeCardHtml = (t) => String(t ?? "");
+    const escapeCardMarkdown = (t) => String(t ?? "");
+    const formatToolDisplayName = (label) => label;
+    const normalizeToolLabel = (label) => String(label ?? "").trim().toLowerCase().replace(/[\\s-]+/g, "_");
+    const truncateDisplayText = (t) => t;
+    const truncateDetailTail = (t) => t;
+    const formatToolDetailForLine = (label, detail) => detail;
+    const buildWaitingLine = () => "";
+    const buildFinalStatusLine = () => "";
+    const formatProgressLine = () => "";
+    ${detailsHelpers}
+    return buildDetailsContent("");
+  `)();
+  const orderText = String(orderSandbox);
+  ok("v4.2 groups follow the fixed taxonomy order",
+    orderText.split("\n")[0].startsWith("**命令") && orderText.indexOf("**命令") < orderText.indexOf("**网络") && orderText.indexOf("**网络") < orderText.indexOf("**会话"));
+  ok("v4.2 upstream session names group under 会话", orderText.includes("**会话 · sessions_spawn**"));
+  ok("v4.2 the dropped note is no longer a list item",
+    !droppedSandbox.includes("- \u2026 另有") && droppedSandbox.includes("_\u2026 另有 5 次较早调用_"));
+  const knowledgeRemember = h.parseBareToolLabel({ text: "Knowledge Remember", mediaUrls: undefined }, { kind: "tool" });
+  ok("v4.3 knowledge tools are recognized",
+    knowledgeRemember?.label === "knowledge_remember" && knowledgeRemember?.icon === "\u{1F9E0}"
+    && h.formatToolDisplayName("knowledge_record") === "知识记录");
+  const knowledgeRecord = h.parseBareToolLabel({ text: "Knowledge Record: session goal", mediaUrls: undefined }, { kind: "tool" });
+  ok("v4.3 knowledge rows keep their detail", knowledgeRecord?.label === "knowledge_record" && knowledgeRecord?.detail === "session goal");
+  const unknownTool = h.parseBareToolLabel({ text: "Widget Polish: shine", mediaUrls: undefined }, { kind: "tool" });
+  ok("v4.3 title-shaped unknown tools join the panel instead of leaking",
+    unknownTool?.label === "widget_polish" && unknownTool?.detail === "shine");
+  ok("v4.3 lowercase or wordy sentences are not tool rows",
+    h.parseBareToolLabel({ text: "please wait while the tool runs", mediaUrls: undefined }, { kind: "tool" }) === undefined
+    && h.parseBareToolLabel({ text: "I will now go and run the thing", mediaUrls: undefined }, { kind: "tool" }) === undefined);
+}
 
 finish("2026.11.1 helpers/content-only");

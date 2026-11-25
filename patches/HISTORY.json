@@ -3,10 +3,6 @@
   "patched": [
     {
       "version": "2026.11.1",
-      "sha256": "53f7c53f95ff2da90a91e9fcc98ae10bf474c94ae55ad4d748e510cac6cc2725"
-    },
-    {
-      "version": "2026.11.1",
       "sha256": "dea21efcc5f405f94265ed369a620a9006ec1b503cc2e00d6dc6f70aced32576"
     },
     {
@@ -64,6 +60,26 @@
     {
       "version": "2026.11.10",
       "sha256": "983a3cc503614fa2da2e44625950d20cf5b35b3dba9c83a8dfe039be31dc589a"
+    },
+    {
+      "version": "2026.11.10",
+      "sha256": "5e1336388d1d1440d7cabe1ae8b56f116b8993e77fa1ee10d134f6b1ff14cc43"
+    },
+    {
+      "version": "2026.11.10",
+      "sha256": "cf45c52209dd66abc4994eedef2d8b816702063b500a4af689fd9c96a326379f"
+    },
+    {
+      "version": "2026.11.10",
+      "sha256": "3ba2f9c275eadd87cdafcf83f88f806bb61e14ece0ff8797395304a06d24ed2a"
+    },
+    {
+      "version": "2026.11.10",
+      "sha256": "c7d2f94b6e964f474bd8aac9bcda26af1daa39d74abccefa0c88c4b7e603184a"
+    },
+    {
+      "version": "2026.11.10",
+      "sha256": "90f6b9d8bf3244da903fe13529350e5d07f092424437554110e8099e35b3423b"
     }
   ]
 }

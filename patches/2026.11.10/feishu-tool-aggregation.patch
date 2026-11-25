@@ -9,14 +9,14 @@
  const STREAMING_SIGNIFICANT_DELTA_CHARS = 18;
  const FEISHU_STREAMING_TOKEN_DEFAULT_LIFETIME_SECONDS = 7200;
  const STREAMING_CLOSED_ERROR = /\(code=(200850|300309)\)$/;
-@@ -963,11 +963,41 @@
+@@ -963,11 +963,42 @@
  async function assertSuccessfulCardKitResponse(response, auditContext, action) {
  	if (!response.ok && response.status !== 400) {
  		cancelUnreadResponseBody(response);
 -		throw new Error(`${action} failed with HTTP ${response.status}`);
 +		const error = new Error(`${action} failed with HTTP ${response.status}`);
 +		error.httpStatus = response.status;
-+		error.retryable = response.status === 408 || response.status === 429 || response.status >= 500;
++		error.retryable = response.status === 408 || response.status >= 500;
 +		throw error;
  	}
  	const data = await readProviderJsonResponse(response, auditContext);
@@ -43,18 +43,19 @@
 +	if (error?.retryable === true) return true;
 +	if (error?.retryable === false) return false;
 +	const status = Number(error?.httpStatus);
-+	if (status === 408 || status === 429 || status >= 500) return true;
++	if (status === 408 || status >= 500) return true;
 +	const code = Number(error?.feishuCode ?? error?.code);
-+	if (code === 429 || code === 99991400 || code === 99991403) return true;
++	if (code === 99991400 || code === 99991403) return true;
 +	const message = String(error?.message ?? error ?? "");
-+	return /\bHTTP (?:408|429|5\d\d)\b|timed? ?out|timeout|ECONN|fetch failed|network|socket|aborted/i.test(message);
++	// v4.2: HTTP 429 fails fast instead of retrying into the per-card 10 req/s limit.
++	return /\bHTTP (?:408|5\d\d)\b|timed? ?out|timeout|ECONN|fetch failed|network|socket|aborted/i.test(message);
 +}
 +const delayMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 +
  async function getToken(creds) {
  	const key = `${creds.domain ?? "feishu"}|${creds.appId}`;
  	const cached = tokenCache.get(key);
-@@ -1012,22 +1042,236 @@
+@@ -1012,22 +1043,284 @@
  	return clean.length <= max ? clean : sliceUtf16Safe(clean, 0, max - 3) + "...";
  }
  function shouldPushStreamingUpdate(previousText, nextText) {
@@ -76,19 +77,42 @@
 +const CARD_CONTENT_REPLACE_MAX_FAILURES = 2;
 +/** Freeze the content element after this many consecutive failures; close falls back to a message. */
 +const CARD_CONTENT_WRITE_MAX_FAILURES = 3;
++/** v4.1: a frozen content element gets one single-attempt probe write after this cooldown; a successful probe re-enables writes. */
++const CARD_CONTENT_WRITE_COOLDOWN_MS = 15e3;
 +const CARD_IDLE_HOLD_MS = 8e3;
 +const CARD_IDLE_HOLD_MAX_RENEWALS = 2;
-+const PREWARM_STATUS_LINE = "\u23F3 思考中...";
++/** Static prewarm lines: a random icon and a random text per turn; still one write, no animation, no timer. */
++const PREWARM_STATUS_ICONS = [
++	"\u23F3",
++	"\u{1F914}",
++	"\u{1F4AD}",
++	"\u{1F9E0}",
++	"\u26A1",
++	"\u2728",
++	"\u2615",
++	"\u{1F52E}"
++];
++const PREWARM_STATUS_TEXTS = [
++	"思考中...",
++	"正在思考...",
++	"想一想...",
++	"理清思路中...",
++	"稍等片刻...",
++	"组织答案中..."
++];
 +const TOOL_DETAIL_ARG_KEYS = /* @__PURE__ */ new Map([
 +	["exec", ["command"]], ["bash", ["command"]], ["shell", ["command"]], ["terminal", ["command"]], ["background_shell", ["command"]],
 +	["read", ["path"]], ["write", ["path"]], ["edit", ["path"]], ["ls", ["path"]], ["image", ["path"]], ["view_image", ["path"]],
 +	["grep", ["pattern"]], ["search", ["query", "pattern"]], ["glob", ["pattern"]], ["find", ["pattern"]],
 +	["web_search", ["query"]], ["web_fetch", ["url"]], ["browser", ["targetUrl", "url"]], ["open", ["targetUrl", "url"]],
-+	["sessions", ["action", "sessionKey"]], ["session_history", ["sessionKey"]], ["session_search", ["query"]],
-+	["message", ["to"]], ["conversation_send", ["to"]], ["conversation_turn", ["to"]],
-+	["sub_agent", ["agent", "task"]], ["task", ["action"]], ["todo", ["action"]],
-+	["memory_search", ["query"]], ["memory_get", ["key"]], ["skill_search", ["query"]], ["skill_read", ["name"]],
-+	["code_execution", ["language", "command"]]
++	["sessions", ["action", "sessionKey"]],
++	["sessions_history", ["sessionKey"]], ["sessions_search", ["query"]], ["sessions_send", ["label", "sessionKey"]],
++	["sessions_spawn", ["label", "taskName"]], ["agents_wait", ["ids", "timeoutSeconds"]], ["agents_list", ["ids"]],
++	["gateway_process", ["action", "sessionId"]],
++	["message", ["to"]], ["conversations_send", ["conversationRef"]], ["conversations_turn", ["conversationRef"]],
++	["task", ["action"]], ["todo", ["action"]],
++	["memory_search", ["query"]], ["memory_get", ["path", "from", "lines"]], ["skills_search", ["query"]], ["skills_read", ["name"]],
++	["code_execution", ["task"]]
 +]);
 +const TOOL_DETAIL_MAX_CHARS = 80;
 +const TOOL_DETAIL_PATH_MAX_CHARS = 40;
@@ -96,16 +120,28 @@
 +const TOOL_DETAIL_PROGRESS_MAX_CHARS = 32;
 +const COMMENTARY_STATUS_MAX_CHARS = 80;
 +const PATH_LIKE_TOOL_LABELS = /* @__PURE__ */ new Set(["read", "write", "edit", "apply_patch", "patch", "ls", "image", "view_image", "glob"]);
-+const TOOL_DETAIL_SECRET_PATTERNS = [
-+	/(?:authorization|bearer)\s*[:=]?\s*(?:bearer\s+)?\S+/gi,
-+	/(?:token|secret|password|passwd|api[_-]?key)\s*[=:]\s*\S+/gi,
-+	/\b(?:sk|pk|ghp|xox[baprs])[-_][A-Za-z0-9_-]{12,}/g
++const TOOL_DETAIL_SECRET_WORDS = "password|passwd|pwd|pass|secret|token|api[_-]?key|access[_-]?key|access[_-]?id|secret[_-]?key|client[_-]?secret|refresh[_-]?token|private[_-]?key|auth[_-]?token|signature|cookie|credential|密码|口令|令牌|密钥";
++/**
++ * Each rule keeps its label/flag and redacts only the value (audit 5.8):
++ * 1. Authorization headers with any scheme, not just bearer.
++ * 2. Composite env-style names (`AWS_SECRET_ACCESS_KEY=`), JSON keys
++ *    (`{"api_key":"…"}`) and full-width colons (`密码：…`); quoted
++ *    multi-word values are redacted whole.
++ * 3. Prefixed flags in both `--flag=value` and `--flag value` forms.
++ * 4. Provider token prefixes, case-insensitive, widened charset, body >= 6.
++ * 5. AWS access key ids (exactly 16 uppercase alphanumerics after the prefix).
++ * Rules run in order; URL userinfo (`user:pass@host`) is redacted last.
++ */
++const TOOL_DETAIL_SECRET_RULES = [
++	[/\b(authorization|proxy-authorization|bearer)(\s*[:=]?\s*(?:bearer|basic|token|digest)?\s*)([^\s,;"']+)/gi, "$1$2***"],
++	[new RegExp(`([^\\s"'=:,]{0,40}(?:${TOOL_DETAIL_SECRET_WORDS})[^\\s"'=:,]{0,40})(\\s*["']?\\s*[:=：]\\s*)("[^"]*"|'[^']*'|[^\\s"'&,;]{3,})`, "gi"), "$1$2***"],
++	[new RegExp(`((?:^|\\s)--?[A-Za-z0-9_-]{0,40}(?:${TOOL_DETAIL_SECRET_WORDS}))(\\s*[:=]\\s*|\\s+)("[^"]*"|'[^']*'|[^\\s]+)`, "gi"), "$1$2***"],
++	[/\b(sk|pk|ghp|ghs|gho|github_pat|glpat|xox[baprs]|AIza|dop_v1|npm)([-_])([A-Za-z0-9._\-\/+=]{6,})/gi, "$1$2***"],
++	[/\b(AKIA|ASIA)([A-Z0-9]{16})(?![A-Z0-9])/g, "$1***"]
 +];
-+/** `--password value` style flags keep the flag and redact the value. */
-+const TOOL_DETAIL_SECRET_FLAG_PATTERN = /(^|\s)(--?(?:password|passwd|token|secret|api[_-]?key|access[_-]?key))\s+\S+/gi;
 +const TOOL_SUMMARY_MAX_CHARS = 400;
 +const TOOL_NARRATION_TEXT_PREFIX = "\u{1F4AC} ";
-+const TOOL_LABEL_ALIASES = /* @__PURE__ */ new Map([["session_settings", "sessions"]]);
++const TOOL_LABEL_ALIASES = /* @__PURE__ */ new Map([["session_settings", "sessions"], ["command", "exec"]]);
 +const BARE_TOOL_LABELS = /* @__PURE__ */ new Set([
 +	"exec", "bash", "shell", "read", "write", "edit", "apply_patch", "patch", "grep", "search",
 +	"glob", "ls", "browser", "web_fetch", "web_search", "image", "view_image", "open", "click",
@@ -118,7 +154,7 @@
 +	"sub_agent", "wait_for_agents", "agents", "structured_output", "memory_search",
 +	"memory_get", "skill_search", "skill_read", "code_execution", "decision_evaluation",
 +	"github_publish", "github_identity_status", "skill_workshop", "suggest_task",
-+	"dismiss_task", "secrets"
++	"dismiss_task", "secrets", "knowledge_record", "knowledge_remember"
 +]);
 +const TOOL_ICON_BY_LABEL = /* @__PURE__ */ new Map([
 +	["exec", "\u{1F4BB}"], ["bash", "\u{1F4BB}"], ["shell", "\u{1F4BB}"], ["terminal", "\u{1F4BB}"],
@@ -139,7 +175,8 @@
 +	["get_goal", "\u{1F3AF}"], ["update_goal", "\u{1F3AF}"], ["message", "\u2709\uFE0F"],
 +	["conversations", "\u{1F4AC}"], ["conversation_send", "\u{1F4AC}"], ["conversation_turn", "\u{1F4AC}"],
 +	["session_send", "\u{1F4AC}"], ["tool_search", "\u{1F9F0}"], ["tool_describe", "\u{1F9F0}"],
-+	["skill_search", "\u{1F9F0}"], ["skill_read", "\u{1F9F0}"], ["skill_workshop", "\u{1F9F0}"]
++	["skill_search", "\u{1F9F0}"], ["skill_read", "\u{1F9F0}"], ["skill_workshop", "\u{1F9F0}"],
++	["knowledge_record", "\u{1F4D6}"], ["knowledge_remember", "\u{1F9E0}"]
 +]);
 +const TOOL_DISPLAY_NAME_BY_LABEL = /* @__PURE__ */ new Map([
 +	["exec", "终端"], ["bash", "终端"], ["shell", "终端"], ["terminal", "终端"], ["background_shell", "终端"],
@@ -161,7 +198,8 @@
 +	["code_execution", "执行代码"], ["decision_evaluation", "评估决策"],
 +	["tool_search", "查找工具"], ["tool_describe", "工具说明"], ["skill_search", "查找技能"],
 +	["skill_read", "读取技能"], ["skill_workshop", "技能工坊"],
-+	["tool_call", "工具调用"], ["tool_result", "工具结果"], ["function_call", "函数调用"], ["command", "命令"], ["theme", "主题"]
++	["tool_call", "工具调用"], ["tool_result", "工具结果"], ["function_call", "函数调用"], ["command", "命令"], ["theme", "主题"],
++	["knowledge_record", "知识记录"], ["knowledge_remember", "知识记忆"]
 +]);
 +const normalizeToolLabel = (label) => {
 +	const normalized = label.trim().toLowerCase().replace(/[\s-]+/g, "_").replace(/^_+|_+$/g, "");
@@ -193,12 +231,15 @@
 +	if (!text) return void 0;
 +	const match = text.match(/^(\S+)\s+(.+)$/u);
 +	if (!match || !/^\p{Extended_Pictographic}/u.test(match[1])) return void 0;
-+	const label = match[2].split(":", 1)[0].trim();
-+	if (!label || label.length > 80) return void 0;
++	const normalized = normalizeToolLabel(match[2].split(":", 1)[0].trim());
++	if (!normalized || normalized.length > 80) return void 0;
++	const detail = match[2].includes(":") ? sanitizeToolDetail(match[2].slice(match[2].indexOf(":") + 1).trim()) : "";
++	const icon = match[1] === "\u{1F6E0}\uFE0F" ? resolveToolIcon(normalized) : match[1];
 +	return {
-+		key: `${match[1]}\u0000${label.toLowerCase()}`,
-+		icon: match[1] === "\u{1F6E0}\uFE0F" ? resolveToolIcon(normalizeToolLabel(label)) : match[1],
-+		label
++		key: `${icon}\u0000${normalized}\u0000${detail.toLowerCase()}`,
++		icon,
++		label: normalized,
++		detail
 +	};
 +};
 +const parseBareToolLabel = (payload, info) => {
@@ -207,11 +248,17 @@
 +	const colon = text.indexOf(":");
 +	const labelText = colon > 0 ? text.slice(0, colon) : text;
 +	const normalized = normalizeToolLabel(labelText);
-+	if (!BARE_TOOL_LABELS.has(normalized)) return void 0;
++	// v4.3: a verified kind=tool summary whose label is not on the bare list is
++	// still a tool row — title-shaped unknown labels join the panel (or are
++	// suppressed by the structured guard) instead of leaking as standalone
++	// messages (2026-11-25: the Knowledge tools, 11 cards in one turn).
++	if (!BARE_TOOL_LABELS.has(normalized) && !/^[A-Z][A-Za-z0-9_.-]*(?: [A-Za-z0-9_.-]+){0,3}$/.test(labelText)) return void 0;
++	const detail = colon > 0 ? sanitizeToolDetail(text.slice(colon + 1).trim()) : "";
 +	return {
-+		key: `\u{1F6E0}\uFE0F\u0000${normalized}`,
++		key: `${resolveToolIcon(normalized)}\u0000${normalized}\u0000${detail.toLowerCase()}`,
 +		icon: resolveToolIcon(normalized),
-+		label: normalized
++		label: normalized,
++		detail
 +	};
 +};
 +const truncateDisplayText = (text, max) => {
@@ -226,8 +273,8 @@
 +};
 +const redactSecrets = (text) => {
 +	let redacted = String(text ?? "");
-+	for (const pattern of TOOL_DETAIL_SECRET_PATTERNS) redacted = redacted.replace(pattern, "***");
-+	return redacted.replace(TOOL_DETAIL_SECRET_FLAG_PATTERN, "$1$2 ***");
++	for (const [pattern, replacement] of TOOL_DETAIL_SECRET_RULES) redacted = redacted.replace(pattern, replacement);
++	return redacted.replace(/:\/\/[^:@/\s]+:[^@/\s]+@/g, "://[redacted]@");
 +};
 +const sanitizeToolDetail = (text) => {
 +	const redacted = redactSecrets(text).replace(/\s+/g, " ").trim();
@@ -277,13 +324,15 @@
 +		this.contentReplaceFailures = 0;
 +		this.contentWriteBlocked = false;
 +		this.contentWriteFailures = 0;
++		this.lastContentWriteFailureAt = 0;
  		this.lastUpdateTime = 0;
  		this.pendingText = null;
  		this.flushTimer = null;
  		this.updateThrottleMs = STREAMING_UPDATE_THROTTLE_MS;
-+		this.lastWriteError = void 0;
 +		this.detailsSentText = "";
 +		this.progressSentText = "";
++		this.detailsInFlightText = "";
++		this.progressInFlightText = "";
  		this.client = client;
  		this.creds = creds;
  		this.log = log;
@@ -294,7 +343,7 @@
  		const auditContext = `feishu.streaming-card.${operation}`;
  		const { response, release } = await fetchWithSsrFGuard({
  			url: `${resolveApiBase(this.creds.domain)}/cardkit/v1/cards${path}`,
-@@ -1056,9 +1300,21 @@
+@@ -1056,9 +1349,21 @@
  			tag: "markdown",
  			content: "",
  			element_id: "content"
@@ -317,7 +366,7 @@
  			elements.push({
  				tag: "markdown",
  				content: `<font color='grey'>${options.note}</font>`,
-@@ -1110,6 +1366,7 @@
+@@ -1110,6 +1415,7 @@
  			msgType: "interactive"
  		}, "Send card failed");
  		if (sendRes.code !== 0) throw new Error(`Send card failed: ${sendRes.msg}`);
@@ -325,12 +374,21 @@
  		const messageId = sendRes.data?.message_id?.trim();
  		this.state = {
  			cardId,
-@@ -1130,35 +1387,132 @@
+@@ -1124,41 +1430,149 @@
+ 	async putElement(element, operation, action, body, token) {
+ 		const state = this.state;
+ 		const put = () => {
+-			state.sequence += 1;
+-			return this.requestCardKit(`/${state.cardId}/elements/${element}`, operation, "PUT", () => body(state.sequence), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, action), token);
++			const sequence = state.sequence += 1;
++			return this.requestCardKit(`/${state.cardId}/elements/${element}`, operation, "PUT", () => body(sequence), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, action), token);
+ 		};
  		try {
  			await put();
  		} catch (error) {
+-			if (!STREAMING_CLOSED_ERROR.test(String(error))) throw error;
 +			// 2026.11.7: a 10-minute streaming window that closed is re-opened and retried once.
- 			if (!STREAMING_CLOSED_ERROR.test(String(error))) throw error;
++			if (!isStreamingClosedError(error)) throw error;
 +			this.log?.("Streaming window closed; reopening the card");
  			for (const streaming_mode of [false, true]) await this.updateSettings({ streaming_mode }, "reopen", "Reopen streaming card");
  			await put();
@@ -339,12 +397,15 @@
 -	async updateSettings(config, operation, action) {
 +	async updateSettings(config, operation, action, token) {
  		const state = this.state;
- 		state.sequence += 1;
+-		state.sequence += 1;
++		const sequence = state.sequence += 1;
  		await this.requestCardKit(`/${state.cardId}/settings`, operation, "PATCH", () => ({
  			settings: JSON.stringify({ config }),
- 			sequence: state.sequence,
- 			uuid: `c_${state.cardId}_${state.sequence}`
+-			sequence: state.sequence,
+-			uuid: `c_${state.cardId}_${state.sequence}`
 -		}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, action));
++			sequence,
++			uuid: `c_${state.cardId}_${sequence}`
 +		}), (response, auditContext) => assertSuccessfulCardKitResponse(response, auditContext, action), token);
 +	}
 +	/**
@@ -352,32 +413,33 @@
 +	 * CardKit failures; a closed-window error that survives the reopen is terminal, so the
 +	 * card is marked expired and close falls back to a plain message.
 +	 */
-+	async putElementWithRetry(element, operation, action, body) {
++	async putElementWithRetry(element, operation, action, body, maxAttempts = CARD_WRITE_RETRY_MAX_ATTEMPTS) {
 +		let lastError;
-+		for (let attempt = 1; attempt <= CARD_WRITE_RETRY_MAX_ATTEMPTS; attempt += 1) {
++		for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
 +			if (!this.state || this.expired) {
 +				lastError = new Error("Streaming state cleared before card write");
 +				break;
 +			}
 +			try {
 +				await this.putElement(element, operation, action, body);
-+				return true;
++				return { sent: true, error: void 0 };
 +			} catch (error) {
 +				lastError = error;
 +				if (isStreamingClosedError(error)) break;
-+				if (attempt >= CARD_WRITE_RETRY_MAX_ATTEMPTS || !isRetryableCardKitError(error)) break;
++				if (attempt >= maxAttempts || !isRetryableCardKitError(error)) break;
 +				await delayMs(CARD_WRITE_RETRY_BASE_DELAY_MS * 3 ** (attempt - 1) + Math.floor(Math.random() * 40));
 +			}
 +		}
-+		this.lastWriteError = lastError;
-+		return false;
++		return { sent: false, error: lastError };
  	}
  	async writeCardContent(text, replace, onError) {
 -		if (!this.state) return false;
-+		if (!this.state || this.expired || this.contentWriteBlocked) return false;
++		if (!this.state || this.expired) return false;
++		const probeWrite = this.contentWriteBlocked;
++		if (probeWrite && Date.now() - this.lastContentWriteFailureAt < CARD_CONTENT_WRITE_COOLDOWN_MS) return false;
 +		const cardId = this.state.cardId;
 +		const effectiveReplace = replace && !this.contentReplaceBlocked;
-+		const sent = await this.putElementWithRetry(effectiveReplace ? "content" : "content/content", effectiveReplace ? "replace" : "update", effectiveReplace ? "Replace card content" : "Update card content", (sequence) => ({
++		const { sent, error } = await this.putElementWithRetry(effectiveReplace ? "content" : "content/content", effectiveReplace ? "replace" : "update", effectiveReplace ? "Replace card content" : "Update card content", (sequence) => ({
 +			...effectiveReplace ? { element: JSON.stringify({
 +				tag: "markdown",
 +				content: text,
@@ -385,13 +447,17 @@
 +			}) } : { content: text },
 +			sequence,
 +			uuid: `${effectiveReplace ? "r" : "s"}_${cardId}_${sequence}`
-+		}));
++		}), probeWrite ? 1 : CARD_WRITE_RETRY_MAX_ATTEMPTS);
 +		if (sent) {
 +			this.contentWriteFailures = 0;
++			this.lastContentWriteFailureAt = 0;
++			if (this.contentWriteBlocked) {
++				this.contentWriteBlocked = false;
++				this.log?.("Card content writes re-enabled after a successful probe");
++			}
 +			if (effectiveReplace) this.contentReplaceFailures = 0;
 +			return true;
 +		}
-+		const error = this.lastWriteError;
 +		if (isStreamingClosedError(error)) {
 +			this.markStreamingExpired(error);
 +			onError?.(error);
@@ -400,6 +466,7 @@
 +		onError?.(error);
 +		this.log?.(`Card content write failed after retries: ${String(error)}`);
 +		this.contentWriteFailures += 1;
++		this.lastContentWriteFailureAt = Date.now();
 +		if (effectiveReplace) {
 +			this.contentReplaceFailures += 1;
 +			if (this.contentReplaceFailures >= CARD_CONTENT_REPLACE_MAX_FAILURES && !this.contentReplaceBlocked) {
@@ -417,37 +484,42 @@
 +		if (!this.state || this.closed || this.expired || typeof text !== "string" || !text.trim()) return false;
 +		const run = this.queue.then(async () => {
 +			if (!this.state || this.closed || this.expired) return false;
-+			return this.putElementPayload(elementId, text, "update");
++			// v4.2: live panel rows are cosmetic; one attempt keeps the per-card 10 req/s budget for content.
++			return this.putElementPayload(elementId, text, "update", 1);
 +		});
 +		this.queue = run.then(() => void 0, () => void 0);
 +		return run;
 +	}
 +	async updateDetails(text) {
 +		if (!this.state || this.closed || this.expired || typeof text !== "string" || !text.trim()) return false;
-+		if (text === this.detailsSentText) return true;
++		if (text === this.detailsSentText || text === this.detailsInFlightText) return true;
++		this.detailsInFlightText = text;
 +		const sent = await this.writeElementContent("detailspanel_body", text);
++		this.detailsInFlightText = "";
 +		if (sent) this.detailsSentText = text;
 +		return sent;
 +	}
 +	async updateProgress(text) {
 +		if (!this.state || this.closed || this.expired || typeof text !== "string" || !text.trim()) return false;
-+		if (text === this.progressSentText) return true;
++		if (text === this.progressSentText || text === this.progressInFlightText) return true;
++		this.progressInFlightText = text;
 +		const sent = await this.writeElementContent("progress", text);
++		this.progressInFlightText = "";
 +		if (sent) this.progressSentText = text;
 +		return sent;
 +	}
-+	async putElementPayload(elementId, payload, mode) {
++	async putElementPayload(elementId, payload, mode, maxAttempts = CARD_WRITE_RETRY_MAX_ATTEMPTS) {
 +		if (!this.state || this.expired) return false;
 +		const cardId = this.state.cardId;
 +		const replace = mode === "replace";
-+		const sent = await this.putElementWithRetry(`${elementId}${replace ? "" : "/content"}`, replace ? "element-replace" : "element-update", `${replace ? "Replace" : "Update"} card element ${elementId}`, (sequence) => ({
++		const { sent, error } = await this.putElementWithRetry(`${elementId}${replace ? "" : "/content"}`, replace ? "element-replace" : "element-update", `${replace ? "Replace" : "Update"} card element ${elementId}`, (sequence) => ({
 +			...(replace ? { element: JSON.stringify(payload) } : { content: payload }),
 +			sequence,
 +			uuid: `el_${cardId}_${sequence}`
-+		}));
++		}), maxAttempts);
 +		if (sent) return true;
-+		if (isStreamingClosedError(this.lastWriteError)) this.markStreamingExpired(this.lastWriteError);
-+		if (!this.expired) this.log?.(`Element ${elementId} ${mode} failed after retries: ${String(this.lastWriteError)}`);
++		if (isStreamingClosedError(error)) this.markStreamingExpired(error);
++		if (!this.expired) this.log?.(`Element ${elementId} ${mode} failed after retries: ${String(error)}`);
 +		return false;
 +	}
 +	async deleteElementForced(elementId) {
@@ -471,7 +543,7 @@
  			return false;
  		}
  	}
-@@ -1185,16 +1539,17 @@
+@@ -1185,16 +1599,17 @@
  			if (!nextText) return;
  			this.pendingText = null;
  			if (nextText === this.state.sentText) return;
@@ -492,7 +564,7 @@
  		const now = Date.now();
  		if (!shouldForceUpdate && now - this.lastUpdateTime < this.updateThrottleMs) {
  			this.schedulePendingFlush();
-@@ -1204,7 +1559,7 @@
+@@ -1204,7 +1619,7 @@
  		await this.flushPendingUpdate();
  	}
  	async updateNoteContent(note) {
@@ -501,7 +573,7 @@
  		const token = await getToken(this.creds);
  		await this.putElement("note/content", "note-update", "Update card note", (sequence) => ({
  			content: `<font color='grey'>${note}</font>`,
-@@ -1212,38 +1567,90 @@
+@@ -1212,38 +1627,90 @@
  			uuid: `n_${this.state.cardId}_${sequence}`
  		}), token).catch((e) => this.log?.(`Note update failed: ${String(e)}`));
  	}
@@ -604,7 +676,7 @@
  		const finalState = this.state;
  		this.state = null;
  		this.pendingText = null;
-@@ -1273,6 +1680,7 @@
+@@ -1273,6 +1740,7 @@
  		try {
  			const response = await this.client.im.message.delete({ path: { message_id: messageId } });
  			if (response.code !== void 0 && response.code !== 0) throw new Error(`Delete streaming card message failed: ${response.msg ?? response.code}`);
@@ -612,7 +684,7 @@
  			this.state = null;
  			this.pendingText = null;
  			this.log?.(`Discarded streaming card: cardId=${cardId}`);
-@@ -1437,6 +1845,11 @@
+@@ -1437,6 +1905,11 @@
  		accountId
  	});
  	let typingState = null;
@@ -624,7 +696,7 @@
  	const { typingCallbacks, responsePrefix, responsePrefixContextProvider, onModelSelected } = createChannelMessageReplyPipeline({
  		cfg,
  		agentId,
-@@ -1449,6 +1862,7 @@
+@@ -1449,6 +1922,7 @@
  				const messageCreateTimeMs = normalizeEpochMs(params.messageCreateTimeMs);
  				if (messageCreateTimeMs !== void 0 && Date.now() - messageCreateTimeMs > TYPING_INDICATOR_MAX_AGE_MS) return;
  				if (typingState?.reactionId) return;
@@ -632,7 +704,7 @@
  				typingState = await addTypingIndicator({
  					cfg,
  					messageId: typingTargetMessageId,
-@@ -1458,6 +1872,7 @@
+@@ -1458,6 +1932,7 @@
  			},
  			stop: async () => {
  				if (!typingState) return;
@@ -640,10 +712,12 @@
  				await removeTypingIndicator({
  					cfg,
  					state: typingState,
-@@ -1500,6 +1915,20 @@
+@@ -1500,6 +1975,22 @@
  	let previewBlockOffset = 0;
  	let reasoningText = "";
  	let statusLine = "";
++	// v4.5: one random icon + one random text per turn, combined into a single static line.
++	const PREWARM_STATUS_LINE = `${PREWARM_STATUS_ICONS[Math.floor(Math.random() * PREWARM_STATUS_ICONS.length)]} ${PREWARM_STATUS_TEXTS[Math.floor(Math.random() * PREWARM_STATUS_TEXTS.length)]}`;
 +	let aggregatedToolTotal = 0;
 +	let lastToolLabel = "";
 +	let lastToolDetail = "";
@@ -661,7 +735,7 @@
  	let modelWaitLine = "";
  	let snapshotBaseText = "";
  	let hasStreamingFinalText = false;
-@@ -1522,9 +1951,190 @@
+@@ -1522,9 +2013,207 @@
  		return `> 💭 **Thinking**\n${thinking.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").replace(/^_(.*)_$/gm, "$1").split("\n").map((line) => `> ${line}`).join("\n")}`;
  	};
  	const buildCombinedStreamText = (thinking, answer) => {
@@ -699,10 +773,14 @@
 +	};
 +	const TOOL_GROUP_ORDER = ["命令", "文件", "网络", "会话", "其他"];
 +	const TOOL_GROUP_MEMBERS = /* @__PURE__ */ new Map([
-+		["命令", ["exec", "bash", "shell", "terminal", "background_shell", "process", "code_execution"]],
++		["命令", ["exec", "bash", "shell", "terminal", "background_shell", "gateway_process", "process", "code_execution"]],
 +		["文件", ["read", "write", "edit", "apply_patch", "patch", "grep", "search", "glob", "find", "ls", "image", "view_image"]],
 +		["网络", ["web_fetch", "web_search", "browser", "open", "click", "screenshot"]],
-+		["会话", ["sessions", "session_status", "session_history", "session_search", "message", "conversations", "conversation_send", "conversation_turn", "session_send", "agents", "sub_agent", "wait_for_agents", "task", "todo", "update_plan", "create_goal", "get_goal", "update_goal"]]
++		["会话", ["sessions", "session_status", "session_history", "session_search", "session_send",
++			"sessions_history", "sessions_search", "sessions_send", "sessions_spawn",
++			"message", "conversations", "conversation_send", "conversation_turn", "conversations_send", "conversations_turn",
++			"agents", "agents_list", "agents_wait", "sub_agent", "wait_for_agents", "task", "todo",
++			"update_plan", "create_goal", "get_goal", "update_goal"]]
 +	]);
 +	const resolveToolGroup = (label) => {
 +		const normalized = normalizeToolLabel(typeof label === "string" ? label : "");
@@ -720,7 +798,7 @@
 +			}
 +			groups.get(group).push(entry);
 +		}
-+		return [...groups.entries()].sort((left, right) => firstSeen.get(left[0]) - firstSeen.get(right[0]));
++		return [...groups.entries()].sort((left, right) => TOOL_GROUP_ORDER.indexOf(left[0]) - TOOL_GROUP_ORDER.indexOf(right[0]) || firstSeen.get(left[0]) - firstSeen.get(right[0]));
 +	};
 +	const escapeCodeSpan = (text) => String(text ?? "").replace(/`/g, "\u02CB");
 +	const formatDetailRow = (entry, singleTool) => {
@@ -733,13 +811,14 @@
 +	const buildDetailsContent = (liveDetail = "") => {
 +		if (toolEvents.length === 0) return "";
 +		const lines = [];
-+		if (!toolPhaseCompleted && liveDetail) lines.push(`**\u{1F527} 执行中** \u00B7 \`${escapeCodeSpan(liveDetail)}\``);
++		const lastEvent = toolEvents[toolEvents.length - 1];
++		if (!toolPhaseCompleted && liveDetail) lines.push(liveDetail === (lastEvent?.detail ?? "") ? "**\u{1F527} 执行中**" : `**\u{1F527} 执行中** \u00B7 \`${escapeCodeSpan(liveDetail)}\``);
 +		for (const [group, entries] of groupToolEvents()) {
 +			const singleTool = entries.every((entry) => entry.label === entries[0].label);
 +			lines.push(singleTool ? `**${group} \u00B7 ${formatToolDisplayName(entries[0].label)}**` : `**${group}**`);
 +			for (const entry of entries) lines.push(formatDetailRow(entry, singleTool));
 +		}
-+		if (toolEventsDropped > 0) lines.push(`- \u2026 另有 ${toolEventsDropped} 个较早调用`);
++		if (toolEventsDropped > 0) lines.push(`_\u2026 另有 ${toolEventsDropped} 次较早调用_`);
 +		return lines.join("\n");
 +	};
 +	const buildDetailsElement = (liveDetail = "") => ({
@@ -810,8 +889,8 @@
 +				count: 1
 +			});
 +			if (toolEvents.length > 20) {
-+				toolEvents.shift();
-+				toolEventsDropped += 1;
++				const dropped = toolEvents.shift();
++				toolEventsDropped += dropped.count;
 +			}
 +		}
 +		if (aggregatedToolTotal === 1) toolPhaseStartedAt = Date.now();
@@ -820,7 +899,10 @@
 +		statusLine = buildWaitingLine(aggregatedToolTotal);
 +		flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
 +		const details = buildDetailsContent(lastToolDetail);
-+		if (details) await streaming.updateDetails(details).catch(() => false);
++		if (details) await streaming.updateDetails(details).catch((error) => {
++			params.runtime.error?.(`feishu[${account.accountId}] details panel update failed: ${String(error)}`);
++			return false;
++		});
 +		return true;
 +	};
 +	const aggregateToolSummary = async (entry) => {
@@ -834,14 +916,20 @@
 +		const name = typeof payload?.name === "string" ? normalizeToolLabel(payload.name) : "";
 +		if (!name) return false;
 +		const detail = toolDetailFromArgs(name, payload.args);
-+		const recorded = await recordToolEvent({
-+			key: `${resolveToolIcon(name)}\u0000${name}\u0000${detail.toLowerCase()}`,
-+			icon: resolveToolIcon(name),
-+			label: name,
-+			detail
-+		});
-+		if (recorded) structuredToolTotal += 1;
-+		return recorded;
++		structuredToolTotal += 1;
++		try {
++			const recorded = await recordToolEvent({
++				key: `${resolveToolIcon(name)}\u0000${name}\u0000${detail.toLowerCase()}`,
++				icon: resolveToolIcon(name),
++				label: name,
++				detail
++			});
++			if (!recorded) structuredToolTotal -= 1;
++			return recorded;
++		} catch (error) {
++			structuredToolTotal -= 1;
++			throw error;
++		}
  	};
  	const flushStreamingCardUpdate = (combined) => {
 +		if (prewarmStatusLine && statusLine !== prewarmStatusLine) prewarmStatusLine = "";
@@ -849,11 +937,14 @@
 +			statusLine = "";
 +			prewarmStatusLine = "";
 +		}
-+		if (streaming?.isActive()) streaming.updateProgress(statusLine ? formatProgressLine(statusLine) : "\u200B").catch(() => false);
++		if (streaming?.isActive()) streaming.updateProgress(statusLine ? formatProgressLine(statusLine) : "\u200B").catch((error) => {
++			params.runtime.error?.(`feishu[${account.accountId}] progress line update failed: ${String(error)}`);
++			return false;
++		});
  		partialUpdateQueue = queueFeishuStreamingUpdate({
  			queue: partialUpdateQueue,
  			session: streaming,
-@@ -1534,12 +2144,25 @@
+@@ -1534,12 +2223,25 @@
  			runtime: params.runtime
  		});
  	};
@@ -882,7 +973,7 @@
  			if (previewText.startsWith(nextText, offset)) {
  				previewBlockOffset = offset + nextText.length;
  				return;
-@@ -1549,8 +2172,7 @@
+@@ -1549,8 +2251,7 @@
  			previewText = nextText;
  			streamText = `${snapshotBaseText}${nextText}`;
  		}
@@ -892,7 +983,7 @@
  	};
  	const startStreaming = () => {
  		if (!streamingEnabled || streamingStartPromise || streaming || isStreamingStartBackedOff(account.accountId)) return;
-@@ -1562,7 +2184,7 @@
+@@ -1562,7 +2263,7 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -901,7 +992,7 @@
  			streaming = session;
  			try {
  				const cardHeader = resolveCardHeader(agentId, identity);
-@@ -1576,6 +2198,8 @@
+@@ -1576,6 +2277,8 @@
  					note: cardNote
  				});
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
@@ -910,7 +1001,7 @@
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, performance.now() + STREAMING_START_FAILURE_BACKOFF_MS);
  				params.runtime.error(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
-@@ -1587,6 +2211,7 @@
+@@ -1587,6 +2290,7 @@
  		})();
  	};
  	const resetStreamingState = () => {
@@ -918,7 +1009,7 @@
  		streaming = null;
  		streamingStartPromise = null;
  		partialUpdateQueue = Promise.resolve();
-@@ -1594,6 +2219,21 @@
+@@ -1594,6 +2298,21 @@
  		lastPartial = "";
  		reasoningText = "";
  		statusLine = "";
@@ -940,7 +1031,7 @@
  		modelWaitLine = "";
  		snapshotBaseText = "";
  		hasStreamingFinalText = false;
-@@ -1608,6 +2248,10 @@
+@@ -1608,6 +2327,10 @@
  		const updateQueueToClose = partialUpdateQueue;
  		const finalizedAnswerText = streamText;
  		const finalizedReasoningText = reasoningText;
@@ -951,7 +1042,7 @@
  		const outcome = {
  			disposition,
  			content: finalizedAnswerText
-@@ -1619,14 +2263,18 @@
+@@ -1619,14 +2342,18 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -973,7 +1064,7 @@
  					}
  				} catch (error) {
  					if (!isChannelPartialDeliveryError(error)) throw error;
-@@ -1684,8 +2332,17 @@
+@@ -1684,8 +2411,17 @@
  		statusLine = nextStatusLine;
  		if (!Boolean(streaming?.isActive() || streamingStartPromise) && (!startIfNeeded || renderMode !== "card")) return false;
  		startStreaming();
@@ -992,7 +1083,7 @@
  	};
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
-@@ -1715,6 +2372,7 @@
+@@ -1715,6 +2451,7 @@
  					text: chunk,
  					...mentions.length > 0 ? { mentions } : {}
  				};
@@ -1000,7 +1091,7 @@
  				const result = paramsLocal.useCard ? await sendStructuredCardFeishu({
  					...sendParams,
  					header,
-@@ -1956,9 +2614,19 @@
+@@ -1956,9 +2693,19 @@
  			if (previewStreamingEnabled && renderMode === "card") startStreaming();
  			await typingCallbacks?.onReplyStart?.();
  		},
@@ -1021,11 +1112,11 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -1984,6 +2652,15 @@
+@@ -1984,6 +2731,15 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
-+				const parsedToolSummary = parseCollapsibleToolSummary(inputPayload, info) ?? parseBareToolLabel(inputPayload, info);
++				const parsedToolSummary = previewStreamingEnabled && renderMode !== "raw" ? parseCollapsibleToolSummary(inputPayload, info) ?? parseBareToolLabel(inputPayload, info) : void 0;
 +				if (parsedToolSummary) {
 +					if (await aggregateToolSummary(parsedToolSummary)) return noVisibleFeishuReplyDelivery;
 +					// A recognized tool row that cannot join a streaming card (background process,
@@ -1037,7 +1128,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -1991,6 +2668,20 @@
+@@ -1991,6 +2747,23 @@
  				});
  				const rendered = consumeFeishuPresentationFallbackMarker(prepared.payload);
  				const payload = rendered.payload;
@@ -1054,11 +1145,14 @@
 +					if (payload.text) noteCommentaryLine(payload.text);
 +					return noVisibleFeishuReplyDelivery;
 +				}
-+				if (payload.isError === true && streaming?.isActive()) streaming.updateProgress("<font color='red'>\u26A0\uFE0F 回复失败</font>").catch(() => false);
++				if (payload.isError === true && streaming?.isActive()) streaming.updateProgress("<font color='red'>\u26A0\uFE0F 回复失败</font>").catch((error) => {
++					params.runtime.error?.(`feishu[${account.accountId}] failure line update failed: ${String(error)}`);
++					return false;
++				});
  				const presentationCard = prepared.card;
  				const hasPresentationFallback = rendered.presentationFallback?.hasVisibleContent === true;
  				const hasIndependentPresentation = presentationCard !== void 0 || hasPresentationFallback;
-@@ -2003,6 +2694,10 @@
+@@ -2003,6 +2776,10 @@
  				const text = info?.kind === "final" && !hasIndependentPresentation ? mergeStreamingFinalText(streamText, payload.isError ? reply.text : `${snapshotBaseText}${reply.text}`, payload.isError === true && hasStreamingFinalText) : reply.text;
  				const hasText = reply.hasText;
  				const hasMedia = reply.hasMedia;
@@ -1069,7 +1163,7 @@
  				const ttsSupplement = getReplyPayloadTtsSupplement(payload);
  				const ttsTextAlreadyVisible = ttsSupplement?.visibleTextAlreadyDelivered === true;
  				const hasVoiceMedia = hasMedia && reply.mediaUrls.some((mediaUrl) => shouldSuppressFeishuTextForVoiceMedia({
-@@ -2074,7 +2769,7 @@
+@@ -2074,7 +2851,7 @@
  							if (info?.kind === "final") {
  								streamText = text;
  								hasStreamingFinalText = true;
@@ -1078,7 +1172,7 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2117,30 +2812,58 @@
+@@ -2117,30 +2894,61 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -1103,7 +1197,10 @@
 +					flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
 +					if (streaming?.isActive()) {
 +						const thinkingBody = buildThinkingPanelBody(reasoningText);
-+						if (thinkingBody) streaming.updateDetails(thinkingBody).catch(() => false);
++						if (thinkingBody) streaming.updateDetails(thinkingBody).catch((error) => {
++						params.runtime.error?.(`feishu[${account.accountId}] thinking panel update failed: ${String(error)}`);
++						return false;
++					});
 +					}
  				}
  				return false;
@@ -1140,7 +1237,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2154,11 +2877,33 @@
+@@ -2154,11 +2962,33 @@
  				lastPartial = "";
  				previewText = "";
  				previewBlockOffset = 0;

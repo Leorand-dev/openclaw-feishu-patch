@@ -28,7 +28,7 @@ still on 10.10 must upgrade the plugin before installing.
 | `patches/2026.11.6/feishu-tool-aggregation.patch` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` |
 | `patches/2026.11.7/feishu-tool-aggregation.patch` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
 | `patches/2026.11.9/feishu-tool-aggregation.patch` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` |
-| `patches/2026.11.10/feishu-tool-aggregation.patch` | `a11c1fd0a18406f483e920f8674fd0fc21633857db2a051e12b2e874a40aafe7` |
+| `patches/2026.11.10/feishu-tool-aggregation.patch` | `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
 | patched bundle, 2026.11.1 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` |
 | `patches/HISTORY.json` (previous patched builds) | up to 20 entries; installer `KNOWN_PATCHED` block |
@@ -43,7 +43,7 @@ still on 10.10 must upgrade the plugin before installing.
 | pristine bundle, 2026.11.9 | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` |
 | patched bundle, 2026.11.9 | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` |
 | pristine bundle, 2026.11.10 | `b29209583f72f4469788834539de9a28c7ecef4f2366c82da95b1a7760a75cdc` |
-| patched bundle, 2026.11.10 | `983a3cc503614fa2da2e44625950d20cf5b35b3dba9c83a8dfe039be31dc589a` |
+| patched bundle, 2026.11.10 | `90f6b9d8bf3244da903fe13529350e5d07f092424437554110e8099e35b3423b` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -53,8 +53,8 @@ reference values for the exact supported builds.
 | item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 | 2026.11.6 | 2026.11.7 | 2026.11.9 | 2026.11.10 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | hunks | 32 | 32 | 31 | 31 | 32 | 32 | 32 |
-| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique | `1bee687d…` -> `343976b2…`, 32/32 anchors unique | `359a1e8e…` -> `829b2491…`, 32/32 anchors unique | `b2920958…` -> `983a3cc5…`, 32/32 anchors unique |
-| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact | `343976b2…` -> `1bee687d…`, byte-exact | `829b2491…` -> `359a1e8e…`, byte-exact | `983a3cc5…` -> `b2920958…`, byte-exact |
+| forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique | `1bee687d…` -> `343976b2…`, 32/32 anchors unique | `359a1e8e…` -> `829b2491…`, 32/32 anchors unique | `b2920958…` -> `5e133638…`, 32/32 anchors unique |
+| reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact | `343976b2…` -> `1bee687d…`, byte-exact | `829b2491…` -> `359a1e8e…`, byte-exact | `5e133638…` -> `b2920958…`, byte-exact |
 
 - `tools/verify_patch.py --all=patches` -> forward and reverse byte-exact for
   the 2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6, 2026.11.7, 2026.11.9 and
@@ -140,7 +140,11 @@ untouched. The three-way merge (base = 11.9 pristine, ours = 11.9 layout-v4
 patched, theirs = 11.10 pristine) therefore produces **zero conflicts**; the
 11.9 -> 11.10 diff of the patched bundle equals the upstream delta line for line
 (+148/-96), so all 32 reviewed change blocks carry over unchanged. Result: 32
-hunks, patched SHA-256 `983a3cc5…`. Layout v4, the reopen path, the tool-row
+hunks, patched SHA-256 `983a3cc5…`; the 2026-11-25 v4.1 correctness pass
+(audit 5.1-5.8) keeps the same 32 hunks and moves the patched SHA-256 to
+`5e133638…`, the same-day v4.2 polish pass (batch C) to `cf45c522…`, and the
+v4.3 Knowledge fix to `3ba2f9c2…`.
+Layout v4, the reopen path, the tool-row
 suppression and the prewarm line are unchanged.
 
 ### Why 2026.11.9 is a re-anchored rebuild
@@ -326,19 +330,20 @@ reply.
 
 ## Test results
 
-`tests/run-all.mjs` -> **5/5 suites, 0 failed, 181 assertions** against each
-patched bundle (2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6, 2026.11.7,
-2026.11.9 and 2026.11.10; the 2026.11.3 build carries the same bytes as 11.2,
-so the 11.2 result covers it):
+`tests/run-all.mjs` -> **5/5 suites, 0 failed, 216 assertions** against the
+2026.11.10 bundle; the v4.1-gated cases detect their build, so the older
+patched bundles (2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6, 2026.11.7,
+2026.11.9) run 181 assertions each (the 2026.11.3 build carries the same bytes
+as 11.2, so the 11.2 result covers it):
 
 | suite | assertions |
 | --- | --- |
-| parser/structured-details/content-only helpers | 46 |
-| aggregation/status/details (incl. prewarm) | 21 |
-| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy, tool-row drop) | 53 |
-| streaming-session shape (incl. window expiry/reopen, live shrink, write breaker) | 55 |
+| parser/structured-details/content-only helpers | 61 |
+| aggregation/status/details (incl. prewarm) | 28 |
+| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy, tool-row drop) | 54 |
+| streaming-session shape (incl. window expiry/reopen, live shrink, write breaker) | 67 |
 | idle-hold behavior | 6 |
-| **total** | **181** |
+| **total** | **216** |
 
 The two version-sensitive suites are branch-aware: `hasReopen` detects the 11.7
 `putElement()` layer, so 11.7 asserts the reopen/retry policy while the older
@@ -367,7 +372,7 @@ streaming-session suite locates the upstream module boundary by the bare path
   (`36a2c58e…` <-> `a8d6d9fa…`), both 31 hunks, and the 11.7 patch
   (`1bee687d…` <-> `343976b2…`), 32 hunks, the 11.9 patch
   (`359a1e8e…` <-> `829b2491…`), 32 hunks, and the 11.10 patch
-  (`b2920958…` <-> `983a3cc5…`), 32 hunks.
+  (`b2920958…` <-> `5e133638…`), 32 hunks.
 - `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact.
 - `tools/adapt_patch.py` regeneration -> exact patched SHAs for the reviewed
   bundle pairs.
@@ -484,3 +489,90 @@ tool-row suppression and the prewarm line are identical on both builds.
 - Builds 11.1/11.2/11.5/11.6 keep the terminal behaviour: a turn longer than 10
   minutes freezes the card, close deletes it and the answer arrives as a normal
   message.
+
+## 2026-11-25 v4.1 correctness pass (audit 5.1-5.8) + v4.2 polish pass (batch C)
+
+The 2026-11-25 code-correctness audit (see the audit report) found the panel
+tool count could double-count a tool call (guard lagged one HTTP round trip),
+the summary lane dropped command detail, the content-write breaker never
+recovered, the closed-window judges disagreed, sequence numbers could be
+re-read after the token await, and 7 classes of secrets missed redaction.
+The v4.1 pass (batch A+B) fixes all of these in the 2026.11.10 patch: the same
+32 hunks, patched SHA-256 `5e133638…` (v4: `983a3cc5…`, retained in
+`HISTORY.json` for in-place upgrade), 201 assertions. The same-day v4.2 pass
+(batch C) adds: HTTP 429 fails fast (single attempt), live panel rows get one
+attempt, identical in-flight status lines are not re-sent, panel-write
+failures escalate to `runtime.error`, raw/non-preview modes keep tool rows on
+the normal message path, the live row no longer echoes the running command,
+the dropped-events note is no longer a list item, `lastWriteError` is passed
+per call instead of a shared field, `command` aliases to `exec`, and the
+sessions/conversations tool names align with the upstream
+`TOOL_DISPLAY_CONFIG`. Final patched SHA-256
+`90f6b9d8bf3244da903fe13529350e5d07f092424437554110e8099e35b3423b`, patch
+SHA-256 `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d`.
+
+- `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact (8 builds).
+- `tools/check_docs.py` -> release checks OK (216 assertions, 3 docs).
+- `tests/run-all.mjs` -> **5/5 suites, 0 failed, 216 assertions** against the
+  v4.2 bundle (v4.x-gated cases detect their build; older bundles run 181).
+- Fleet rollout 23:0x-23:1x local: 79/75/18/19/43 each upgraded in place from
+  `983a3cc5…` to `5e133638…` (`--check` reports `status=patched`,
+  no `outdated` flag), remote run-all 5/5 with 201 assertions, gateway
+  restarted outside any open turn, health `200`, `NRestarts=0`, feishu
+  websocket reconnects confirmed. Host 90 (iMac, plugin 2026.11.9) still needs
+  the 11.10 plugin upgrade before this patch applies.
+
+## 2026-11-25 v4.3 Knowledge fix (per-turn standalone tool messages)
+
+While exercising the fleet, the 23:41 local turn on 79 emitted 12 messages
+(`total=100 card=86 message=12`): the stock openclaw **knowledge** extension
+(tools `knowledge_record` "Knowledge Record" / `knowledge_remember`
+"Knowledge Remember") was never on `BARE_TOOL_LABELS`, so its tool summaries
+escaped the drop lane and rendered as standalone cards. The same leak predates
+v4.2 (a 23:13 turn on the v4 bundle already shows `message=2`); the new
+workload just called the tool 11 times in one turn. Panel writes were healthy
+all day (zero failure log lines), ruling out the fallback chain.
+
+- Fix: `knowledge_record`/`knowledge_remember` added to the bare label set
+  (icons 📖/🧠, display names 知识记录/知识记忆), plus a generic fallback — a
+  verified kind=tool single-line summary with a title-shaped label (uppercase
+  start, ≤4 words) joins the panel instead of leaking, known or not. With the
+  v4.1 structured guard in place the fallback mainly suppresses the leak; the
+  panel row still comes from the structured lane with real args detail.
+- Same 32 hunks, patched SHA-256 `90f6b9d8bf3244da903fe13529350e5d07f092424437554110e8099e35b3423b`,
+  patch SHA-256 `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d`.
+- `tools/verify_patch.py --all=patches` -> 8 builds forward/reverse byte-exact;
+  `tools/check_docs.py` -> release checks OK (214 assertions); run-all 5/5 with
+  214 assertions on the v4.3 bundle (older bundles keep 181).
+
+## 2026-11-25 v4.4 prewarm rotation
+
+The prewarm line `⏳ 思考中...` was the only variant. Per user request the
+constant became a reviewed set of six, with one random pick per turn (the
+dispatcher is instantiated per inbound message, so the pick is per-turn):
+
+- `⏳ 思考中...`（原句保留）
+- `⏳ 正在思考...` / `⏳ 想一想...` / `⏳ 理清思路中...` / `⏳ 稍等片刻...` / `⏳ 组织答案中...`
+
+Still a single static write with no animation and no timer; the variable name
+`PREWARM_STATUS_LINE` is kept as the per-turn pick so extraction-based tests are
+unchanged. Same 32 hunks, patched SHA-256
+`90f6b9d8bf3244da903fe13529350e5d07f092424437554110e8099e35b3423b`, patch
+SHA-256 `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d`,
+216 assertions (adds per-turn pick + set-membership checks). Fleet rolled
+`3ba2f9c2…` -> `c7d2f94b…` on 75/79/18/19/43, remote run-all 5/5 with 216
+assertions, health 200 (75 on its usual second probe), `NRestarts=0`.
+
+## 2026-11-26 v4.5 prewarm icon rotation
+
+Per user request the prewarm icon rotates too: the single `⏳` became a reviewed
+set of eight (⏳ 🤔 💭 🧠 ⚡ ✨ ☕ 🔮), combined per turn with the six reviewed
+texts — 48 combinations, still one static write, no animation, no timer, and the
+first real output still clears the line. Icons already carrying meaning
+elsewhere on the card (🔧 ✍️ ✅ ⚠️ 💬 🧾) are deliberately excluded. Same 32
+hunks, patched SHA-256
+`90f6b9d8bf3244da903fe13529350e5d07f092424437554110e8099e35b3423b`, patch
+SHA-256 `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d`,
+216 assertions (the two prewarm assertions now pin the icon/text arrays and the
+combined pick). Fleet rolled `c7d2f94b…` -> `90f6b9d8…` on 75/79/18/19/43,
+remote run-all 5/5, health 200 (75 on its usual second probe), `NRestarts=0`.
