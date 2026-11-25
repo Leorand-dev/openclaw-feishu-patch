@@ -391,6 +391,17 @@ completion and red failure line, code-span tool rows and no extra dividers.
 Every host moved from the v3 11.9 build (`67d9af33…`) in place via the pristine
 backup and reports `status=patched version=2026.11.9` with the v4 bundle.
 
+Real-turn check (layout v4, host 90, 2026-11-25 12:06-12:13 local): the v4
+gateway (started 12:06:33) served a `/new` command through one streaming card
+(`Started streaming` 12:12:29 -> `Closed streaming` 12:12:32, prewarm line
+present) and opened the health-check turn as a single streaming card at
+12:13:05 (`cardId=7711957309862497305`, `prewarm status ready`). The Feishu
+message list for the chat shows only `interactive` card messages for these
+turns and no standalone `post` tool rows after the v4 build went live, so the
+tool-row suppression still holds. The visual layout was confirmed by the
+operator on the real client (answer-only content, reasoning inside
+`🧾 过程记录`, stable status line, counted panel title, green completion).
+
 ## Release checks
 
 - `tools/finalize.py` -> 7 builds, current `2026.11.9`; manifest, installer
