@@ -163,6 +163,9 @@ if (hasV41) {
     && rollbackBox.total() === 1);
   ok("v4.6 core tool-progress messages are suppressed while the card aggregates",
     src.includes("suppressToolProgressMessages: previewStreamingEnabled ? true : void 0"));
+  ok("v4.7 the structured tool lane stays on while the text lane is hidden",
+    src.includes("suppressDefaultToolProgressMessages: previewStreamingEnabled ? true : void 0")
+    && src.includes("allowToolLifecycleWhenProgressHidden: previewStreamingEnabled ? true : void 0"));
   ok("v4.6 a card that opens later replays the buffered tool state",
     src.includes("const syncBufferedToolStateToCard = async () => {")
     && src.includes("if (aggregatedToolTotal > 0) await syncBufferedToolStateToCard();"));

@@ -267,6 +267,11 @@ if (hasV41) {
   ok("v4.3 lowercase or wordy sentences are not tool rows",
     h.parseBareToolLabel({ text: "please wait while the tool runs", mediaUrls: undefined }, { kind: "tool" }) === undefined
     && h.parseBareToolLabel({ text: "I will now go and run the thing", mediaUrls: undefined }, { kind: "tool" }) === undefined);
+  // v4.7: real tool ids are lower-case snake_case, so they must parse as rows too.
+  const dispatchRow = h.parseBareToolLabel({ text: "dispatch_action: knowledge_status", mediaUrls: undefined }, { kind: "tool" });
+  const searchRow = h.parseBareToolLabel({ text: "tool_search", mediaUrls: undefined }, { kind: "tool" });
+  ok("v4.7 lower-case tool ids parse as card rows",
+    dispatchRow?.label === "dispatch_action" && dispatchRow?.detail === "knowledge_status" && searchRow?.label === "tool_search");
 }
 
 finish("2026.11.1 helpers/content-only");

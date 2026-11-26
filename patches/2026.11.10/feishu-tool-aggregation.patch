@@ -55,7 +55,7 @@
  async function getToken(creds) {
  	const key = `${creds.domain ?? "feishu"}|${creds.appId}`;
  	const cached = tokenCache.get(key);
-@@ -1012,22 +1043,284 @@
+@@ -1012,22 +1043,286 @@
  	return clean.length <= max ? clean : sliceUtf16Safe(clean, 0, max - 3) + "...";
  }
  function shouldPushStreamingUpdate(previousText, nextText) {
@@ -252,7 +252,9 @@
 +	// still a tool row — title-shaped unknown labels join the panel (or are
 +	// suppressed by the structured guard) instead of leaking as standalone
 +	// messages (2026-11-25: the Knowledge tools, 11 cards in one turn).
-+	if (!BARE_TOOL_LABELS.has(normalized) && !/^[A-Z][A-Za-z0-9_.-]*(?: [A-Za-z0-9_.-]+){0,3}$/.test(labelText)) return void 0;
++	// v4.7: real tool ids are lower-case (`tool_search`, `dispatch_action`), so the
++	// bare list also admits a single lower-case tool-id token; prose never matches.
++	if (!BARE_TOOL_LABELS.has(normalized) && !/^[A-Z][A-Za-z0-9_.-]*(?: [A-Za-z0-9_.-]+){0,3}$/.test(labelText) && !/^[a-z][a-z0-9_-]{2,31}$/.test(labelText)) return void 0;
 +	const detail = colon > 0 ? sanitizeToolDetail(text.slice(colon + 1).trim()) : "";
 +	return {
 +		key: `${resolveToolIcon(normalized)}\u0000${normalized}\u0000${detail.toLowerCase()}`,
@@ -343,7 +345,7 @@
  		const auditContext = `feishu.streaming-card.${operation}`;
  		const { response, release } = await fetchWithSsrFGuard({
  			url: `${resolveApiBase(this.creds.domain)}/cardkit/v1/cards${path}`,
-@@ -1056,9 +1349,21 @@
+@@ -1056,9 +1351,21 @@
  			tag: "markdown",
  			content: "",
  			element_id: "content"
@@ -366,7 +368,7 @@
  			elements.push({
  				tag: "markdown",
  				content: `<font color='grey'>${options.note}</font>`,
-@@ -1110,6 +1415,7 @@
+@@ -1110,6 +1417,7 @@
  			msgType: "interactive"
  		}, "Send card failed");
  		if (sendRes.code !== 0) throw new Error(`Send card failed: ${sendRes.msg}`);
@@ -374,7 +376,7 @@
  		const messageId = sendRes.data?.message_id?.trim();
  		this.state = {
  			cardId,
-@@ -1124,41 +1430,149 @@
+@@ -1124,41 +1432,149 @@
  	async putElement(element, operation, action, body, token) {
  		const state = this.state;
  		const put = () => {
@@ -543,7 +545,7 @@
  			return false;
  		}
  	}
-@@ -1185,16 +1599,17 @@
+@@ -1185,16 +1601,17 @@
  			if (!nextText) return;
  			this.pendingText = null;
  			if (nextText === this.state.sentText) return;
@@ -564,7 +566,7 @@
  		const now = Date.now();
  		if (!shouldForceUpdate && now - this.lastUpdateTime < this.updateThrottleMs) {
  			this.schedulePendingFlush();
-@@ -1204,7 +1619,7 @@
+@@ -1204,7 +1621,7 @@
  		await this.flushPendingUpdate();
  	}
  	async updateNoteContent(note) {
@@ -573,7 +575,7 @@
  		const token = await getToken(this.creds);
  		await this.putElement("note/content", "note-update", "Update card note", (sequence) => ({
  			content: `<font color='grey'>${note}</font>`,
-@@ -1212,38 +1627,90 @@
+@@ -1212,38 +1629,90 @@
  			uuid: `n_${this.state.cardId}_${sequence}`
  		}), token).catch((e) => this.log?.(`Note update failed: ${String(e)}`));
  	}
@@ -676,7 +678,7 @@
  		const finalState = this.state;
  		this.state = null;
  		this.pendingText = null;
-@@ -1273,6 +1740,7 @@
+@@ -1273,6 +1742,7 @@
  		try {
  			const response = await this.client.im.message.delete({ path: { message_id: messageId } });
  			if (response.code !== void 0 && response.code !== 0) throw new Error(`Delete streaming card message failed: ${response.msg ?? response.code}`);
@@ -684,7 +686,7 @@
  			this.state = null;
  			this.pendingText = null;
  			this.log?.(`Discarded streaming card: cardId=${cardId}`);
-@@ -1437,6 +1905,11 @@
+@@ -1437,6 +1907,11 @@
  		accountId
  	});
  	let typingState = null;
@@ -696,7 +698,7 @@
  	const { typingCallbacks, responsePrefix, responsePrefixContextProvider, onModelSelected } = createChannelMessageReplyPipeline({
  		cfg,
  		agentId,
-@@ -1449,6 +1922,7 @@
+@@ -1449,6 +1924,7 @@
  				const messageCreateTimeMs = normalizeEpochMs(params.messageCreateTimeMs);
  				if (messageCreateTimeMs !== void 0 && Date.now() - messageCreateTimeMs > TYPING_INDICATOR_MAX_AGE_MS) return;
  				if (typingState?.reactionId) return;
@@ -704,7 +706,7 @@
  				typingState = await addTypingIndicator({
  					cfg,
  					messageId: typingTargetMessageId,
-@@ -1458,6 +1932,7 @@
+@@ -1458,6 +1934,7 @@
  			},
  			stop: async () => {
  				if (!typingState) return;
@@ -712,7 +714,7 @@
  				await removeTypingIndicator({
  					cfg,
  					state: typingState,
-@@ -1500,6 +1975,22 @@
+@@ -1500,6 +1977,22 @@
  	let previewBlockOffset = 0;
  	let reasoningText = "";
  	let statusLine = "";
@@ -735,7 +737,7 @@
  	let modelWaitLine = "";
  	let snapshotBaseText = "";
  	let hasStreamingFinalText = false;
-@@ -1522,9 +2013,223 @@
+@@ -1522,9 +2015,223 @@
  		return `> 💭 **Thinking**\n${thinking.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").replace(/^_(.*)_$/gm, "$1").split("\n").map((line) => `> ${line}`).join("\n")}`;
  	};
  	const buildCombinedStreamText = (thinking, answer) => {
@@ -960,7 +962,7 @@
  		partialUpdateQueue = queueFeishuStreamingUpdate({
  			queue: partialUpdateQueue,
  			session: streaming,
-@@ -1534,12 +2239,25 @@
+@@ -1534,12 +2241,25 @@
  			runtime: params.runtime
  		});
  	};
@@ -989,7 +991,7 @@
  			if (previewText.startsWith(nextText, offset)) {
  				previewBlockOffset = offset + nextText.length;
  				return;
-@@ -1549,8 +2267,7 @@
+@@ -1549,8 +2269,7 @@
  			previewText = nextText;
  			streamText = `${snapshotBaseText}${nextText}`;
  		}
@@ -999,7 +1001,7 @@
  	};
  	const startStreaming = () => {
  		if (!streamingEnabled || streamingStartPromise || streaming || isStreamingStartBackedOff(account.accountId)) return;
-@@ -1562,7 +2279,7 @@
+@@ -1562,7 +2281,7 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -1008,7 +1010,7 @@
  			streaming = session;
  			try {
  				const cardHeader = resolveCardHeader(agentId, identity);
-@@ -1576,6 +2293,10 @@
+@@ -1576,6 +2295,10 @@
  					note: cardNote
  				});
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
@@ -1019,7 +1021,7 @@
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, performance.now() + STREAMING_START_FAILURE_BACKOFF_MS);
  				params.runtime.error(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
-@@ -1587,6 +2308,7 @@
+@@ -1587,6 +2310,7 @@
  		})();
  	};
  	const resetStreamingState = () => {
@@ -1027,7 +1029,7 @@
  		streaming = null;
  		streamingStartPromise = null;
  		partialUpdateQueue = Promise.resolve();
-@@ -1594,6 +2316,21 @@
+@@ -1594,6 +2318,21 @@
  		lastPartial = "";
  		reasoningText = "";
  		statusLine = "";
@@ -1049,7 +1051,7 @@
  		modelWaitLine = "";
  		snapshotBaseText = "";
  		hasStreamingFinalText = false;
-@@ -1608,6 +2345,10 @@
+@@ -1608,6 +2347,10 @@
  		const updateQueueToClose = partialUpdateQueue;
  		const finalizedAnswerText = streamText;
  		const finalizedReasoningText = reasoningText;
@@ -1060,7 +1062,7 @@
  		const outcome = {
  			disposition,
  			content: finalizedAnswerText
-@@ -1619,14 +2360,18 @@
+@@ -1619,14 +2362,18 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -1082,7 +1084,7 @@
  					}
  				} catch (error) {
  					if (!isChannelPartialDeliveryError(error)) throw error;
-@@ -1684,8 +2429,17 @@
+@@ -1684,8 +2431,17 @@
  		statusLine = nextStatusLine;
  		if (!Boolean(streaming?.isActive() || streamingStartPromise) && (!startIfNeeded || renderMode !== "card")) return false;
  		startStreaming();
@@ -1101,7 +1103,7 @@
  	};
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
-@@ -1715,6 +2469,7 @@
+@@ -1715,6 +2471,7 @@
  					text: chunk,
  					...mentions.length > 0 ? { mentions } : {}
  				};
@@ -1109,7 +1111,7 @@
  				const result = paramsLocal.useCard ? await sendStructuredCardFeishu({
  					...sendParams,
  					header,
-@@ -1956,9 +2711,19 @@
+@@ -1956,9 +2713,19 @@
  			if (previewStreamingEnabled && renderMode === "card") startStreaming();
  			await typingCallbacks?.onReplyStart?.();
  		},
@@ -1130,7 +1132,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -1984,6 +2749,15 @@
+@@ -1984,6 +2751,15 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -1146,7 +1148,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -1991,6 +2765,23 @@
+@@ -1991,6 +2767,23 @@
  				});
  				const rendered = consumeFeishuPresentationFallbackMarker(prepared.payload);
  				const payload = rendered.payload;
@@ -1170,7 +1172,7 @@
  				const presentationCard = prepared.card;
  				const hasPresentationFallback = rendered.presentationFallback?.hasVisibleContent === true;
  				const hasIndependentPresentation = presentationCard !== void 0 || hasPresentationFallback;
-@@ -2003,6 +2794,10 @@
+@@ -2003,6 +2796,10 @@
  				const text = info?.kind === "final" && !hasIndependentPresentation ? mergeStreamingFinalText(streamText, payload.isError ? reply.text : `${snapshotBaseText}${reply.text}`, payload.isError === true && hasStreamingFinalText) : reply.text;
  				const hasText = reply.hasText;
  				const hasMedia = reply.hasMedia;
@@ -1181,7 +1183,7 @@
  				const ttsSupplement = getReplyPayloadTtsSupplement(payload);
  				const ttsTextAlreadyVisible = ttsSupplement?.visibleTextAlreadyDelivered === true;
  				const hasVoiceMedia = hasMedia && reply.mediaUrls.some((mediaUrl) => shouldSuppressFeishuTextForVoiceMedia({
-@@ -2074,7 +2869,7 @@
+@@ -2074,7 +2871,7 @@
  							if (info?.kind === "final") {
  								streamText = text;
  								hasStreamingFinalText = true;
@@ -1190,17 +1192,21 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2108,6 +2903,9 @@
+@@ -2108,6 +2905,13 @@
  		},
  		replyOptions: {
  			onModelSelected,
 +			// v4.6: the card already carries every tool row, so core must not also post its own
 +			// tool-progress message for each event (renderMode=card turned each one into a bubble).
 +			suppressToolProgressMessages: previewStreamingEnabled ? true : void 0,
++			// v4.7: telling core the channel renders progress itself keeps the structured
++			// `onToolStart` lane (tool name + args) alive while the text lane stays suppressed.
++			suppressDefaultToolProgressMessages: previewStreamingEnabled ? true : void 0,
++			allowToolLifecycleWhenProgressHidden: previewStreamingEnabled ? true : void 0,
  			disableBlockStreaming: !coreBlockStreamingEnabled,
  			preserveProgressCallbackStartOrder: previewStreamingEnabled ? true : void 0,
  			onPartialReply: previewStreamingEnabled ? (payload) => {
-@@ -2117,30 +2915,61 @@
+@@ -2117,30 +2921,61 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -1265,7 +1271,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2154,11 +2983,33 @@
+@@ -2154,11 +2989,33 @@
  				lastPartial = "";
  				previewText = "";
  				previewBlockOffset = 0;
