@@ -156,6 +156,12 @@ ok("tool rows that cannot join a card never fall back to a message bubble", hasR
 ok("empty tool turn removes the details panel", src.includes('deleteElementForced("detailspanel")') && src.includes('deleteElementForced("divider")'));
 ok("non-empty tool turn replaces details with column_set", hasV4 ? src.includes('putElementPayload("detailspanel", options.detailsElement, "replace")') : src.includes('putElementPayload("detailspanel_body", options.details, "replace")'));
 ok("discard path preserved", src.includes("if (disposition === \"discarded\") closed = await streamingToClose.discard();"));
+if (src.includes("CARD_ANSWER_MAX_BYTES")) {
+  ok("v4.8 card capacity, not the text chunk limit, decides the discard",
+    src.includes("const CARD_ANSWER_MAX_BYTES = 26e3;")
+    && src.includes('Buffer.byteLength(text, "utf8") > CARD_ANSWER_MAX_BYTES')
+    && !src.includes("text.length > textChunkLimit"));
+}
 ok("no legacy status element in finalizer", !src.includes("deleteStatusElement") && !src.includes("keepStatus"));
 ok("prewarm status line is wired", src.includes("const PREWARM_STATUS_LINE") && src.includes("applyPrewarmStatus();"));
 ok("prewarm is cleared when output starts", src.includes('updateProgress(statusLine ? formatProgressLine(statusLine) : "\\u200B")'));

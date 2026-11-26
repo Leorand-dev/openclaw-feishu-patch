@@ -28,7 +28,7 @@ still on 10.10 must upgrade the plugin before installing.
 | `patches/2026.11.6/feishu-tool-aggregation.patch` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` |
 | `patches/2026.11.7/feishu-tool-aggregation.patch` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
 | `patches/2026.11.9/feishu-tool-aggregation.patch` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` |
-| `patches/2026.11.10/feishu-tool-aggregation.patch` | `969f66f9c7cf9e9371ab73b9e3c5c257b5ba4ecd4fa7a9db0a720a3d2e7a7802` |
+| `patches/2026.11.10/feishu-tool-aggregation.patch` | `9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
 | patched bundle, 2026.11.1 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` |
 | `patches/HISTORY.json` (previous patched builds) | up to 20 entries; installer `KNOWN_PATCHED` block |
@@ -43,7 +43,7 @@ still on 10.10 must upgrade the plugin before installing.
 | pristine bundle, 2026.11.9 | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` |
 | patched bundle, 2026.11.9 | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` |
 | pristine bundle, 2026.11.10 | `b29209583f72f4469788834539de9a28c7ecef4f2366c82da95b1a7760a75cdc` |
-| patched bundle, 2026.11.10 | `2aacc800450556ff6ffa2f204c9157f369b4649b1cefc599431d0919c28a41f6` |
+| patched bundle, 2026.11.10 | `d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -52,7 +52,7 @@ reference values for the exact supported builds.
 
 | item | 2026.11.1 | 2026.11.2 / 2026.11.3 | 2026.11.5 | 2026.11.6 | 2026.11.7 | 2026.11.9 | 2026.11.10 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| hunks | 32 | 32 | 31 | 31 | 32 | 32 | 33 |
+| hunks | 32 | 32 | 31 | 31 | 32 | 32 | 34 |
 | forward apply | `6dbfa74b…` -> `a5664b51…`, 31/31 anchors unique | `44f6d50f…` -> `2472f7a1…`, 31/31 anchors unique | `8d5cfbd6…` -> `9c88ab9b…`, 31/31 anchors unique | `36a2c58e…` -> `a8d6d9fa…`, 31/31 anchors unique | `1bee687d…` -> `343976b2…`, 32/32 anchors unique | `359a1e8e…` -> `829b2491…`, 32/32 anchors unique | `b2920958…` -> `5e133638…`, 32/32 anchors unique |
 | reverse apply | `a5664b51…` -> `6dbfa74b…`, byte-exact | `2472f7a1…` -> `44f6d50f…`, byte-exact | `9c88ab9b…` -> `8d5cfbd6…`, byte-exact | `a8d6d9fa…` -> `36a2c58e…`, byte-exact | `343976b2…` -> `1bee687d…`, byte-exact | `829b2491…` -> `359a1e8e…`, byte-exact | `5e133638…` -> `b2920958…`, byte-exact |
 
@@ -330,7 +330,7 @@ reply.
 
 ## Test results
 
-`tests/run-all.mjs` -> **5/5 suites, 0 failed, 220 assertions** against the
+`tests/run-all.mjs` -> **5/5 suites, 0 failed, 221 assertions** against the
 2026.11.10 bundle; the v4.1-gated cases detect their build, so the older
 patched bundles (2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6, 2026.11.7,
 2026.11.9) run 181 assertions each (the 2026.11.3 build carries the same bytes
@@ -340,10 +340,10 @@ as 11.2, so the 11.2 result covers it):
 | --- | --- |
 | parser/structured-details/content-only helpers | 62 |
 | aggregation/status/details (incl. prewarm) | 31 |
-| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy, tool-row drop) | 54 |
+| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy, tool-row drop) | 55 |
 | streaming-session shape (incl. window expiry/reopen, live shrink, write breaker) | 67 |
 | idle-hold behavior | 6 |
-| **total** | **220** |
+| **total** | **221** |
 
 The two version-sensitive suites are branch-aware: `hasReopen` detects the 11.7
 `putElement()` layer, so 11.7 asserts the reopen/retry policy while the older
@@ -513,7 +513,7 @@ SHA-256 `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d`.
 
 - `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact (8 builds).
 - `tools/check_docs.py` -> release checks OK (216 assertions, 3 docs).
-- `tests/run-all.mjs` -> **5/5 suites, 0 failed, 220 assertions** against the
+- `tests/run-all.mjs` -> **5/5 suites, 0 failed, 221 assertions** against the
   v4.2 bundle (v4.x-gated cases detect their build; older bundles run 181).
 - Fleet rollout 23:0x-23:1x local: 79/75/18/19/43 each upgraded in place from
   `983a3cc5…` to `5e133638…` (`--check` reports `status=patched`,
@@ -599,8 +599,8 @@ Two changes, both compiled into the patch (no new Feishu config keys):
   the row being posted as a standalone message.
 
 33 hunks, patched SHA-256
-`2aacc800450556ff6ffa2f204c9157f369b4649b1cefc599431d0919c28a41f6`, patch
-SHA-256 `969f66f9c7cf9e9371ab73b9e3c5c257b5ba4ecd4fa7a9db0a720a3d2e7a7802`,
+`d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df`, patch
+SHA-256 `9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395`,
 218 assertions (two version-aware buffering checks in the aggregation suite, two
 source checks for the suppression flag and the replay helper). Canary on 18,
 then fleet rolled `90f6b9d8…` -> `fafe0a71…` on 75/79/19/43 (18 already at the
@@ -608,3 +608,34 @@ target build), remote run-all 5/5 with 218 assertions per host, `sha256sum -c`
 12/12, health 200 (75 on its usual second probe), `NRestarts=0`. The deploy
 guard also gained a five-minute freshness window: a card left open by an earlier
 restart no longer stalls the restart step.
+
+## 2026-11-26 v4.7 structured tool lane restored
+
+v4.6 removed the standalone tool bubbles but also made the rows invisible: core
+gates **both** lanes behind one switch. In `agent-runner-run`, `onToolStart` is
+wrapped with `shouldEmitToolLifecycle()` =
+`progressAllowed() && (shouldEmitStructuredProgress() || allowToolLifecycleWhenProgressHidden)`,
+and `shouldEmitStructuredProgress()` is
+`progressAllowed() && (suppressDefaultToolProgressMessages === true || shouldEmitToolResult())`.
+`suppressToolProgressMessages` alone silenced the text lane **and** left the
+lifecycle gate closed, so the card rendered with no tool rows at all.
+
+The fix uses the combination core documents for this case:
+
+- `suppressToolProgressMessages: true` — no per-event text (no bubbles);
+- `suppressDefaultToolProgressMessages: true` — core knows the channel renders
+  progress itself, which opens the structured lane;
+- `allowToolLifecycleWhenProgressHidden: true` — keeps `onToolStart` alive even
+  while text progress stays hidden.
+
+`parseBareToolLabel` also admits a single lower-case tool-id token
+(`tool_search`, `dispatch_action`); the v4.3 title-shape fallback required an
+upper-case first letter, which is exactly why those text rows used to leak as
+standalone cards.
+
+33 hunks, patched SHA-256
+`d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df`, patch
+SHA-256 `9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395`,
+220 assertions. Fleet rolled `fafe0a71…` -> `2aacc800…` on all five hosts
+(18 first), remote run-all 5/5 with 220 assertions per host, `sha256sum -c`
+12/12, health 200 (75 on its usual second probe), `NRestarts=0`.

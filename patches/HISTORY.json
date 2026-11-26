@@ -2,10 +2,6 @@
   "schema": 1,
   "patched": [
     {
-      "version": "2026.11.1",
-      "sha256": "a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84"
-    },
-    {
       "version": "2026.11.2",
       "sha256": "2796212ba2507d4d81a6c4b95e645d10e8f3706beb25b91540662bc369a34ce2"
     },
@@ -80,6 +76,10 @@
     {
       "version": "2026.11.10",
       "sha256": "2aacc800450556ff6ffa2f204c9157f369b4649b1cefc599431d0919c28a41f6"
+    },
+    {
+      "version": "2026.11.10",
+      "sha256": "d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df"
     }
   ]
 }
