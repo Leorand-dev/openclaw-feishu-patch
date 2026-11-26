@@ -162,6 +162,15 @@ if (src.includes("CARD_ANSWER_MAX_BYTES")) {
     && src.includes('Buffer.byteLength(text, "utf8") > CARD_ANSWER_MAX_BYTES')
     && !src.includes("text.length > textChunkLimit"));
 }
+if (src.includes("BLOCK_IDLE_CLOSE_GRACE_MS")) {
+  ok("v4.9 block streaming holds the card open for the late final payload",
+    src.includes("const BLOCK_IDLE_CLOSE_GRACE_MS = 2500;")
+    && src.includes("if (coreBlockStreamingEnabled && streaming?.isActive()) {")
+    && src.includes("blockIdleGraceTimer.unref?.();"));
+  ok("v4.9 a final reply already visible in the closed card is not re-sent",
+    src.includes("const matchesClosedStreamingSettlement = lastStreamingSettlement !== void 0")
+    && src.includes("(deliveredFinalTexts.has(text) || matchesClosedStreamingSettlement)"));
+}
 ok("no legacy status element in finalizer", !src.includes("deleteStatusElement") && !src.includes("keepStatus"));
 ok("prewarm status line is wired", src.includes("const PREWARM_STATUS_LINE") && src.includes("applyPrewarmStatus();"));
 ok("prewarm is cleared when output starts", src.includes('updateProgress(statusLine ? formatProgressLine(statusLine) : "\\u200B")'));

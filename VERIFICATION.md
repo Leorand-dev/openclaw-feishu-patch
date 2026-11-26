@@ -28,7 +28,7 @@ still on 10.10 must upgrade the plugin before installing.
 | `patches/2026.11.6/feishu-tool-aggregation.patch` | `83f827ed1f24bbb0785c80115a3423299f2a9768de69d070e87235575d2477ce` |
 | `patches/2026.11.7/feishu-tool-aggregation.patch` | `14095f5b37f955632e069385c5e657fb702d4a1fa826c81b08707bf58def5d9e` |
 | `patches/2026.11.9/feishu-tool-aggregation.patch` | `55e3f7ebafcd2f0d680bd278e205c27f54b2852d615dc8b3c1fc1d18040eb590` |
-| `patches/2026.11.10/feishu-tool-aggregation.patch` | `9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395` |
+| `patches/2026.11.10/feishu-tool-aggregation.patch` | `cb66538bb0bbf720e12989456a1cfe8e130087edcb020d138e84c754d2a035be` |
 | pristine bundle, 2026.11.1 | `6dbfa74bcad154b68d206f7d54883b8679a3b308332954a29f2d0f91af7bddb7` |
 | patched bundle, 2026.11.1 | `a5664b511b5004199dba5cbe777c12d7c39fc4c7a70e585fd81236646ecf7a84` |
 | `patches/HISTORY.json` (previous patched builds) | up to 20 entries; installer `KNOWN_PATCHED` block |
@@ -43,7 +43,7 @@ still on 10.10 must upgrade the plugin before installing.
 | pristine bundle, 2026.11.9 | `359a1e8eb4e072a0f6cccd3f0b7cb63a4cec4194d678e87c286737a4bab5b880` |
 | patched bundle, 2026.11.9 | `829b2491e276ddd9c914c77be8e4f528a3a76b6cb5204e170c7c8f6d83e5f527` |
 | pristine bundle, 2026.11.10 | `b29209583f72f4469788834539de9a28c7ecef4f2366c82da95b1a7760a75cdc` |
-| patched bundle, 2026.11.10 | `d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df` |
+| patched bundle, 2026.11.10 | `1553e9c3af64aece2b0fb39f50793c40b83ea9a9345ca9d2dd3ec11612971772` |
 
 The bundle files are not redistributed in the public release; hashes are
 reference values for the exact supported builds.
@@ -330,7 +330,7 @@ reply.
 
 ## Test results
 
-`tests/run-all.mjs` -> **5/5 suites, 0 failed, 221 assertions** against the
+`tests/run-all.mjs` -> **5/5 suites, 0 failed, 223 assertions** against the
 2026.11.10 bundle; the v4.1-gated cases detect their build, so the older
 patched bundles (2026.11.1, 2026.11.2, 2026.11.5, 2026.11.6, 2026.11.7,
 2026.11.9) run 181 assertions each (the 2026.11.3 build carries the same bytes
@@ -340,10 +340,10 @@ as 11.2, so the 11.2 result covers it):
 | --- | --- |
 | parser/structured-details/content-only helpers | 62 |
 | aggregation/status/details (incl. prewarm) | 31 |
-| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy, tool-row drop) | 55 |
+| finalization/reliability (incl. api counter, answer-only content, payload lanes, reopen policy, tool-row drop) | 57 |
 | streaming-session shape (incl. window expiry/reopen, live shrink, write breaker) | 67 |
 | idle-hold behavior | 6 |
-| **total** | **221** |
+| **total** | **223** |
 
 The two version-sensitive suites are branch-aware: `hasReopen` detects the 11.7
 `putElement()` layer, so 11.7 asserts the reopen/retry policy while the older
@@ -513,7 +513,7 @@ SHA-256 `dd53eab8fdfc71859634ffb3c1b13daf1668039e40013baed975da3296c1447d`.
 
 - `tools/verify_patch.py --all=patches` -> forward/reverse byte-exact (8 builds).
 - `tools/check_docs.py` -> release checks OK (216 assertions, 3 docs).
-- `tests/run-all.mjs` -> **5/5 suites, 0 failed, 221 assertions** against the
+- `tests/run-all.mjs` -> **5/5 suites, 0 failed, 223 assertions** against the
   v4.2 bundle (v4.x-gated cases detect their build; older bundles run 181).
 - Fleet rollout 23:0x-23:1x local: 79/75/18/19/43 each upgraded in place from
   `983a3cc5…` to `5e133638…` (`--check` reports `status=patched`,
@@ -599,8 +599,8 @@ Two changes, both compiled into the patch (no new Feishu config keys):
   the row being posted as a standalone message.
 
 33 hunks, patched SHA-256
-`d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df`, patch
-SHA-256 `9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395`,
+`1553e9c3af64aece2b0fb39f50793c40b83ea9a9345ca9d2dd3ec11612971772`, patch
+SHA-256 `cb66538bb0bbf720e12989456a1cfe8e130087edcb020d138e84c754d2a035be`,
 218 assertions (two version-aware buffering checks in the aggregation suite, two
 source checks for the suppression flag and the replay helper). Canary on 18,
 then fleet rolled `90f6b9d8…` -> `fafe0a71…` on 75/79/19/43 (18 already at the
@@ -634,8 +634,8 @@ upper-case first letter, which is exactly why those text rows used to leak as
 standalone cards.
 
 33 hunks, patched SHA-256
-`d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df`, patch
-SHA-256 `9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395`,
+`1553e9c3af64aece2b0fb39f50793c40b83ea9a9345ca9d2dd3ec11612971772`, patch
+SHA-256 `cb66538bb0bbf720e12989456a1cfe8e130087edcb020d138e84c754d2a035be`,
 220 assertions. Fleet rolled `fafe0a71…` -> `2aacc800…` on all five hosts
 (18 first), remote run-all 5/5 with 220 assertions per host, `sha256sum -c`
 12/12, health 200 (75 on its usual second probe), `NRestarts=0`.
@@ -657,10 +657,10 @@ The answer now stays in the streaming card up to a card-sized budget:
   against that budget, so `textChunkLimit` only governs plain-text chunking.
 
 34 hunks, patched SHA-256
-`d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df`, patch
-SHA-256 `9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395`,
-221 assertions. Fleet rolled `2aacc800…` -> `d40ad4e1…` on all five hosts
-(18 first), remote run-all 5/5 with 221 assertions per host, `sha256sum -c`
+`1553e9c3af64aece2b0fb39f50793c40b83ea9a9345ca9d2dd3ec11612971772`, patch
+SHA-256 `cb66538bb0bbf720e12989456a1cfe8e130087edcb020d138e84c754d2a035be`,
+223 assertions. Fleet rolled `2aacc800…` -> `d40ad4e1…` on all five hosts
+(18 first), remote run-all 5/5 with 223 assertions per host, `sha256sum -c`
 12/12, health 200 (75 on its usual second probe), `NRestarts=0`; the new
 fingerprints read `card_answer_budget=2`, `chunk_limit_discard=0`.
 
@@ -668,26 +668,35 @@ User-verified on host 18 with a real tool turn after the rollout: one card for t
 whole turn, tool rows inside `🧾 过程记录`, no standalone tool bubbles, no recalled
 card before the answer.
 
-## 2026-11-26 two cards on a block-streaming host (config fix, no patch change)
+## 2026-11-26 v4.9 one card on block-streaming hosts
 
-Host 19 answered with two cards on every reply. Its `channels.feishu.streaming` had
+Host 19 answered with two cards on every reply. Its `channels.feishu.streaming` carried
 `block.enabled: true` (the other four hosts do not), and the log showed two streaming
-sessions per turn: the block phase opened and closed one card, then the `final` payload
-— which block streaming delivers about a second after the idle signal — opened a second
-one.
-
-A code-side grace was tried (v4.9) and then withdrawn on the user's instruction: the
-release stays at v4.8 and the host is fixed by configuration instead. Core block
-streaming is off on that host now, matching the layout v4 contract where the card itself
-owns the answer:
+sessions per turn:
 
 ```
-channels.feishu.streaming.block.enabled = false
+22:12:41 Started streaming: cardId=…1584 / prewarm ready
+22:13:00 Closed streaming:  cardId=…1584
+22:13:01 Started streaming: cardId=…1656 / prewarm ready
+22:13:03 Closed streaming:  cardId=…1656
 ```
 
-No patch change was shipped for this: current patched SHA-256 remains
-`d40ad4e16ecd0f15312eb6d89a2803aa8e6f22708560e1e79b03be527c4c83df`, patch SHA-256
-`9cea9f667ede1a01bd8e7a516236c863f52427655ae3c328511c9ea3981c5395`, 34 hunks,
-221 assertions. Fleet is on `d40ad4e1…` on 75/79/18/19/43 (each host confirmed its
-pristine backup and re-applied the patch in place), remote run-all 5/5, `sha256sum -c`
-12/12, health 200, `NRestarts=0`.
+With block streaming core reports the reply idle after the block phase and sends the
+`final` payload about a second later; the idle signal closed the card, so the answer
+opened a second one. Two defensive changes, so any host whose config enables block
+streaming behaves like the others:
+
+- `BLOCK_IDLE_CLOSE_GRACE_MS = 2500`: while core block streaming is on and a card is live,
+  `onIdle` holds the close instead of finalizing; any payload arriving in that window
+  cancels the timer and the answer lands in the same card. Hosts without block streaming
+  take the original path unchanged.
+- `matchesClosedStreamingSettlement`: a `final` payload whose text equals the last cleanly
+  closed card's content counts as a duplicate and is not re-sent (block payloads never
+  register in `deliveredFinalTexts`, which is why the existing check missed them).
+
+34 hunks, patched SHA-256
+`1553e9c3af64aece2b0fb39f50793c40b83ea9a9345ca9d2dd3ec11612971772`, patch
+SHA-256 `cb66538bb0bbf720e12989456a1cfe8e130087edcb020d138e84c754d2a035be`,
+223 assertions. Fleet is on `1553e9c3…` (75/79/18/19/43), remote run-all 5/5 with 223
+assertions per host, `sha256sum -c` 12/12, health 200 (75 on its usual second probe),
+`NRestarts=0`; fingerprints `idle_grace=2`, `settlement_dedupe=2`.
