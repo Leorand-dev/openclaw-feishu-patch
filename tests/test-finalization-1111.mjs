@@ -46,7 +46,7 @@ ok("long thinking never survives into answer content", !reasoningSandbox.buildCo
 ok("no-answer turns keep the thinking text visible", hasV4
   ? reasoningSandbox.buildThinkingPanelBody("先看一下这个文件").includes("先看一下这个文件")
   : reasoningSandbox.buildContentText("先看一下这个文件", "   ").includes("💭 **Thinking**"));
-ok("every live preview write uses the same builder", (src.match(/flushStreamingCardUpdate\(buildContentText\(reasoningText, streamText\)\);/g) || []).length === (hasV4 ? 10 : 9));
+ok("every live preview write uses the same builder", (src.match(/flushStreamingCardUpdate\(buildContentText\(reasoningText, streamText\)\);/g) || []).length === (src.includes("syncBufferedToolStateToCard") ? 11 : hasV4 ? 10 : 9));
 ok("close writes the answer-only content", src.includes("const text = buildContentText(finalizedReasoningText, finalizedAnswerText);"));
 ok("non-extending snapshots use the element replace endpoint", src.includes("const replace = !isStreamingContentExtension(this.state.sentText, nextText);"));
 ok("a shrinking content snapshot bypasses the throttle", src.includes("!isStreamingContentExtension(this.state.sentText, text) || shouldPushStreamingUpdate(this.state.sentText, text)"));

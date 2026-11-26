@@ -735,7 +735,7 @@
  	let modelWaitLine = "";
  	let snapshotBaseText = "";
  	let hasStreamingFinalText = false;
-@@ -1522,9 +2013,207 @@
+@@ -1522,9 +2013,223 @@
  		return `> 💭 **Thinking**\n${thinking.replace(/^(?:Reasoning:|Thinking\.{0,3})\s*/u, "").replace(/^_(.*)_$/gm, "$1").split("\n").map((line) => `> ${line}`).join("\n")}`;
  	};
  	const buildCombinedStreamText = (thinking, answer) => {
@@ -874,7 +874,9 @@
 +		refreshIdleHold();
 +		startStreaming();
 +		if (streamingStartPromise) await streamingStartPromise;
-+		if (!streaming?.isActive()) return false;
++		// v4.6: rows are accumulated even when no card is open. The turn's next card renders
++		// them (`syncBufferedToolStateToCard`), so a tool event never needs a bubble of its own.
++		const cardActive = Boolean(streaming?.isActive());
 +		aggregatedToolTotal += 1;
 +		lastToolLabel = entry.label;
 +		lastToolDetail = entry.detail ?? "";
@@ -897,6 +899,7 @@
 +		if (!cardStartedAt) cardStartedAt = Date.now();
 +		toolPhaseCompleted = false;
 +		statusLine = buildWaitingLine(aggregatedToolTotal);
++		if (!cardActive) return true;
 +		flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
 +		const details = buildDetailsContent(lastToolDetail);
 +		if (details) await streaming.updateDetails(details).catch((error) => {
@@ -930,6 +933,19 @@
 +			structuredToolTotal -= 1;
 +			throw error;
 +		}
++	};
++	// v4.6: rows buffered while no card was open are replayed into a card that opens later in
++	// the same turn, so the card always shows the whole tool phase without extra bubbles.
++	const syncBufferedToolStateToCard = async () => {
++		if (!streaming?.isActive() || aggregatedToolTotal === 0) return false;
++		statusLine = buildWaitingLine(aggregatedToolTotal);
++		flushStreamingCardUpdate(buildContentText(reasoningText, streamText));
++		const details = buildDetailsContent(lastToolDetail);
++		if (details) await streaming.updateDetails(details).catch((error) => {
++			params.runtime.error?.(`feishu[${account.accountId}] details panel update failed: ${String(error)}`);
++			return false;
++		});
++		return true;
  	};
  	const flushStreamingCardUpdate = (combined) => {
 +		if (prewarmStatusLine && statusLine !== prewarmStatusLine) prewarmStatusLine = "";
@@ -944,7 +960,7 @@
  		partialUpdateQueue = queueFeishuStreamingUpdate({
  			queue: partialUpdateQueue,
  			session: streaming,
-@@ -1534,12 +2223,25 @@
+@@ -1534,12 +2239,25 @@
  			runtime: params.runtime
  		});
  	};
@@ -973,7 +989,7 @@
  			if (previewText.startsWith(nextText, offset)) {
  				previewBlockOffset = offset + nextText.length;
  				return;
-@@ -1549,8 +2251,7 @@
+@@ -1549,8 +2267,7 @@
  			previewText = nextText;
  			streamText = `${snapshotBaseText}${nextText}`;
  		}
@@ -983,7 +999,7 @@
  	};
  	const startStreaming = () => {
  		if (!streamingEnabled || streamingStartPromise || streaming || isStreamingStartBackedOff(account.accountId)) return;
-@@ -1562,7 +2263,7 @@
+@@ -1562,7 +2279,7 @@
  				httpTimeoutMs: resolveConfiguredHttpTimeoutMs(account)
  			} : null;
  			if (!creds) return;
@@ -992,16 +1008,18 @@
  			streaming = session;
  			try {
  				const cardHeader = resolveCardHeader(agentId, identity);
-@@ -1576,6 +2277,8 @@
+@@ -1576,6 +2293,10 @@
  					note: cardNote
  				});
  				streamingStartBackoffUntilByAccount.delete(account.accountId);
 +				cardStartedAt = Date.now();
 +				applyPrewarmStatus();
++				// v4.6: replay rows buffered while no card was open into this fresh card.
++				if (aggregatedToolTotal > 0) await syncBufferedToolStateToCard();
  			} catch (error) {
  				streamingStartBackoffUntilByAccount.set(account.accountId, performance.now() + STREAMING_START_FAILURE_BACKOFF_MS);
  				params.runtime.error(`feishu[${account.accountId}]: streaming start failed; using non-streaming card fallback for ${STREAMING_START_FAILURE_BACKOFF_MS / 1e3}s: ${String(error)}`);
-@@ -1587,6 +2290,7 @@
+@@ -1587,6 +2308,7 @@
  		})();
  	};
  	const resetStreamingState = () => {
@@ -1009,7 +1027,7 @@
  		streaming = null;
  		streamingStartPromise = null;
  		partialUpdateQueue = Promise.resolve();
-@@ -1594,6 +2298,21 @@
+@@ -1594,6 +2316,21 @@
  		lastPartial = "";
  		reasoningText = "";
  		statusLine = "";
@@ -1031,7 +1049,7 @@
  		modelWaitLine = "";
  		snapshotBaseText = "";
  		hasStreamingFinalText = false;
-@@ -1608,6 +2327,10 @@
+@@ -1608,6 +2345,10 @@
  		const updateQueueToClose = partialUpdateQueue;
  		const finalizedAnswerText = streamText;
  		const finalizedReasoningText = reasoningText;
@@ -1042,7 +1060,7 @@
  		const outcome = {
  			disposition,
  			content: finalizedAnswerText
-@@ -1619,14 +2342,18 @@
+@@ -1619,14 +2360,18 @@
  			let result = noVisibleFeishuReplyDelivery;
  			let finalizationError;
  			if (streamingToClose?.isActive()) {
@@ -1064,7 +1082,7 @@
  					}
  				} catch (error) {
  					if (!isChannelPartialDeliveryError(error)) throw error;
-@@ -1684,8 +2411,17 @@
+@@ -1684,8 +2429,17 @@
  		statusLine = nextStatusLine;
  		if (!Boolean(streaming?.isActive() || streamingStartPromise) && (!startIfNeeded || renderMode !== "card")) return false;
  		startStreaming();
@@ -1083,7 +1101,7 @@
  	};
  	const sendChunkedTextReply = async (paramsLocal) => {
  		const header = paramsLocal.useCard ? resolveCardHeader(agentId, identity) : void 0;
-@@ -1715,6 +2451,7 @@
+@@ -1715,6 +2469,7 @@
  					text: chunk,
  					...mentions.length > 0 ? { mentions } : {}
  				};
@@ -1091,7 +1109,7 @@
  				const result = paramsLocal.useCard ? await sendStructuredCardFeishu({
  					...sendParams,
  					header,
-@@ -1956,9 +2693,19 @@
+@@ -1956,9 +2711,19 @@
  			if (previewStreamingEnabled && renderMode === "card") startStreaming();
  			await typingCallbacks?.onReplyStart?.();
  		},
@@ -1112,7 +1130,7 @@
  		}
  	};
  	const handleDeliveryError = async (error, info) => {
-@@ -1984,6 +2731,15 @@
+@@ -1984,6 +2749,15 @@
  				};
  			},
  			deliver: async (inputPayload, info) => {
@@ -1128,7 +1146,7 @@
  				const prepared = await renderFeishuReplyPayload(inputPayload, {
  					to: sendTarget,
  					identity,
-@@ -1991,6 +2747,23 @@
+@@ -1991,6 +2765,23 @@
  				});
  				const rendered = consumeFeishuPresentationFallbackMarker(prepared.payload);
  				const payload = rendered.payload;
@@ -1152,7 +1170,7 @@
  				const presentationCard = prepared.card;
  				const hasPresentationFallback = rendered.presentationFallback?.hasVisibleContent === true;
  				const hasIndependentPresentation = presentationCard !== void 0 || hasPresentationFallback;
-@@ -2003,6 +2776,10 @@
+@@ -2003,6 +2794,10 @@
  				const text = info?.kind === "final" && !hasIndependentPresentation ? mergeStreamingFinalText(streamText, payload.isError ? reply.text : `${snapshotBaseText}${reply.text}`, payload.isError === true && hasStreamingFinalText) : reply.text;
  				const hasText = reply.hasText;
  				const hasMedia = reply.hasMedia;
@@ -1163,7 +1181,7 @@
  				const ttsSupplement = getReplyPayloadTtsSupplement(payload);
  				const ttsTextAlreadyVisible = ttsSupplement?.visibleTextAlreadyDelivered === true;
  				const hasVoiceMedia = hasMedia && reply.mediaUrls.some((mediaUrl) => shouldSuppressFeishuTextForVoiceMedia({
-@@ -2074,7 +2851,7 @@
+@@ -2074,7 +2869,7 @@
  							if (info?.kind === "final") {
  								streamText = text;
  								hasStreamingFinalText = true;
@@ -1172,7 +1190,17 @@
  							}
  						}
  						if (hasMedia) try {
-@@ -2117,30 +2894,61 @@
+@@ -2108,6 +2903,9 @@
+ 		},
+ 		replyOptions: {
+ 			onModelSelected,
++			// v4.6: the card already carries every tool row, so core must not also post its own
++			// tool-progress message for each event (renderMode=card turned each one into a bubble).
++			suppressToolProgressMessages: previewStreamingEnabled ? true : void 0,
+ 			disableBlockStreaming: !coreBlockStreamingEnabled,
+ 			preserveProgressCallbackStartOrder: previewStreamingEnabled ? true : void 0,
+ 			onPartialReply: previewStreamingEnabled ? (payload) => {
+@@ -2117,30 +2915,61 @@
  					trim: "both"
  				});
  				if (!cleaned) return false;
@@ -1237,7 +1265,7 @@
  				const statusLineLocal = formatChannelProgressDraftLineForEntry(account.config, {
  					event: "item",
  					itemKind,
-@@ -2154,11 +2962,33 @@
+@@ -2154,11 +2983,33 @@
  				lastPartial = "";
  				previewText = "";
  				previewBlockOffset = 0;

@@ -4,6 +4,7 @@ import { loadBundle, makeCounter, extractArrow, extractAsyncArrow } from "./_har
 const src = loadBundle();
 const hasV4 = src.includes("const LAYOUT_V4 = true;");
 const hasV41 = src.includes("lastContentWriteFailureAt");
+const hasV46 = src.includes("syncBufferedToolStateToCard");
 const { ok, finish } = makeCounter();
 
 const waiting = extractArrow(src, "buildWaitingLine");
@@ -93,8 +94,10 @@ ok("structured start tolerates missing args", await box.structured({ phase: "sta
 
 const abortBox = new Function("let statusLine = ''; " + code)();
 abortBox.setActive(false);
-ok("aggregation aborts if card disappears", await abortBox.run({ key: "c\0grep\0", icon: "🔍", label: "grep", detail: "" }) === false);
-ok("aborted aggregation does not count", abortBox.total() === 0);
+ok("a tool row with no open card is claimed by v4.6 (dropped by v3)",
+  await abortBox.run({ key: "c\0grep\0", icon: "🔍", label: "grep", detail: "" }) === (hasV46 ? true : false));
+ok("a claimed row is counted but not rendered until a card opens",
+  abortBox.total() === (hasV46 ? 1 : 0) && abortBox.details() === "");
 
 // prewarm: static "思考中..." line until the first real output arrives
 const prewarm = extractArrow(src, "applyPrewarmStatus");
@@ -151,11 +154,18 @@ if (hasV41) {
 
   const rollbackBox = new Function("let statusLine = ''; " + code)();
   rollbackBox.setActive(false);
-  ok("v4.1 a failed structured start rolls the guard back",
-    (await rollbackBox.structured({ phase: "start", name: "exec", args: { command: "x" } })) === false && rollbackBox.structuredTotal() === 0);
+  ok("v4.6 a structured start without a card is buffered, not dropped",
+    (await rollbackBox.structured({ phase: "start", name: "exec", args: { command: "x" } })) === true
+    && rollbackBox.structuredTotal() === 1 && rollbackBox.total() === 1);
   rollbackBox.setActive(true);
-  ok("v4.1 the summary lane recovers after a failed structured start",
-    (await rollbackBox.run({ key: "\u{1F4BB}\u0000exec\u0000x", icon: "\u{1F4BB}", label: "exec", detail: "x" })) === true && rollbackBox.total() === 1);
+  ok("v4.6 the buffered row still owns the turn once a card opens",
+    (await rollbackBox.run({ key: "\u{1F4BB}\u0000exec\u0000x", icon: "\u{1F4BB}", label: "exec", detail: "x" })) === true
+    && rollbackBox.total() === 1);
+  ok("v4.6 core tool-progress messages are suppressed while the card aggregates",
+    src.includes("suppressToolProgressMessages: previewStreamingEnabled ? true : void 0"));
+  ok("v4.6 a card that opens later replays the buffered tool state",
+    src.includes("const syncBufferedToolStateToCard = async () => {")
+    && src.includes("if (aggregatedToolTotal > 0) await syncBufferedToolStateToCard();"));
 }
 
 finish("2026.11.1 aggregation/status/details");
